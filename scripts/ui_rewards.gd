@@ -75,7 +75,11 @@ func render() -> void:
 			picker.custom_minimum_size.x = 140
 			picks.add_child(picker)
 		if not ui.state.eligible(monster["id"]).is_empty():
-			group.add_child(ui.primary("Transformation available", func(): ui.screens.evolution_choices(monster)))
+			var can_evolve = int(ui.state.run.get("evolution_budget", 1)) > 0
+			var transform = ui.primary("Transformation available" if can_evolve else "Earned / available in preparation", func(): ui.screens.evolution_choices(monster))
+			transform.disabled = not can_evolve
+			transform.tooltip_text = "One transformation is allowed after each body consumed. Earned choices remain available during preparation."
+			group.add_child(transform)
 		var separator = HSeparator.new()
 		separator.modulate = Color("465039")
 		group.add_child(separator)

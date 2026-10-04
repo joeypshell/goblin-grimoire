@@ -4,6 +4,8 @@ A playable 2D dungeon-defense roguelite deckbuilder built in **Godot 4.7 / GDScr
 
 **[Play in your browser](https://joeypshell.github.io/goblin-grimoire/)**
 
+Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
+
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
 
 ## Launch
