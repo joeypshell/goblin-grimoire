@@ -7,6 +7,7 @@ const CombatScreen = preload("res://scripts/ui_battle.gd")
 const RewardsScreen = preload("res://scripts/ui_rewards.gd")
 const Portrait = preload("res://scripts/monster_portrait.gd")
 const Chamber = preload("res://scripts/ui_chamber.gd")
+const TouchScroller = preload("res://scripts/touch_scroller.gd")
 
 const INK = Color("161c19")
 const PANEL = Color("222b24")
@@ -31,25 +32,76 @@ var screens
 var combat_screen
 var rewards_screen
 var actor_nodes: Dictionary = {}
+var margin: MarginContainer
+var _layout_size := Vector2.ZERO
+var _resize_pending := false
+var _screen_key := ""
+var _modal_scroll: ScrollContainer
+var _modal_shell: PanelContainer
 
 func _ready() -> void:
+	_update_density()
 	state = State.new()
 	screens = Screens.new(self)
 	combat_screen = CombatScreen.new(self)
 	rewards_screen = RewardsScreen.new(self)
 	_apply_theme()
+	add_child(TouchScroller.new(self))
 	var room = Chamber.new()
 	room.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(room)
-	var margin = MarginContainer.new()
+	margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	for edge in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + edge, 24 if edge in ["left", "right"] else 18)
 	add_child(margin)
 	root_box = VBoxContainer.new()
 	root_box.add_theme_constant_override("separation", 14)
 	margin.add_child(root_box)
+	_layout_size = get_viewport_rect().size
+	get_viewport().size_changed.connect(_viewport_changed)
 	refresh()
+
+func is_compact() -> bool:
+	var viewport_size = get_viewport_rect().size
+	return viewport_size.x < 1050 or viewport_size.y < 560
+
+func is_portrait() -> bool:
+	var viewport_size = get_viewport_rect().size
+	return viewport_size.x < viewport_size.y
+
+func content_width() -> float:
+	return max(1.0, get_viewport_rect().size.x - (24 if is_compact() else 48))
+
+func _update_density() -> void:
+	# Web canvases contain device pixels; controls retain CSS-sized touch targets.
+	if OS.has_feature("web"):
+		get_tree().root.content_scale_factor = maxf(1.0, DisplayServer.screen_get_scale())
+
+func _viewport_changed() -> void:
+	if _resize_pending or not is_instance_valid(root_box): return
+	_resize_pending = true
+	call_deferred("_reflow")
+
+func _reflow() -> void:
+	_resize_pending = false
+	_update_density()
+	var viewport_size = get_viewport_rect().size
+	if viewport_size == _layout_size: return
+	_layout_size = viewport_size
+	refresh()
+	_size_modal()
+
+func _scroll_nodes(node: Node) -> Array:
+	var result: Array = []
+	if node is ScrollContainer: result.append(node)
+	for child in node.get_children(): result.append_array(_scroll_nodes(child))
+	return result
+
+func _restore_scroll(offsets: Array) -> void:
+	if not is_instance_valid(content): return
+	var nodes = _scroll_nodes(content)
+	for index in range(mini(offsets.size(), nodes.size())):
+		nodes[index].scroll_horizontal = offsets[index].x
+		nodes[index].scroll_vertical = offsets[index].y
 
 func _apply_theme() -> void:
 	var t = Theme.new()
@@ -99,6 +151,14 @@ func style(fill: Color, line: Color, radius: int = 8) -> StyleBoxFlat:
 	return s
 
 func refresh() -> void:
+	var next_key = menu + ":" + str(state.run.get("phase", ""))
+	var offsets: Array = []
+	if _screen_key == next_key and is_instance_valid(content):
+		for sc in _scroll_nodes(content): offsets.append(Vector2i(sc.scroll_horizontal, sc.scroll_vertical))
+	_screen_key = next_key
+	for edge in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + edge, (12 if edge in ["left", "right"] else 10) if is_compact() else (24 if edge in ["left", "right"] else 18))
+	root_box.add_theme_constant_override("separation", 5 if is_compact() else 14)
 	actor_nodes.clear()
 	for child in root_box.get_children():
 		root_box.remove_child(child)
@@ -106,7 +166,7 @@ func refresh() -> void:
 	_header()
 	content = VBoxContainer.new()
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 12)
+	content.add_theme_constant_override("separation", 8 if is_compact() else 12)
 	root_box.add_child(content)
 	if menu == "title":
 		screens.title_screen()
@@ -118,10 +178,15 @@ func refresh() -> void:
 			"combat": combat_screen.render()
 			"feeding": rewards_screen.render()
 			"result", "victory", "defeat": screens.results()
-	toast = label("A dungeon lives through the choices of its keeper.", 13, MUTED)
+	toast = label("A dungeon lives through the choices of its keeper.", 12 if is_compact() else 13, MUTED, true)
 	root_box.add_child(toast)
+	toast.visible = not (is_compact() and menu == "game" and state.run.get("phase", "") == "combat")
+	if not offsets.is_empty(): call_deferred("_restore_scroll", offsets)
 
 func _header() -> void:
+	if is_compact():
+		_compact_header()
+		return
 	var bar = HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 14)
 	root_box.add_child(bar)
@@ -148,6 +213,39 @@ func _header() -> void:
 	line.modulate = Color("596148")
 	root_box.add_child(line)
 
+func _compact_header() -> void:
+	var bar = HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 8)
+	root_box.add_child(bar)
+	bar.add_child(label("GOBLIN GRIMOIRE", 16, PARCHMENT))
+	var spacer = Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bar.add_child(spacer)
+	var in_game = menu == "game" and not state.run.is_empty()
+	var stats = bar
+	if in_game and is_portrait():
+		stats = HBoxContainer.new()
+		stats.add_theme_constant_override("separation", 8)
+		root_box.add_child(stats)
+	if in_game:
+		stats.add_child(label("RANK " + state.rank_name() + " · RAID " + str(mini(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + "/" + str(Data.BALANCE["raids"]), 12, MOSS))
+		stats.add_child(label("CORE " + str(state.run["core"]) + "/" + str(Data.BALANCE["core"]), 13, EMBER))
+	if menu != "grimoire":
+		var book = button("Grimoire", open_grimoire)
+		book.add_theme_font_size_override("font_size", 13)
+		bar.add_child(book)
+	if in_game:
+		if is_portrait():
+			var space = Control.new()
+			space.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			stats.add_child(space)
+		var home = button("Save & title", func():
+			state.save_game()
+			menu = "title"
+			refresh())
+		home.add_theme_font_size_override("font_size", 13)
+		stats.add_child(home)
+
 func label(value: String, size: int = 16, color: Color = PARCHMENT, wrap: bool = false) -> Label:
 	var node = Label.new()
 	node.text = value
@@ -161,7 +259,7 @@ func label(value: String, size: int = 16, color: Color = PARCHMENT, wrap: bool =
 func button(value: String, action: Callable, min_width: float = 0) -> Button:
 	var node = Button.new()
 	node.text = value
-	node.custom_minimum_size = Vector2(min_width, 42)
+	node.custom_minimum_size = Vector2(min_width, 44)
 	node.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	node.focus_mode = Control.FOCUS_NONE
 	node.pressed.connect(action)
@@ -268,9 +366,23 @@ func open_modal() -> VBoxContainer:
 	var center = CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(center)
-	var box = panel(center)
-	box.custom_minimum_size = Vector2(570, 0)
+	_modal_shell = PanelContainer.new()
+	center.add_child(_modal_shell)
+	_modal_scroll = ScrollContainer.new()
+	_modal_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_modal_shell.add_child(_modal_scroll)
+	var box = VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 9)
+	_modal_scroll.add_child(box)
+	_size_modal()
 	return box
+
+func _size_modal() -> void:
+	if not is_instance_valid(_modal_scroll) or not is_instance_valid(overlay): return
+	var viewport_size = get_viewport_rect().size
+	_modal_shell.custom_minimum_size = Vector2(minf(598, viewport_size.x - 24), 0)
+	_modal_scroll.custom_minimum_size = Vector2(0, minf(600, viewport_size.y - 56))
 
 func close_modal() -> void:
 	if is_instance_valid(overlay):

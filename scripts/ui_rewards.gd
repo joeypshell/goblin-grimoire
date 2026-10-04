@@ -7,18 +7,20 @@ func _init(owner) -> void:
 	ui = owner
 
 func render() -> void:
+	var compact = ui.is_compact()
+	var page = ui.scroll(ui.content) if compact else ui.content
 	var rewards: Array = ui.state.run["rewards"]
 	var remaining = 0
 	for body in rewards:
 		if not body["claimed"]: remaining += 1
-	ui.content.add_child(ui.label("The fallen become your strength", 29))
-	ui.content.add_child(ui.label("Each body offers one actual ability to one monster. You choose who eats. Recovery follows when you continue.", 15, ui.MUTED, true))
-	var columns = HBoxContainer.new()
+	page.add_child(ui.label("The fallen become your strength", 25 if compact else 29, ui.PARCHMENT, compact))
+	page.add_child(ui.label("Each body offers one actual ability to one monster. You choose who eats. Recovery follows when you continue.", 15, ui.MUTED, true))
+	var columns = VBoxContainer.new() if compact else HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 14)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	ui.content.add_child(columns)
+	page.add_child(columns)
 	var bodies = ui.panel(columns)
-	bodies.custom_minimum_size.x = 230
+	bodies.custom_minimum_size.x = 0 if compact else 230
 	bodies.add_child(ui.label("RAID SPOILS", 16, ui.EMBER))
 	if ui.feed_body >= rewards.size(): ui.feed_body = 0
 	if not rewards.is_empty() and rewards[ui.feed_body]["claimed"] and remaining > 0:
@@ -27,35 +29,45 @@ func render() -> void:
 				ui.feed_body = i
 				ui.feed_ability = ""
 				break
+	var body_options = HBoxContainer.new() if compact else bodies
+	if compact:
+		body_options.add_theme_constant_override("separation", 5)
+		bodies.add_child(body_options)
 	for i in range(rewards.size()):
 		var body = rewards[i]
-		var entry = ui.button(body["name"] + "\n" + ("Consumed / skipped" if body["claimed"] else body["class_name"]), func():
+		var status = ("Done" if compact else "Consumed / skipped") if body["claimed"] else body["class_name"]
+		var entry = ui.button(body["name"] + "\n" + status, func():
 			ui.feed_body = i
 			ui.feed_ability = ""
 			ui.refresh())
 		entry.custom_minimum_size.y = 68
+		entry.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if compact:
+			entry.add_theme_font_size_override("font_size", 13)
+			entry.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		entry.disabled = body["claimed"]
 		if i == ui.feed_body and not body["claimed"]:
 			entry.add_theme_stylebox_override("normal", ui.style(Color("424832"), ui.EMBER))
-		bodies.add_child(entry)
+		body_options.add_child(entry)
 	var filler = Control.new()
 	filler.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	bodies.add_child(filler)
+	if compact: filler.free()
+	else: bodies.add_child(filler)
 	bodies.add_child(ui.label(str(remaining) + " bodies remaining", 14, ui.MUTED))
 	var continue_button = ui.primary("Recover & continue", func(): ui.act(ui.state.finish_feeding, "The team recovers after the raid."))
 	continue_button.disabled = remaining > 0
 	bodies.add_child(continue_button)
 	var feeding = ui.panel(columns, true)
-	feeding.custom_minimum_size.x = 390
+	feeding.custom_minimum_size.x = 0 if compact else 390
 	if remaining > 0:
 		_body_choices(rewards[ui.feed_body], feeding)
 	else:
-		feeding.add_child(ui.label("The meal is finished.", 24, ui.MOSS))
+		feeding.add_child(ui.label("The meal is finished.", 22 if compact else 24, ui.MOSS, compact))
 		feeding.add_child(ui.label("Choose learned skills or any available transformation, then recover and continue to the next raid.", 17, ui.MUTED, true))
 	var team = ui.panel(columns)
-	team.custom_minimum_size.x = 345
-	team.add_child(ui.label("YOUR MONSTERS / NEXT DECK", 15, ui.MOSS))
-	var roster = ui.scroll(team)
+	team.custom_minimum_size.x = 0 if compact else 345
+	team.add_child(ui.label("YOUR MONSTERS / NEXT DECK", 14 if compact else 15, ui.MOSS, compact))
+	var roster = team if compact else ui.scroll(team)
 	for monster in ui.state.run["monsters"]:
 		var group = VBoxContainer.new()
 		group.add_theme_constant_override("separation", 5)
@@ -64,19 +76,25 @@ func render() -> void:
 		group.add_child(row)
 		row.add_child(ui.portrait(monster, 46))
 		var info = VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(info)
-		info.add_child(ui.label(monster["name"] + "  ·  " + ui.form_name(monster["form"]), 15))
+		info.add_child(ui.label(monster["name"] + "  ·  " + ui.form_name(monster["form"]), 15, ui.PARCHMENT, compact))
 		info.add_child(ui.label(str(monster["feeds"]) + " meals  ·  " + str(monster["hp"]) + " / " + str(monster["max_hp"]) + " HP", 12, ui.MUTED))
-		var picks = HBoxContainer.new()
+		var picks = VBoxContainer.new() if compact else HBoxContainer.new()
 		group.add_child(picks)
 		for slot in range(2):
 			var picker = ui.screens.skill_picker(monster, slot)
 			picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			picker.custom_minimum_size.x = 140
+			picker.custom_minimum_size.x = 0 if compact else 140
 			picks.add_child(picker)
+			if compact:
+				picks.add_child(ui.label(Data.ABILITIES[monster["selected"][slot]]["description"], 13, ui.MUTED, true))
 		if not ui.state.eligible(monster["id"]).is_empty():
 			var can_evolve = int(ui.state.run.get("evolution_budget", 1)) > 0
 			var transform = ui.primary("Transformation available" if can_evolve else "Earned / available in preparation", func(): ui.screens.evolution_choices(monster))
+			if compact:
+				transform.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				transform.add_theme_font_size_override("font_size", 14)
 			transform.disabled = not can_evolve
 			transform.tooltip_text = "One transformation is allowed after each body consumed. Earned choices remain available during preparation."
 			group.add_child(transform)
@@ -85,13 +103,14 @@ func render() -> void:
 		group.add_child(separator)
 
 func _body_choices(body: Dictionary, box: VBoxContainer) -> void:
+	var compact = ui.is_compact()
 	var row = HBoxContainer.new()
 	box.add_child(row)
-	row.add_child(ui.portrait(body, 82))
+	row.add_child(ui.portrait(body, 58 if compact else 82))
 	var info = VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(info)
-	info.add_child(ui.label(body["name"], 24))
+	info.add_child(ui.label(body["name"], 21 if compact else 24, ui.PARCHMENT, compact))
 	info.add_child(ui.label("Choose one of this " + body["class_name"].to_lower() + "'s abilities.", 14, ui.MUTED, true))
 	box.add_child(ui.label("1  ·  CHOOSE WHO EATS", 14, ui.EMBER))
 	if ui.feed_monster == "": ui.feed_monster = ui.state.run["monsters"][0]["id"]
@@ -109,13 +128,15 @@ func _body_choices(body: Dictionary, box: VBoxContainer) -> void:
 		recipients.add_child(pick)
 	box.add_child(ui.label("2  ·  INHERIT ONE ABILITY", 14, ui.EMBER))
 	var monster = ui.state.get_monster(ui.feed_monster)
-	var choices = ui.scroll(box)
+	var choices = box if compact else ui.scroll(box)
 	var fresh = false
 	for id in body["abilities"]:
 		var known = id in monster["learned"]
 		if not known: fresh = true
 		var ability = Data.ABILITIES[id]
-		var pick = ui.button(ability["name"] + "  ·  " + str(ability["cost"]) + " energy  ·  " + ability["affinity"] + ("\nAlready known" if known else "\n" + ability["description"]), func():
+		var card_text = ability["name"] + "  ·  " + str(ability["cost"]) + " energy  ·  " + ability["affinity"]
+		if not compact: card_text += "\nAlready known" if known else "\n" + ability["description"]
+		var pick = ui.button(card_text, func():
 			ui.feed_ability = id
 			ui.refresh())
 		pick.custom_minimum_size.y = 66
@@ -125,9 +146,11 @@ func _body_choices(body: Dictionary, box: VBoxContainer) -> void:
 		if id == ui.feed_ability:
 			pick.add_theme_stylebox_override("normal", ui.style(Color("464833"), ui.EMBER))
 		choices.add_child(pick)
+		if compact:
+			choices.add_child(ui.label("Already known by this monster. " + ability["description"] if known else ability["description"], 13, ui.MUTED, true))
 	if not fresh:
 		box.add_child(ui.label("This monster knows every offered skill. Choose another recipient or skip this body.", 13, ui.MUTED, true))
-	var actions = HBoxContainer.new()
+	var actions = VBoxContainer.new() if compact else HBoxContainer.new()
 	box.add_child(actions)
 	var confirm = ui.primary("Consume & inherit", func():
 		var recipient = ui.feed_monster
@@ -143,17 +166,20 @@ func _body_choices(body: Dictionary, box: VBoxContainer) -> void:
 		ui.act(func(): ui.state.skip_body(ui.feed_body), "The body was left behind.")))
 
 func reveal(info: Dictionary) -> void:
+	var compact = ui.is_compact()
 	var box = ui.open_modal()
-	box.add_child(ui.label("A NEW PAGE IN THE GRIMOIRE", 15, ui.EMBER))
+	box.add_child(ui.label("A NEW PAGE IN THE GRIMOIRE", 13 if compact else 15, ui.EMBER, true))
 	var monster = ui.state.get_monster(info["monster_id"])
-	box.add_child(ui.label(monster["name"] + " becomes…", 24, ui.PARCHMENT))
-	var art = ui.portrait({"form": info["to"]}, 220)
+	box.add_child(ui.label(monster["name"] + " becomes…", 22 if compact else 24, ui.PARCHMENT, true))
+	var art = ui.portrait({"form": info["to"]}, 124 if compact else 220)
 	box.add_child(art)
-	box.add_child(ui.label(ui.form_name(info["to"]), 33, ui.MOSS))
+	box.add_child(ui.label(ui.form_name(info["to"]), 26 if compact else 33, ui.MOSS, true))
 	box.add_child(ui.label(Data.FORMS[info["to"]]["passive"], 17, ui.PARCHMENT, true))
-	box.add_child(ui.label("New signature: " + ui.ability_name(Data.FORMS[info["to"]]["signature"]), 16, ui.EMBER))
+	box.add_child(ui.label("New signature: " + ui.ability_name(Data.FORMS[info["to"]]["signature"]), 15 if compact else 16, ui.EMBER, true))
 	box.add_child(ui.label("Identity and learned skills preserved. Health keeps its current percentage. This discovery is yours forever.", 14, ui.MUTED, true))
-	box.add_child(ui.primary("Welcome the transformation", ui.close_modal))
+	var accept = ui.primary("Welcome the transformation", ui.close_modal)
+	accept.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(accept)
 	art.modulate = Color(0.5, 0.55, 0.35, 0.2)
 	var tween = art.create_tween()
 	tween.tween_property(art, "modulate", Color.WHITE, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)

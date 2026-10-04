@@ -4,6 +4,8 @@ A playable 2D dungeon-defense roguelite deckbuilder built in **Godot 4.7 / GDScr
 
 **[Play in your browser](https://joeypshell.github.io/goblin-grimoire/)**
 
+The browser game has responsive phone layouts, including iPhone portrait and landscape. Tap a card, then a highlighted target; swipe the hand to reach more cards. Scroll preparation, feeding, and the grimoire with your finger. Combat keeps **End turn** within reach, and portrait faction tabs show both teams' health. Skill menus use large touch targets and show selected ability descriptions. Rotating preserves the battle and selected card.
+
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
@@ -16,7 +18,7 @@ Open `project.godot` in Godot 4.7 and press **F5** to play, or run:
 godot --path .
 ```
 
-The browser build requires WebGL 2.0. It uses the Compatibility renderer and a single-threaded export, following [Godot's web export guidance](https://docs.godotengine.org/en/4.7/tutorials/export/exporting_for_web.html). Saves use Godot's `user://` storage; browser saves belong to the browser profile and site. Native saves live in the platform's Godot application data directory.
+The browser build requires WebGL 2.0. It uses the Compatibility renderer and a single-threaded export, following [Godot's web export guidance](https://docs.godotengine.org/en/4.7/tutorials/export/exporting_for_web.html). The web shell follows the visible browser height, excludes iPhone safe areas, and retains readable control sizes on high-density screens. Use a current Safari on iPhone. Saves use Godot's `user://` storage; browser saves belong to the browser profile and site. Native saves live in the platform's Godot application data directory.
 
 ## Controls and loop
 
@@ -51,9 +53,10 @@ Run the checks in a separate test profile:
 ```sh
 godot --headless --editor --path . --quit
 godot --headless --path . --script tests/test_runner.gd
+godot --headless --path . --script tests/mobile_smoke.gd
 ```
 
-See [docs/testing.md](docs/testing.md) for the checks actually performed. CI repeats headless verification on main and pull requests. Tests do not erase player saves. The empty-profile reset is a debug API, absent from the game interface.
+Run `godot --path . --script tests/mobile_smoke.gd` with a graphics display for native screenshots and real Godot touch-event checks. The headless variant checks responsive layout and UI actions for CI. See [docs/testing.md](docs/testing.md) for checks actually performed, including the limits of iPhone verification. Tests do not erase player saves. The empty-profile reset is a debug API, absent from the game interface.
 
 Export with Godot's matching export templates installed:
 
