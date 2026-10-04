@@ -102,6 +102,9 @@ func exercise_size(pixels: Vector2i) -> void:
 			ui.card_index = strike_index
 			ui.refresh()
 	await capture("05_card_target")
+	var instructions = ui.content.find_child("CardExplanation", true, false)
+	if instructions != null and current_size.x < current_size.y:
+		check(instructions.get_parent().get_global_rect().grow(1).encloses(instructions.get_global_rect()), "Selected owner, target and numeric action instructions fit without internal scrolling")
 	await test_orientation_preservation()
 	var enemy_id: String = game.battle.enemies[0]["id"]
 	var before_hp: int = game.battle.enemies[0]["hp"]
@@ -228,6 +231,9 @@ func test_modal_orientation() -> void:
 	check(JSON.stringify(game.run) == before and JSON.stringify(game.discoveries()) == discoveries_before, "Resizing evolution reveal preserves run and performed discovery")
 
 func find_button(node: Node, prefix: String, contains: String = ""):
+	# Stable action names survive clearer player-facing copy.
+	if prefix == "End turn" and node is Button and node.name == "EndTurn" and node.is_visible_in_tree() and not node.disabled:
+		return node
 	if node is Button and node.is_visible_in_tree() and not node.disabled and node.text.begins_with(prefix) and (contains.is_empty() or node.text.contains(contains)):
 		return node
 	for child in node.get_children():
@@ -421,25 +427,30 @@ func exercise_native_touch() -> void:
 	if end != null:
 		await tap_native(end)
 	check(game.battle.turn == turn_before + 1, "Native touch ends turn through the visible control")
+	ui.skip_turn_animation()
+	await settle()
 	ui.free()
 
 func swipe_hand(sc: ScrollContainer) -> void:
 	var selection_before: int = ui.card_index
-	var start := sc.get_global_rect().position + Vector2(sc.size.x - 30, 35)
-	await touch(start, true)
-	for step in range(1, 10):
-		var drag := InputEventScreenDrag.new()
-		drag.window_id = root.get_window_id()
-		drag.index = 0
-		drag.position = start - Vector2(step * 30, 0)
-		drag.relative = Vector2(-30, 0)
-		Input.parse_input_event(drag)
-		await process_frame
-	await touch(start - Vector2(270, 0), false)
-	await settle()
+	var last = sc.find_child("Card_%d" % (game.battle.hand.size() - 1), true, false)
+	# Wider descriptive cards can require more than one ordinary finger swipe.
+	for gesture in range(5):
+		var start := sc.get_global_rect().position + Vector2(sc.size.x - 30, 35)
+		await touch(start, true)
+		for step in range(1, 10):
+			var drag := InputEventScreenDrag.new()
+			drag.window_id = root.get_window_id()
+			drag.index = 0
+			drag.position = start - Vector2(step * 30, 0)
+			drag.relative = Vector2(-30, 0)
+			Input.parse_input_event(drag)
+			await process_frame
+		await touch(start - Vector2(270, 0), false)
+		await settle()
+		if last != null and sc.get_global_rect().encloses(last.get_global_rect()): break
 	check(ui.card_index == selection_before, "Dragging the hand does not accidentally select a card on release")
 	check(sc.scroll_horizontal > 0, "ScreenDrag horizontally scrolls the real hand")
-	var last = sc.find_child("Card_%d" % (game.battle.hand.size() - 1), true, false)
 	check(last != null and sc.get_global_rect().encloses(last.get_global_rect()), "Finger drag reaches the last card in the hand")
 	if last != null:
 		await tap_native(last)

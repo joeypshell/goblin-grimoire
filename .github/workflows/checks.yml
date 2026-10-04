@@ -27,6 +27,8 @@ jobs:
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/test_runner.gd
       - name: Verify phone layouts and UI actions
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/mobile_smoke.gd
+      - name: Verify visible turn flow and safe playback
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/flow_smoke.gd
       - name: Cache web export templates
         if: github.event_name == 'push'
         id: templates

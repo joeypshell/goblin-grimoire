@@ -4,7 +4,9 @@ A playable 2D dungeon-defense roguelite deckbuilder built in **Godot 4.7 / GDScr
 
 **[Play in your browser](https://joeypshell.github.io/goblin-grimoire/)**
 
-The browser game has responsive phone layouts, including iPhone portrait and landscape. Tap a card, then a highlighted target; swipe the hand to reach more cards. Scroll preparation, feeding, and the grimoire with your finger. Combat keeps **End turn** within reach, and portrait faction tabs show both teams' health. Skill menus use large touch targets and show selected ability descriptions. Rotating preserves the battle and selected card.
+The browser game has responsive phone layouts, including iPhone portrait and landscape. Tap a card, then a highlighted target; swipe the hand to reach more cards. Scroll preparation, feeding, and the grimoire with your finger. Combat keeps **End your turn** within reach, and portrait faction tabs show both teams' health. Skill menus use large touch targets and show selected ability descriptions. Rotating preserves the battle and selected card.
+
+Combat shows **YOUR TURN**, each card's acting monster, numeric invader intentions and their targets. Selecting a card keeps those intentions visible and adds its projected effect. Ending your turn visibly walks through monster effects, each invader's action, invader effects, and your fresh hand. Actual HP, block and status changes appear alongside each action. **Skip animation** jumps to the committed result. Preparation, feeding and recovery each explain the next step.
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
@@ -24,7 +26,7 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 
 - Click **New Run** or **Continue**. Inspect the incoming party and choose two available skills per monster.
 - Click **Defend the dungeon**, then select a card and a highlighted legal target. Cards resolve immediately. Owned cards require a living owner.
-- Click **End Turn** to resolve the announced enemy actions. You have three energy and draw five cards each turn. Friendly monsters only act through cards.
+- Click **End your turn** (or press Space) to watch the announced invader actions resolve. You have three energy and draw five cards each turn. Friendly monsters only act through cards. Cards pause during the enemy sequence; **Skip animation** finishes its presentation.
 - After victory, choose a body, a monster, and one actual adventurer ability to consume, or skip that body. Learned abilities can be selected for the next raid.
 - An **Evolve** action appears only for transformations a monster has earned. You can accept it or return to it during preparation.
 - Finish feeding to recover 25% of each monster's maximum HP. Clear two raids and a champion at F, then E. Defeating the E champion wins and records promotion to D.
@@ -44,7 +46,7 @@ Seeded encounter variations are recorded with the run. Intentions are locked at 
 
 ## Architecture and verification
 
-`game_data.gd` is balance/content; `battle.gd` is simulation; `run_state.gd` owns progression, separate run/profile saves, exactly-once rewards and recovery. `main.gd` and focused `ui_*.gd` modules render the interface. Original vector portraits and chamber art require no asset downloads.
+`game_data.gd` is balance/content; `battle.gd` is simulation; `run_state.gd` owns progression, separate run/profile saves, exactly-once rewards and recovery. `main.gd` and focused `ui_*.gd` modules render the interface. `battle_replay.gd` captures the existing turn simulation on an isolated clone; `turn_presentation.gd` presents its immutable snapshots after committing and saving the real turn once. Skipping or reloading cannot apply the actions again. Original vector portraits and chamber art require no asset downloads.
 
 The project bundles Noto Sans and Noto Sans Symbols 2 from [Google Fonts](https://github.com/google/fonts), under their included SIL Open Font Licenses in `assets/fonts/`, so native and browser text match.
 
@@ -54,6 +56,7 @@ Run the checks in a separate test profile:
 godot --headless --editor --path . --quit
 godot --headless --path . --script tests/test_runner.gd
 godot --headless --path . --script tests/mobile_smoke.gd
+godot --headless --path . --script tests/flow_smoke.gd
 ```
 
 Run `godot --path . --script tests/mobile_smoke.gd` with a graphics display for native screenshots and real Godot touch-event checks. The headless variant checks responsive layout and UI actions for CI. See [docs/testing.md](docs/testing.md) for checks actually performed, including the limits of iPhone verification. Tests do not erase player saves. The empty-profile reset is a debug API, absent from the game interface.

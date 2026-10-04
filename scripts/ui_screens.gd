@@ -26,7 +26,7 @@ func title_screen() -> void:
 	columns.add_child(copy)
 	copy.add_child(ui.label("THE DUNGEON IS YOURS", 13 if compact else 15, ui.MOSS))
 	copy.add_child(ui.label("Small goblins.\nDangerous potential.", 30 if compact else 44, ui.PARCHMENT, compact))
-	copy.add_child(ui.label("Keep the core alive. Turn adventurers into abilities.\nLet your monsters become something extraordinary.", 16 if compact else 19, ui.MUTED, true))
+	copy.add_child(ui.label("Prepare your goblins. Play their cards.\nFeed the fallen. Defend the core.", 16 if compact else 19, ui.MUTED, true))
 	var actions = HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 8 if compact else 12)
 	copy.add_child(actions)
@@ -46,9 +46,9 @@ func title_screen() -> void:
 	if compact: spacer.free()
 	else: copy.add_child(spacer)
 	var how = ui.panel(copy)
-	how.add_child(ui.label("A keeper's first lesson", 19 if compact else 20, ui.EMBER, compact))
-	how.add_child(ui.label("01   Prepare your three goblins and inspect the raid.\n02   Spend energy on cards, then end your turn.\n03   Consume the fallen to inherit one of their abilities.\n04   Discover transformations. Defend through rank E.", 14 if compact else 16, ui.PARCHMENT, true))
-	how.add_child(ui.label("Healing cycles back into your hand. Tap a card, then a highlighted target. Use End turn when you are ready." if compact else "Healing can be played again whenever it cycles back into your hand. Space ends your turn; Escape cancels a selected card.", 14, ui.MUTED, true))
+	how.add_child(ui.label("A raid in four steps", 19 if compact else 20, ui.EMBER, compact))
+	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: transfer one enemy ability.\n4   RECOVER: regain HP, ready the next raid.", 14 if compact else 16, ui.PARCHMENT, true))
+	how.add_child(ui.label("End turn resolves the invaders. Healing cards can be played again.", 14, ui.MUTED, true))
 	var art = ui.panel(columns, true)
 	art.add_child(ui.label("YOUR HUMBLE BEGINNINGS", 13 if compact else 15, ui.MOSS, compact))
 	var large = ui.portrait({"form": "goblin"}, 144 if compact else 285)
@@ -73,8 +73,8 @@ func preparation() -> void:
 	var text = VBoxContainer.new()
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(text)
-	text.add_child(ui.label("Prepare the chamber", 25 if compact else 29, ui.PARCHMENT, compact))
-	text.add_child(ui.label("Each monster brings its signature and two selected skills. Health carries between raids.", 15, ui.MUTED, true))
+	text.add_child(ui.label("1 / Prepare the chamber", 25 if compact else 27, ui.PARCHMENT, compact))
+	text.add_child(ui.label("Choose two skills per monster. Monsters act only through their owned cards; End turn resolves invaders. Next: inspect the party and defend.", 14, ui.MUTED, true))
 	top.add_child(ui.primary("Defend the dungeon", func():
 		ui.act(ui.state.start_raid, "Choose a card, then one of its highlighted targets."), 0 if compact else 230))
 	var roster = _flow(compact)
@@ -240,25 +240,25 @@ func results() -> void:
 	var box = ui.panel(page if compact else center)
 	if compact: center.free()
 	box.custom_minimum_size.x = 0 if compact else 780
-	var heading = "DUNGEON DEFENDED"
+	var heading = "4 / RECOVERY APPLIED"
 	var title = "The chamber grows quiet."
-	var message = "Your monsters recover " + recovery + " of their maximum health. Your next visitors are approaching."
+	var message = "Every monster recovered " + recovery + " of maximum HP, capped at full health. Next: return to preparation for " + ui.state.raid_name() + "."
 	if victory:
 		heading = "PROMOTED TO RANK D"
 		title = "Your dungeon has a future."
-		message = "The E-rank champion has fallen. You have completed the six-raid campaign. Your discoveries remain in the grimoire."
+		message = "The E-rank champion has fallen. Campaign complete. Next: read your discoveries or begin a new run with that knowledge."
 	elif defeat:
 		heading = "THE CORE HAS FALLEN"
 		title = "A dungeon lost. Knowledge kept."
-		message = "The core could endure no more breaches. Begin again with three fresh goblins and the discoveries you have earned."
+		message = "Your core is destroyed. Next: begin a new run with three fresh goblins. Your discoveries remain in the grimoire."
 	elif breach:
-		heading = "BREACH  ·  " + str(Data.BALANCE["breach"]) + " CORE LOST"
+		heading = "4 / BREACH  ·  " + str(Data.BALANCE["breach"]) + " CORE LOST"
 		title = "The goblins rise again."
-		message = "Your core survived. All monsters recover " + recovery + " of their maximum health. The same raid awaits another defense."
+		message = "Your core survived. Every monster recovered " + recovery + " of maximum HP. Next: return to preparation and retry this same raid."
 	elif ui.state.run.get("promotion", "") == "E":
-		heading = "PROMOTED TO RANK E"
+		heading = "4 / RECOVERY  ·  PROMOTED TO E"
 		title = "Word is spreading."
-		message = "The F-rank champion has fallen. Stronger adventurers now seek your core. Prepare your monsters for rank E."
+		message = "The F-rank champion has fallen and recovery is applied. Next: select skills and inspect stronger invaders during rank E preparation."
 	box.add_child(ui.label(heading, 16, ui.RED if defeat or breach else ui.EMBER, compact))
 	box.add_child(ui.label(title, 27 if compact else 34, ui.PARCHMENT, compact))
 	box.add_child(ui.label(message, 17, ui.MUTED, true))

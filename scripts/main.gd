@@ -8,6 +8,7 @@ const RewardsScreen = preload("res://scripts/ui_rewards.gd")
 const Portrait = preload("res://scripts/monster_portrait.gd")
 const Chamber = preload("res://scripts/ui_chamber.gd")
 const TouchScroller = preload("res://scripts/touch_scroller.gd")
+const TurnPresentation = preload("res://scripts/turn_presentation.gd")
 
 const INK = Color("161c19")
 const PANEL = Color("222b24")
@@ -38,10 +39,29 @@ var _resize_pending := false
 var _screen_key := ""
 var _modal_scroll: ScrollContainer
 var _modal_shell: PanelContainer
+var flow
+var last_action := ""
+var resolving_turn: bool:
+	get: return flow != null and flow.active
+var acting_actor_id: String:
+	get: return flow.actor_id if flow != null else ""
+var acting_target_ids: Array:
+	get: return flow.target_ids if flow != null else []
+var acted_actor_ids: Array:
+	get: return flow.acted_ids if flow != null else []
+var turn_stage: String:
+	get: return flow.stage if flow != null else "player"
+var turn_kind: String:
+	get: return flow.kind if flow != null else ""
+var turn_message: String:
+	get: return flow.message if flow != null else ""
+var turn_detail: String:
+	get: return flow.detail if flow != null else ""
 
 func _ready() -> void:
 	_update_density()
 	state = State.new()
+	flow = TurnPresentation.new(self)
 	screens = Screens.new(self)
 	combat_screen = CombatScreen.new(self)
 	rewards_screen = RewardsScreen.new(self)
@@ -151,7 +171,10 @@ func style(fill: Color, line: Color, radius: int = 8) -> StyleBoxFlat:
 	return s
 
 func refresh() -> void:
-	var next_key = menu + ":" + str(state.run.get("phase", ""))
+	flow.clear_feedback()
+	var phase = "combat" if resolving_turn else str(state.run.get("phase", "prep"))
+	if phase != "combat": last_action = ""
+	var next_key = menu + ":" + phase
 	var offsets: Array = []
 	if _screen_key == next_key and is_instance_valid(content):
 		for sc in _scroll_nodes(content): offsets.append(Vector2i(sc.scroll_horizontal, sc.scroll_vertical))
@@ -173,14 +196,14 @@ func refresh() -> void:
 	elif menu == "grimoire":
 		screens.grimoire()
 	else:
-		match state.run.get("phase", "prep"):
+		match phase:
 			"prep": screens.preparation()
 			"combat": combat_screen.render()
 			"feeding": rewards_screen.render()
 			"result", "victory", "defeat": screens.results()
 	toast = label("A dungeon lives through the choices of its keeper.", 12 if is_compact() else 13, MUTED, true)
 	root_box.add_child(toast)
-	toast.visible = not (is_compact() and menu == "game" and state.run.get("phase", "") == "combat")
+	toast.visible = not (is_compact() and menu == "game" and phase == "combat")
 	if not offsets.is_empty(): call_deferred("_restore_scroll", offsets)
 
 func _header() -> void:
@@ -203,12 +226,17 @@ func _header() -> void:
 		bar.add_child(label("RANK " + state.rank_name() + "  ·  RAID " + str(min(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + " / " + str(Data.BALANCE["raids"]), 15, MOSS))
 		bar.add_child(label("CORE  " + str(state.run["core"]) + " / " + str(Data.BALANCE["core"]), 17, EMBER))
 	if menu != "grimoire":
-		bar.add_child(button("Grimoire", open_grimoire))
+		var book = button("Grimoire", open_grimoire)
+		book.disabled = resolving_turn
+		bar.add_child(book)
 	if menu == "game":
-		bar.add_child(button("Save & title", func():
+		var home = button("Save & title", func():
+			if resolving_turn: return
 			state.save_game()
 			menu = "title"
-			refresh()))
+			refresh())
+		home.disabled = resolving_turn
+		bar.add_child(home)
 	var line = HSeparator.new()
 	line.modulate = Color("596148")
 	root_box.add_child(line)
@@ -232,6 +260,7 @@ func _compact_header() -> void:
 		stats.add_child(label("CORE " + str(state.run["core"]) + "/" + str(Data.BALANCE["core"]), 13, EMBER))
 	if menu != "grimoire":
 		var book = button("Grimoire", open_grimoire)
+		book.disabled = resolving_turn
 		book.add_theme_font_size_override("font_size", 13)
 		bar.add_child(book)
 	if in_game:
@@ -240,10 +269,12 @@ func _compact_header() -> void:
 			space.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			stats.add_child(space)
 		var home = button("Save & title", func():
+			if resolving_turn: return
 			state.save_game()
 			menu = "title"
 			refresh())
 		home.add_theme_font_size_override("font_size", 13)
+		home.disabled = resolving_turn
 		stats.add_child(home)
 
 func label(value: String, size: int = 16, color: Color = PARCHMENT, wrap: bool = false) -> Label:
@@ -321,6 +352,7 @@ func form_name(id: String) -> String:
 	return Data.FORMS.get(id, {}).get("name", id.replace("_", " ").capitalize())
 
 func act(action: Callable, message: String = "") -> void:
+	if resolving_turn: return
 	var previous_hp: Dictionary = {}
 	for monster in state.run.get("monsters", []): previous_hp[monster["id"]] = monster["hp"]
 	if state.battle != null:
@@ -349,11 +381,13 @@ func act(action: Callable, message: String = "") -> void:
 		rewards_screen.reveal(info)
 
 func open_grimoire() -> void:
+	if resolving_turn: return
 	grimoire_return = menu
 	menu = "grimoire"
 	refresh()
 
 func open_modal() -> VBoxContainer:
+	flow.clear_feedback()
 	if is_instance_valid(overlay):
 		overlay.queue_free()
 	overlay = Control.new()
@@ -389,6 +423,7 @@ func close_modal() -> void:
 		overlay.queue_free()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if resolving_turn: return
 	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 		if is_instance_valid(overlay):
 			close_modal()
@@ -397,4 +432,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			refresh()
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_SPACE:
 		if menu == "game" and state.run.get("phase", "") == "combat" and not is_instance_valid(overlay):
-			act(state.end_turn, "The adventurers resolve their announced actions.")
+			end_player_turn()
+
+func combat_battle():
+	return flow.view if resolving_turn and flow.view != null else state.battle
+
+func end_player_turn() -> void:
+	flow.end_turn()
+
+func skip_turn_animation() -> void:
+	flow.skip()
+
+func play_selected_card(target_id: String) -> void:
+	flow.play(target_id)
