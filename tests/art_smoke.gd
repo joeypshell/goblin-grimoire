@@ -34,6 +34,7 @@ func _run() -> void:
 	root.add_child(surface)
 	ui = MainScene.instantiate()
 	surface.add_child(ui)
+	await test_stage_layout_stability()
 	for size_ in SIZES:
 		await test_size(size_)
 	await test_motion_and_save()
@@ -79,6 +80,33 @@ func clone(battle):
 	var result = Combat.new()
 	result.restore(saved, saved["monster_combat"].duplicate(true), RandomNumberGenerator.new())
 	return result
+
+func test_stage_layout_stability() -> void:
+	# Card faces acquire their minimum sizes during deferred layout. A stage's
+	# allocated height must never feed back into its parent's minimum height.
+	pixels = Vector2i(1280, 720)
+	surface.size = pixels
+	reset_game("deferred_layout")
+	var before: Dictionary = game.battle.to_dict()
+	for size_ in [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1280, 720)]:
+		pixels = size_
+		surface.size = pixels
+		await settle()
+		var holder = named(ui, "BattlefieldHolder")
+		check(holder != null and is_instance_valid(ui.battlefield), "Resized desktop retains its battlefield allocation holder")
+		if holder == null or not is_instance_valid(ui.battlefield): return
+		var minimum: Vector2 = holder.get_combined_minimum_size()
+		var geometry: Rect2 = ui.battlefield.get_global_rect()
+		check(is_equal_approx(holder.custom_minimum_size.y, 140) and is_equal_approx(minimum.y, 140), "Battlefield parent keeps its fixed 140-pixel minimum after card layout")
+		check(holder.get_global_rect().grow(1).encloses(geometry) and geometry.size.y <= 360.1, "Stage fits allocated space and respects its large-screen height cap")
+		for index in range(game.battle.hand.size()):
+			var face = named(ui, "Card_%d" % index)
+			check(face != null and Rect2(Vector2.ZERO, Vector2(pixels)).grow(1).encloses(face.get_global_rect()), "Deferred card faces remain fully inside the resized desktop")
+		var end = named(ui, "EndTurn")
+		check(end != null and Rect2(Vector2.ZERO, Vector2(pixels)).grow(1).encloses(end.get_global_rect()), "Deferred card layout retains the visible end-turn action")
+		await settle()
+		check(minimum.is_equal_approx(holder.get_combined_minimum_size()) and geometry.is_equal_approx(ui.battlefield.get_global_rect()), "Another deferred layout pass cannot grow the minimum or move the stage")
+		check(equal(before, game.battle.to_dict()), "Desktop resizing and deferred layout preserve combat and RNG")
 
 func test_size(size_: Vector2i) -> void:
 	pixels = size_

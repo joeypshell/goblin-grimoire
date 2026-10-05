@@ -68,14 +68,32 @@ func _stage(parent: Node, battle) -> void:
 		heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		titles.add_child(heading)
-	var center = CenterContainer.new()
+	var center = HBoxContainer.new()
+	center.add_theme_constant_override("separation", 0)
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	board.add_child(center)
+	var left = Control.new()
+	left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.add_child(left)
+	var holder = Control.new()
+	holder.name = "BattlefieldHolder"
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.custom_minimum_size = Vector2(minf(ui.content_width(), 1400), 140)
+	holder.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	center.add_child(holder)
 	var stage = Battlefield.new()
-	stage.custom_minimum_size = Vector2(minf(ui.content_width(), 1400), 140)
-	center.add_child(stage)
-	center.resized.connect(func():
-		if is_instance_valid(stage): stage.custom_minimum_size.y = clampf(center.size.y, 140, 360))
+	stage.size = Vector2(holder.custom_minimum_size.x, 140)
+	holder.add_child(stage)
+	# Allocated space only controls geometry, never a container's minimum size.
+	holder.resized.connect(func():
+		if not is_instance_valid(stage): return
+		stage.size = Vector2(holder.size.x, minf(holder.size.y, 360))
+		stage.position = Vector2(0, (holder.size.y - stage.size.y) / 2))
+	var right = Control.new()
+	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center.add_child(right)
 	stage.setup(ui, battle)
 	ui.battlefield = stage
 
