@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#161c19">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Playtest reports · Goblin Grimoire</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <script src="config.js" defer></script>
+  <script src="dashboard.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#report-detail">Skip to selected report</a>
+  <header class="masthead">
+    <div><a class="brand" href="../">GOBLIN GRIMOIRE</a><p class="eyebrow">THE KEEPER'S OBSERVATORY</p></div>
+    <a class="button quiet" href="../">Return to game</a>
+  </header>
+  <main>
+    <div class="intro"><h1>Playtest reports</h1><p>Follow a run from its first deck to its last raid.</p></div>
+    <p id="feedback" role="status" aria-live="polite" class="notice">Opening the report archive…</p>
+    <section id="login" class="panel login" aria-labelledby="login-heading" hidden>
+      <p class="eyebrow">REVIEWER ACCESS</p><h2 id="login-heading">Open the archive</h2>
+      <p id="login-explanation">Sign in with an approved reviewer account. Reports are available only to the project's reviewers.</p>
+      <form id="login-form">
+        <label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" required>
+        <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button id="sign-in" class="primary" type="submit">Sign in</button>
+      </form>
+      <button id="account-mode" class="quiet wide" type="button">Create a reviewer account</button>
+      <p id="confirmation-help" class="small muted" hidden>Use your own password. After confirming your email, return to this dashboard and sign in. Account creation does not grant report access; the owner must approve your email.</p>
+      <p class="small muted">The session is kept in this browser tab. Closing the tab clears the saved session.</p>
+    </section>
+    <section id="dashboard" hidden aria-label="Report archive">
+      <div class="toolbar"><p id="archive-status" class="muted">Latest snapshots</p><div class="actions"><button id="refresh" type="button">Refresh reports</button><button id="sign-out" class="quiet" type="button">Sign out</button></div></div>
+      <div id="metrics" class="metrics" aria-label="Counts in loaded reports"></div>
+      <p class="small muted interpretation">Client reports are observations, not verified win rates or causal rankings. Older saves can have partial coverage; missing actions are never treated as zero.</p>
+      <div class="workspace">
+        <aside class="panel archive" aria-labelledby="archive-heading">
+          <div class="section-heading"><h2 id="archive-heading">Runs</h2><span id="loaded-count" class="badge">0 loaded</span></div>
+          <div class="filters"><label for="status-filter">Status</label><select id="status-filter"><option value="all">All statuses</option><option value="completed">Completed</option><option value="active">Active</option><option value="abandoned">Abandoned</option></select></div>
+          <div id="report-list" class="report-list"></div>
+          <p id="empty-list" class="muted" hidden>No reports have arrived yet. Automatic collection in the game sends the latest snapshot when a run changes.</p>
+          <button id="load-more" class="wide" type="button" hidden>Load more runs</button>
+        </aside>
+        <section id="report-detail" class="panel detail" tabindex="-1" aria-labelledby="detail-heading">
+          <div id="detail-empty"><p class="eyebrow">ONE RUN AT A TIME</p><h2 id="detail-heading">Select a run</h2><p class="muted">Read its decks, decisions, and ordered timeline here.</p></div>
+          <div id="report-content" hidden></div>
+        </section>
+      </div>
+    </section>
+  </main>
+  <footer>Goblin Grimoire · Playtest archive · No player identity is collected.</footer>
+  <noscript><p class="notice error">Enable JavaScript to sign in and view playtest reports.</p></noscript>
+</body>
+</html>

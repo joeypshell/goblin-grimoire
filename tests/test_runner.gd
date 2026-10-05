@@ -9,6 +9,7 @@ const Armor = preload("res://tests/test_armor.gd")
 const Balance = preload("res://tests/test_balance.gd")
 const Campaigns = preload("res://tests/test_campaigns.gd")
 const Traits = preload("res://tests/test_traits.gd")
+const Reports = preload("res://tests/test_reports.gd")
 
 var checks := 0
 var failures: Array = []
@@ -34,6 +35,7 @@ func _run() -> void:
 	Armor.new().run(self)
 	Balance.new().run(self)
 	Traits.new().run(self)
+	Reports.new().run(self)
 	test_campaign()
 	Campaigns.new().run(self)
 	print("RESULT: %d checks across %d groups; %d failures; campaign %d turns / %d card plays" % [checks, groups, failures.size(), campaign_turns, campaign_plays])

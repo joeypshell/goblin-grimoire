@@ -4,9 +4,11 @@ extends RefCounted
 const Data = preload("res://scripts/game_data.gd")
 const Combat = preload("res://scripts/battle.gd")
 const Traits = preload("res://scripts/dungeon_traits.gd")
+const Reports = preload("res://scripts/run_reports.gd")
 const SAVE_VERSION = 1
 
 signal changed
+signal report_changed(id: String)
 
 var run: Dictionary = {}
 var profile: Dictionary = {"discoveries": {}}
@@ -14,11 +16,14 @@ var rng = RandomNumberGenerator.new()
 var battle: Battle
 var last_evolution: Dictionary = {}
 var _prefix: String
+var _reports = Reports.new()
+var _report_emitted: Dictionary = {}
 
 func _init(save_prefix: String = "user://") -> void:
 	_prefix = save_prefix.trim_suffix("/") + "/"
 	DirAccess.make_dir_recursive_absolute(_prefix)
 	_load_profile()
+	_reports.load_journal(_read_json(_prefix + "reports.json"))
 
 func _read_json(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
@@ -73,8 +78,42 @@ func save_game() -> void:
 		run["battle"] = battle.to_dict()
 	else:
 		run.erase("battle")
+	_reports.ensure(run)
+	_reports.sync_view(run)
+	_reports.finish(run)
 	_write_json(_prefix + "grimoire.json", profile)
-	_write_json(_prefix + "run.json", run)
+	if _write_json(_prefix + "run.json", run): _persist_report(run["report"])
+
+func _persist_report(report: Dictionary) -> void:
+	_reports.upsert(report)
+	if not _write_json(_prefix + "reports.json", _reports.journal()): return
+	var id: String = report["id"]
+	if int(_report_emitted.get(id, -1)) != int(report["revision"]):
+		_report_emitted[id] = report["revision"]
+		report_changed.emit(id)
+
+func current_report() -> Dictionary:
+	return run.get("report", {}).duplicate(true)
+
+func report_list() -> Array:
+	var result: Array = _reports.reports.duplicate(true)
+	var current := current_report()
+	if current.is_empty(): return result
+	for index in range(result.size()):
+		if result[index].get("id", "") == current["id"]:
+			if int(current["revision"]) >= int(result[index]["revision"]): result[index] = current
+			return result
+	result.append(current)
+	while result.size() > Reports.MAX_REPORTS: result.pop_front()
+	return result
+
+func _abandon_previous_report() -> void:
+	var previous: Dictionary = run.duplicate(true) if not run.is_empty() else _read_json(_prefix + "run.json")
+	if previous.is_empty(): return
+	if battle != null and previous.get("phase", "") == "combat": previous["battle"] = battle.to_dict()
+	_reports.ensure(previous)
+	_reports.finish(previous, true)
+	_persist_report(previous["report"])
 
 func load_game() -> bool:
 	if not has_save():
@@ -99,10 +138,13 @@ func load_game() -> bool:
 		battle.restore(run["battle"], run["monsters"], rng)
 	# Old runs receive earned choices at a safe preparation/result boundary.
 	if run["phase"] in ["prep", "result"]: _open_trait_reward(run["phase"])
+	_reports.ensure(run)
+	save_game()
 	changed.emit()
 	return true
 
 func new_run(seed_value: int = 0) -> void:
+	_abandon_previous_report()
 	_load_profile()
 	if seed_value == 0:
 		seed_value = int(Time.get_unix_time_from_system()) ^ Time.get_ticks_usec()
@@ -115,6 +157,7 @@ func new_run(seed_value: int = 0) -> void:
 	}
 	battle = null
 	last_evolution = {}
+	_reports.begin(run)
 	party_preview()
 	save_game()
 	changed.emit()
@@ -136,6 +179,7 @@ func start_raid() -> void:
 	run["phase"] = "combat"
 	run["promotion"] = ""
 	run["evolution_budget"] = 0
+	_reports.start_attempt(run, Reports.capture(battle, true))
 	_resolve_battle()
 	save_game()
 	changed.emit()
@@ -143,8 +187,15 @@ func start_raid() -> void:
 func play_card(index: int, target: String) -> bool:
 	if run.get("phase", "") != "combat" or battle == null:
 		return false
+	var before := Reports.capture(battle)
+	var card: Dictionary = battle.hand[index].duplicate(true) if index >= 0 and index < battle.hand.size() else {}
+	var targets: Array = []
+	if not card.is_empty():
+		var definition: Dictionary = Data.ABILITIES[card["ability"]]
+		targets = battle.legal_targets(card) if definition["target"] in ["all_allies", "all_enemies"] else [target if target != "" else card["owner"]]
 	var success = battle.play_card(index, target)
 	if success:
+		_reports.played(run, card, targets, before, Reports.capture(battle), Reports.recent_log(battle))
 		_resolve_battle()
 		save_game()
 		changed.emit()
@@ -153,7 +204,9 @@ func play_card(index: int, target: String) -> bool:
 func end_turn() -> void:
 	if run.get("phase", "") != "combat" or battle == null:
 		return
+	var before := Reports.capture(battle)
 	battle.end_turn()
+	_reports.ended_turn(run, before, Reports.capture(battle), Reports.recent_log(battle))
 	_resolve_battle()
 	save_game()
 	changed.emit()
@@ -166,6 +219,7 @@ func _resolve_battle() -> void:
 		return
 	run["resolved_id"] = int(run["resolved_id"]) + 1
 	run["last_result"] = battle.outcome
+	_reports.resolved(run, battle)
 	if battle.outcome == "won":
 		run["rewards"] = []
 		for enemy in battle.enemies:
@@ -176,6 +230,7 @@ func _resolve_battle() -> void:
 		run["rewards"] = []
 		_recover()
 		run["phase"] = "defeat" if int(run["core"]) == 0 else "result"
+	_reports.record(run, "phase_changed", {"to": run["phase"]})
 
 func get_monster(id: String) -> Dictionary:
 	for monster in run.get("monsters", []):
@@ -192,7 +247,9 @@ func set_selected(monster_id: String, slot: int, ability_id: String) -> bool:
 	# Two different choices keep a twelve-card deck with meaningful selections.
 	if monster["selected"][1 - slot] == ability_id:
 		return false
+	var previous: String = monster["selected"][slot]
 	monster["selected"][slot] = ability_id
+	if previous != ability_id: _reports.record(run, "selection_changed", {"monster": monster_id, "slot": slot, "from": previous, "to": ability_id})
 	save_game()
 	changed.emit()
 	return true
@@ -230,6 +287,8 @@ func claim_body(body_index: int, monster_id: String) -> bool:
 	monster["feeds"] = int(monster["feeds"]) + 1
 	run["evolution_budget"] = 1
 	last_evolution = {}
+	_reports.count(run, "bodies_claimed")
+	_reports.record(run, "body_claimed", {"body": body.duplicate(true), "recipient": monster_id, "outcomes": outcomes, "taken": ability_id})
 	save_game()
 	changed.emit()
 	return true
@@ -239,6 +298,8 @@ func skip_body(index: int) -> bool:
 		return false
 	run["rewards"][index]["claimed"] = true
 	run["rewards"][index]["skipped"] = true
+	_reports.count(run, "bodies_skipped")
+	_reports.record(run, "body_skipped", {"body": run["rewards"][index].duplicate(true)})
 	save_game()
 	changed.emit()
 	return true
@@ -268,6 +329,8 @@ func evolve(monster_id: String, recipe_id: String) -> bool:
 		run["evolution_budget"] = 0
 		last_evolution = {"monster_id": monster_id, "from": old_form, "to": next_form, "recipe": recipe.duplicate(true)}
 		profile["discoveries"][next_form] = {"form": next_form, "source": old_form, "recipe": recipe.duplicate(true), "first_seed": run["seed"]}
+		_reports.count(run, "evolutions")
+		_reports.record(run, "evolved", last_evolution)
 		save_game()
 		changed.emit()
 		return true
@@ -276,6 +339,7 @@ func evolve(monster_id: String, recipe_id: String) -> bool:
 func _recover() -> void:
 	if int(run["recovered_id"]) == int(run["resolved_id"]):
 		return
+	var before := Reports.roster(run["monsters"])
 	for monster in run["monsters"]:
 		var amount = ceili(float(monster["max_hp"]) * float(Data.BALANCE["recovery"]))
 		monster["hp"] = mini(int(monster["max_hp"]), int(monster["hp"]) + amount)
@@ -283,6 +347,8 @@ func _recover() -> void:
 		monster["statuses"] = {}
 		monster["status_layers"] = {}
 	run["recovered_id"] = run["resolved_id"]
+	_reports.count(run, "recoveries")
+	_reports.record(run, "recovered", {"resolved_id": run["resolved_id"], "before": before, "after": Reports.roster(run["monsters"])})
 
 func finish_feeding() -> bool:
 	if run.get("phase", "") != "feeding":
@@ -299,6 +365,7 @@ func finish_feeding() -> bool:
 		run["promotion"] = rank_name()
 	run["phase"] = "victory" if int(run["raid"]) >= _campaign_size() else "result"
 	if run["phase"] == "result": _open_trait_reward("result")
+	_reports.record(run, "feeding_finished", {"promotion": run["promotion"]})
 	save_game()
 	changed.emit()
 	return true
@@ -314,6 +381,7 @@ func continue_after_result() -> void:
 	battle = null
 	run["rewards"] = []
 	party_preview()
+	_reports.record(run, "preparation_entered")
 	save_game()
 	changed.emit()
 
@@ -342,6 +410,8 @@ func choose_trait(id: String) -> bool:
 	run["phase"] = return_phase
 	run.erase("trait_return")
 	_open_trait_reward(return_phase)
+	_reports.count(run, "traits_chosen")
+	_reports.record(run, "trait_chosen", {"trait": id, "milestone": milestone})
 	save_game()
 	changed.emit()
 	return true

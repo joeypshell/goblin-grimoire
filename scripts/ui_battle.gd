@@ -334,4 +334,5 @@ func _show_log() -> void:
 	motion.button_pressed = ui.reduced_motion
 	motion.toggled.connect(func(value): ui.set_reduced_motion(value, true))
 	box.add_child(motion)
+	box.add_child(ui.button("Playtest reports", ui.report_ui.open))
 	box.add_child(ui.button("Return to battle", ui.close_modal))

@@ -11,6 +11,8 @@ const Chamber = preload("res://scripts/ui_chamber.gd")
 const TouchScroller = preload("res://scripts/touch_scroller.gd")
 const TurnPresentation = preload("res://scripts/turn_presentation.gd")
 const Preferences = preload("res://scripts/ui_preferences.gd")
+const ReportUploader = preload("res://scripts/report_uploader.gd")
+const ReportUI = preload("res://scripts/ui_run_reports.gd")
 
 const INK = Color("161c19")
 const PANEL = Color("222b24")
@@ -45,6 +47,8 @@ var flow
 var last_action := ""
 var battlefield: Control
 var reduced_motion := false
+var report_uploader
+var report_ui
 var resolving_turn: bool:
 	get: return flow != null and flow.active
 var acting_actor_id: String:
@@ -65,6 +69,10 @@ var turn_detail: String:
 func _ready() -> void:
 	_update_density()
 	if state == null: state = State.new()
+	report_uploader = ReportUploader.new()
+	report_uploader.setup(state)
+	add_child(report_uploader)
+	report_ui = ReportUI.new(self)
 	reduced_motion = Preferences.read_motion(state._prefix)
 	flow = TurnPresentation.new(self)
 	screens = Screens.new(self)

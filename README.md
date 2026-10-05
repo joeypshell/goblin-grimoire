@@ -16,6 +16,12 @@ Defend one chamber with Grub, Nix, and Moss. Read the invading party's intention
 
 After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, or coordinate all three monsters for extra energy and a draw with **Pack Instinct**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
 
+## v0.7 playtest reporting
+
+**Playtest reports** on the title, results, and **Log & rules** opens collection status, an upload toggle, and a review-dashboard link. Reports record decks, card use, unused energy, raid outcomes, feeding, evolutions, and traits without player identity. Older saves are labelled **partial coverage**; unseen history is not reconstructed. Native builds also offer **Copy current report JSON**. Local storage retains up to ten reports; bounded timelines can trim older events while keeping cumulative recorded totals.
+
+The [review dashboard](https://joeypshell.github.io/goblin-grimoire/dashboard/) provides reviewer sign-in/account creation, full-versus-partial coverage, per-raid results, decks, ordered action context, and JSON downloads. It connects to a separate Supabase Free backend with private reviewer access and confirmed-email requirements. Live database, ingestion, anonymous-access, native upload and mobile browser checks have passed. First-time reviewers choose their own password with **Create a reviewer account**, confirm their approved email, then return and sign in. See [the reporting verification](docs/testing.md#v070-playtest-reporting) and [reporting behavior and limits](docs/run-reports.md).
+
 ## Launch
 
 Open `project.godot` in Godot 4.7 and press **F5** to play, or run:
@@ -60,6 +66,8 @@ Seeded encounter variations are recorded with the run. Each single-target offens
 
 `game_data.gd` is balance/content; `battle.gd` is simulation; `run_state.gd` owns progression, separate run/profile saves, exactly-once rewards and recovery. `main.gd` and focused `ui_*.gd` modules render the interface. `battle_replay.gd` captures the existing turn simulation on an isolated clone; `turn_presentation.gd` presents its immutable snapshots after committing and saving the real turn once. Skipping or reloading cannot apply the actions again. Painterly card illustrations are bundled in `assets/cards/`; original vector creature and chamber art remains part of the prototype. `ui_card.gd`, `ui_battlefield.gd`, `battle_creature.gd`, and `card_fx.gd` handle cosmetic rendering without changing battle or RNG state.
 
+`run_reports.gd` records authoritative accepted actions in a separate bounded local journal; report queries do not consume gameplay RNG. `report_uploader.gd` tracks upload acknowledgments and retries separately from gameplay saves. The release candidate has its HTTPS ingestion endpoint and public dashboard configuration filled; reviewer access is enforced by database policies.
+
 The project bundles Noto Sans and Noto Sans Symbols 2 from [Google Fonts](https://github.com/google/fonts), under their included SIL Open Font Licenses in `assets/fonts/`, so native and browser text match.
 
 Run the checks in a separate test profile:
@@ -71,9 +79,16 @@ godot --headless --path . --script tests/mobile_smoke.gd
 godot --headless --path . --script tests/flow_smoke.gd
 godot --headless --path . --script tests/art_smoke.gd
 godot --headless --path . --script tests/trait_smoke.gd
+godot --headless --path . --script tests/report_core_smoke.gd
+godot --headless --path . --script tests/report_upload_smoke.gd
+godot --headless --path . --script tests/report_ui_smoke.gd
+# Node.js 24 is required for the TypeScript ingestion fixtures.
+node tools/test_report_ingest.mjs
 ```
 
 Run `godot --path . --script tests/mobile_smoke.gd` with a graphics display for native screenshots and real Godot touch-event checks. Run `godot --path . --script tests/art_smoke.gd` to capture illustrated card and battlefield views and check cosmetic state, reduced motion, and save continuation. The headless variants check layout and UI actions without rendering PNGs. See [docs/testing.md](docs/testing.md) for checks actually performed, including the limits of iPhone verification. Tests do not erase player saves. The empty-profile reset is a debug API, absent from the game interface.
+
+Run `godot --path . --script tests/report_ui_smoke.gd` for report-modal screenshots. Ordinary upload tests use a self-contained loopback HTTP server; ingestion fixtures use a mocked backend. Explicitly gated live integration commands and their cleanup scope appear in [docs/testing.md](docs/testing.md#v070-playtest-reporting-connected-release-candidate).
 
 Export with Godot's matching export templates installed:
 

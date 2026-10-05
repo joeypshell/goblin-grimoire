@@ -49,6 +49,12 @@ func title_screen() -> void:
 	how.add_child(ui.label("A raid in four steps", 19 if compact else 20, ui.EMBER, compact))
 	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: transfer one enemy ability.\n4   RECOVER: regain HP; earn milestone traits.", 14 if compact else 16, ui.PARCHMENT, true))
 	how.add_child(ui.label("End turn resolves the invaders. Healing cards can be played again.", 14, ui.MUTED, true))
+	how.add_child(ui.label("Anonymous gameplay reports upload automatically to help improve the game.", 13, ui.MUTED, true))
+	var reports = ui.button("Playtest reports", ui.report_ui.open, 0 if compact else 150)
+	reports.name = "OpenRunReports"
+	reports.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if compact: how.add_child(reports)
+	else: actions.add_child(reports)
 	var art = ui.panel(columns, true)
 	art.add_child(ui.label("YOUR HUMBLE BEGINNINGS", 13 if compact else 15, ui.MOSS, compact))
 	var large = ui.portrait({"form": "goblin"}, 144 if compact else 285)
@@ -297,3 +303,6 @@ func results() -> void:
 	else:
 		actions.add_child(ui.primary("Return to preparation", func(): ui.act(ui.state.continue_after_result), 0 if compact else 270))
 	actions.add_child(ui.button("Read grimoire", ui.open_grimoire, 0 if compact else 175))
+	var reports = ui.button("Playtest reports", ui.report_ui.open)
+	reports.name = "OpenRunReports"
+	actions.add_child(reports)

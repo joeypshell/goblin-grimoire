@@ -33,6 +33,15 @@ jobs:
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/art_smoke.gd
       - name: Verify dungeon trait choices and champion UI
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/trait_smoke.gd
+      - name: Verify automatic report uploads and retries
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/report_upload_smoke.gd
+      - name: Verify phone report controls
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/report_ui_smoke.gd
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify report ingestion validation
+        run: node tools/test_report_ingest.mjs
       - name: Cache web export templates
         if: github.event_name == 'push'
         id: templates
@@ -51,6 +60,7 @@ jobs:
         run: |
           mkdir -p build/web
           /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --export-release Web build/web/index.html
+          cp -r web/dashboard build/web/dashboard
       - name: Configure Pages
         if: github.event_name == 'push'
         uses: actions/configure-pages@v5

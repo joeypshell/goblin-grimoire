@@ -17,6 +17,7 @@ var energy: int = 0
 var turn: int = 0
 var outcome: String = "active"
 var log: Array = []
+var action_log: Array = [] # Ephemeral complete log of one accepted action; never serialized.
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var intents: Array = []
 var traits: Array = []
@@ -37,6 +38,7 @@ func setup(roster: Array, party: Array, random: RandomNumberGenerator, active_tr
 	discard.clear()
 	intents.clear()
 	log.clear()
+	action_log.clear()
 	turn = 0
 	outcome = "active"
 	for actor in monsters + enemies:
@@ -98,6 +100,7 @@ func play_card(index: int, target_id: String) -> bool:
 		target_id = targets[0]
 	if not targets.has(target_id):
 		return false
+	action_log.clear()
 	energy -= int(ability["cost"])
 	hand.remove_at(index)
 	discard.append(card)
@@ -113,6 +116,7 @@ func play_card(index: int, target_id: String) -> bool:
 func end_turn() -> void:
 	if outcome != "active":
 		return
+	action_log.clear()
 	discard.append_array(hand)
 	hand.clear()
 	# A faction's poison, burning and regeneration tick when that faction ends its turn.
@@ -437,6 +441,7 @@ func _status_name(status_id: String) -> String:
 
 func _add_log(message: String) -> void:
 	log.append(message)
+	action_log.append(message)
 	if log.size() > 80:
 		log.pop_front()
 

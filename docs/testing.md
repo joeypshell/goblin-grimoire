@@ -1,5 +1,62 @@
 # Verification
 
+## v0.7.0 playtest reporting
+
+The game connects to the approved separate Supabase Free project **`kuokxkgujawxvtfgefsw`**. The ingestion function is deployed, and the game endpoint and public dashboard configuration are filled. The Auth Site URL is `https://joeypshell.github.io/goblin-grimoire/dashboard/`; email confirmation is enabled. The selected reviewer is approved in the private database allowlist; reviewer email addresses are not included in public source. The Verify and publish workflow exports the game and copies its static dashboard into the Pages artifact after all CI checks pass.
+
+The final full gameplay run passed **5,299 checks across 14 groups**, with zero failures and a clean engine/script log. Reporting fixtures compare ordinary and instrumented play, preserve complete battle/progression/RNG state, exercise partial legacy observation, continuation, per-action combat logs, cumulative summaries, historical decks and energy, and bounded event/journal storage. The final isolated report-core run passed **2,082 assertions**, including terminal reports remaining byte-identical through later metadata changes, saves and reloads.
+
+| Check | Recorded result | Scope |
+| --- | --- | --- |
+| General mobile layout/actions, headless | 16,018 assertions / 180 views / zero issues | Existing gameplay screens with reporting entry points |
+| Report controls, headless | 1,064 assertions / 28 layouts / zero issues | Status, upload toggle, summaries, rotation and reachable 44-pixel actions |
+| Report controls, native | 1,064 assertions / 28 screenshots / zero issues | Same controls with rendered pixel review |
+| Uploader | 63 checks / 8 loopback HTTP requests / zero failures | Local requests, acknowledgments, preference persistence and retry/disable behavior |
+| Dashboard browser fixtures | 89 checks / 8 screenshots / zero issues | Mocked REST authentication and report responses at four sizes |
+| Live database | 75 assertions / zero failures | Actual database roles, reviewer-policy fixtures, write capability, revision and terminal rules; transaction rolled back |
+| Live HTTP integration | 22 checks / zero failures | Deployed ingestion, malformed/oversized payloads, capabilities, revisions, terminal protection, CORS, anonymous denial and public email-confirmation settings |
+| Live native Godot uploader | 17 checks / 1 HTTP 200 completion / zero failures | Actual isolated run/card/turn payload, exact acknowledgement, durable reload and opt-out |
+| Connected dashboard UI | 4 browser sizes / zero layout issues | Initial sign-in and account-mode guidance through CUA; no authentication submitted |
+| Live mobile browser collection | CORS HTTP 204 / 4 collector POST HTTP 200 acknowledgements | Actual isolated run actions, revisions 2–5 for one report ID, synced status and opt-out |
+
+The locally served release candidate's dashboard HTML, configuration, JavaScript and CSS each returned **HTTP 200** with their expected content types. The public configuration points to the approved project and uses a publishable key. A separate public-key-only report read returned **HTTP 401 / PostgreSQL 42501**, with no report rows. These static and anonymous checks made no signup, sign-in or credential requests. They do not establish a human reviewer's browser session.
+
+Report UI sizes are **1280×720, 375×667, 390×844 and 844×320**. Native review confirms readable partial-coverage guidance and status, scrollable short-landscape controls, and the unchanged 44-pixel minimum. The desktop title's report action shares its existing action row so the footer remains in bounds. Rotation retains the same open modal, upload choice and report data. Captures are in ignored `tests/artifacts/reports/`.
+
+Dashboard checks use isolated browser fixtures at the same four sizes. They cover explicit first-time signup and email-confirmation instructions, sign-in failure and password clearing, access-token refresh, sign-out and stale-response rejection, pagination deduplication, safe text rendering, 64-bit decimal seed preservation, ordered events, deck owner/costs, per-attempt unused energy, trait activations, and exact JSON export. Mocked authentication does not verify a real reviewer account or database authorization. Screenshots are in ignored `tests/artifacts/dashboard/`. The Node.js 24 ingestion harness passed **40 checks** against a mocked RPC backend. Its validator also accepted **18 actual isolated Godot report snapshots**, including bounded reports and terminal outcomes.
+
+The connected candidate was separately inspected through CUA at **1280×720, 375×667, 390×844 and 844×320**. Initial sign-in fields and buttons remained within the page width, with no horizontal overflow; email/password fields were at least 44 pixels high and action buttons measured 44.797 pixels. Switching to **Create a reviewer account** and back showed the own-password, email-confirmation and approved-reviewer guidance without submitting either form or making Auth requests. The viewport override was reset afterward. Captures are in ignored `tests/artifacts/reports-live/dashboard-<width>x<height>.png`.
+
+The actual game was played in an isolated browser origin at **390×844 with device-pixel ratio configured to 3**. A new run played one **Goblin Stab** and ended two turns; the recorded summary showed **1 card, 2 ended turns and 5 unused energy**, without player identity. The browser observed a successful **HTTP 204 CORS preflight** and **four collector POST responses with HTTP 200**, acknowledging revisions **2, 3, 4 and 5** for the same report ID. **Playtest reports** showed **Saved gameplay reports synced**, then **Automatic sharing paused** after opt-out. Reload initialized the expected **1170×2532** retina canvas; Continue restored round three, HP, energy, hand and locked targets. The report retained revision five, the same counts and the paused upload setting. Browser warnings/errors were empty. Test reports were removed by their captured UUIDs, leaving the dashboard empty for real playtests. These observations do not establish a physical Safari session.
+
+The browser and Windows release-candidate exports finish without errors or warnings. The browser artifact includes the static dashboard with its real public connection settings. The normal player's run and grimoire hashes remain unchanged.
+
+Run the reporting checks with isolated profiles:
+
+```sh
+godot --headless --path . --script tests/report_core_smoke.gd
+godot --headless --path . --script tests/report_upload_smoke.gd
+godot --headless --path . --script tests/report_ui_smoke.gd
+godot --path . --script tests/report_ui_smoke.gd
+# Requires Node.js 24.
+node tools/test_report_ingest.mjs
+```
+
+The gameplay suite also includes report regressions through `tests/test_runner.gd`. Ordinary Godot harnesses use named `user://verification/` profiles and disable live uploads; the loopback uploader fixture explicitly enables only its local test server. Mocked dashboard fixtures do not touch real reports or reviewer accounts. No normal player save is reset or uploaded by these checks.
+
+The following **manual integration commands write disposable verification reports to the approved live backend**. They require the explicit flag, are excluded from CI and normal gameplay checks, and perform no reviewer signup or sign-in:
+
+```sh
+# Requires Node.js 24; stores the generated UUID in build/reports-live-http.json.
+node tools/test_report_live.mjs --live-report-test
+# Prints its generated UUID and uses a unique user://verification/report_live_* profile.
+godot --path . --script tests/report_live_smoke.gd -- --live-report-test
+```
+
+Both live harnesses mark their report **build `0.7.0-verification` / platform `Verification`**. The native test plays an actual drawn card and ends a turn through RunState before uploading, then reloads the durable acknowledgement and paused preference without changing gameplay RNG. Cleanup is an owner database action limited to the captured test UUIDs, with both markers checked before deletion; deleting those report rows also removes their private per-run keys through the foreign-key cascade. It must not delete ordinary reports, reviewer accounts, the reviewer allowlist or unrelated upload counters. SQL role/policy fixtures are rolled back and do not leave test users or rows behind.
+
+Actual human reviewer signup, password entry, email confirmation and sign-in still require the user. Browser-issued reviewer JWTs, concurrent live writers and a physical iPhone Safari session have not been verified. Connected browser coverage establishes the initial forms and layout; authenticated archive behavior is covered by mocked browser fixtures and database role/policy checks.
+
 ## v0.6.0 dungeon builds and champion payoff
 
 The gameplay suite passed **3,217 checks across 13 groups**, with zero failures. New coverage exercises earned choices after the first raid and F champion, rejection before an earned reward, no duplicate traits, exactly-once recovery and choice saves, pending-choice reload, two missed legacy milestones at a safe boundary, and no RNG consumption from reward queries or selection. Tests use isolated verification profiles; the normal native run and grimoire hashes remain unchanged.
