@@ -3,6 +3,7 @@ extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
 const Combat = preload("res://scripts/battle.gd")
+const Traits = preload("res://scripts/dungeon_traits.gd")
 const SAVE_VERSION = 1
 
 signal changed
@@ -61,7 +62,7 @@ func _load_profile() -> void:
 
 func has_save() -> bool:
 	var saved = _read_json(_prefix + "run.json")
-	return saved.get("version", 0) == SAVE_VERSION and saved.get("monsters") is Array and saved.get("phase", "") in ["prep", "combat", "feeding", "result", "victory", "defeat"]
+	return saved.get("version", 0) == SAVE_VERSION and saved.get("monsters") is Array and saved.get("phase", "") in ["prep", "combat", "feeding", "trait", "result", "victory", "defeat"]
 
 func save_game() -> void:
 	if run.is_empty():
@@ -80,9 +81,13 @@ func load_game() -> bool:
 		return false
 	_load_profile()
 	run = _read_json(_prefix + "run.json")
+	if not run.get("traits") is Array: run["traits"] = []
+	if not run.get("trait_milestones") is Array: run["trait_milestones"] = []
 	Data.ensure_priest_offense(run.get("party", []))
+	Data.ensure_champion_mechanics(run.get("party", []))
 	if run.get("battle") is Dictionary:
 		Data.ensure_priest_offense(run["battle"].get("enemies", []))
+		Data.ensure_champion_mechanics(run["battle"].get("enemies", []))
 	rng.seed = int(run["seed"])
 	rng.state = int(run["rng_state"])
 	battle = null
@@ -92,6 +97,8 @@ func load_game() -> bool:
 			return false
 		battle = Combat.new()
 		battle.restore(run["battle"], run["monsters"], rng)
+	# Old runs receive earned choices at a safe preparation/result boundary.
+	if run["phase"] in ["prep", "result"]: _open_trait_reward(run["phase"])
 	changed.emit()
 	return true
 
@@ -104,6 +111,7 @@ func new_run(seed_value: int = 0) -> void:
 		"seed": seed_value, "monsters": [Data.new_monster("m1", "Grub"), Data.new_monster("m2", "Nix"), Data.new_monster("m3", "Moss")],
 		"core": int(Data.BALANCE["core"]), "raid": 0, "phase": "prep", "rewards": [],
 		"resolved_id": 0, "recovered_id": 0, "last_result": "", "promotion": "", "evolution_budget": 0,
+		"traits": [], "trait_milestones": [],
 	}
 	battle = null
 	last_evolution = {}
@@ -117,13 +125,14 @@ func party_preview() -> Array:
 	if not run.has("party"):
 		run["party"] = Data.generate_party(int(run["raid"]), rng)
 		save_game()
+	Data.ensure_champion_mechanics(run["party"])
 	return run["party"]
 
 func start_raid() -> void:
 	if run.get("phase", "") != "prep":
 		return
 	battle = Combat.new()
-	battle.setup(run["monsters"], party_preview(), rng)
+	battle.setup(run["monsters"], party_preview(), rng, run.get("traits", []))
 	run["phase"] = "combat"
 	run["promotion"] = ""
 	run["evolution_budget"] = 0
@@ -289,6 +298,7 @@ func finish_feeding() -> bool:
 	if rank_name() != previous_rank:
 		run["promotion"] = rank_name()
 	run["phase"] = "victory" if int(run["raid"]) >= _campaign_size() else "result"
+	if run["phase"] == "result": _open_trait_reward("result")
 	save_game()
 	changed.emit()
 	return true
@@ -296,12 +306,45 @@ func finish_feeding() -> bool:
 func continue_after_result() -> void:
 	if run.get("phase", "") != "result":
 		return
+	if _open_trait_reward("result"):
+		save_game()
+		changed.emit()
+		return
 	run["phase"] = "prep"
 	battle = null
 	run["rewards"] = []
 	party_preview()
 	save_game()
 	changed.emit()
+
+func _pending_trait_milestone() -> int:
+	if int(run.get("raid", 0)) >= _campaign_size(): return -1
+	for milestone in Traits.MILESTONES:
+		if int(run.get("raid", 0)) >= milestone and not run.get("trait_milestones", []).has(milestone):
+			return milestone
+	return -1
+
+func _open_trait_reward(return_phase: String) -> bool:
+	if _pending_trait_milestone() < 0 or Traits.choices(run.get("traits", [])).is_empty(): return false
+	run["trait_return"] = return_phase
+	run["phase"] = "trait"
+	return true
+
+func trait_choices() -> Array:
+	return Traits.choices(run.get("traits", [])) if run.get("phase", "") == "trait" and _pending_trait_milestone() >= 0 else []
+
+func choose_trait(id: String) -> bool:
+	if not trait_choices().has(id): return false
+	var milestone := _pending_trait_milestone()
+	run["traits"].append(id)
+	run["trait_milestones"].append(milestone)
+	var return_phase: String = run.get("trait_return", "result")
+	run["phase"] = return_phase
+	run.erase("trait_return")
+	_open_trait_reward(return_phase)
+	save_game()
+	changed.emit()
+	return true
 
 func rank_name() -> String:
 	var raid = int(run.get("raid", 0))

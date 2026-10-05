@@ -39,6 +39,12 @@ static func describe(before: Dictionary, after: Dictionary) -> String:
 	var lines: Array = []
 	var delta = changes(before, after)
 	for id in delta: lines.append("%s: %s" % [delta[id]["name"], delta[id]["text"]])
+	var old_counts: Dictionary = before.get("trait_state", {}).get("trigger_counts", {})
+	var new_counts: Dictionary = after.get("trait_state", {}).get("trigger_counts", {})
+	var activations = {"venom_nest": "Venom Nest spreads poison", "spiteful_shields": "Spiteful Shields retaliates", "pack_instinct": "Pack Instinct: +1 energy, draw 1"}
+	for id in activations:
+		var count: int = int(new_counts.get(id, 0)) - int(old_counts.get(id, 0))
+		if count > 0: lines.append(activations[id] + (" x%d" % count if count > 1 else ""))
 	return " · ".join(lines) if not lines.is_empty() else "No HP, block or status changed."
 
 static func clear(ui) -> void:
@@ -55,8 +61,13 @@ static func flash(ui, before: Dictionary, after: Dictionary) -> void:
 		var color: Color = ui.RED if int(delta[id]["hp"]) < 0 else ui.MOSS
 		actor_node.modulate = color
 		actor_node.create_tween().tween_property(actor_node, "modulate", Color.WHITE, 0.5)
-		var area: Rect2 = actor_node.get_global_rect().intersection(Rect2(Vector2.ZERO, ui.size))
-		var ancestor: Node = actor_node.get_parent()
+		# Floating numbers belong over creature art. Compact actor rows keep
+		# their names/HP unobscured and already show written numeric results.
+		if not is_instance_valid(ui.battlefield) or not ui.battlefield.creature_nodes.has(id): continue
+		var body: Control = ui.battlefield.creature_nodes[id]
+		if not is_instance_valid(body): continue
+		var area: Rect2 = body.get_global_rect().intersection(Rect2(Vector2.ZERO, ui.size))
+		var ancestor: Node = body.get_parent()
 		while ancestor != null and ancestor != ui:
 			if ancestor is ScrollContainer: area = area.intersection(ancestor.get_global_rect())
 			ancestor = ancestor.get_parent()

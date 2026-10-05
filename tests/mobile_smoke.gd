@@ -143,7 +143,8 @@ func exercise_size(pixels: Vector2i) -> void:
 	else:
 		game.finish_feeding()
 		ui.refresh()
-	check(game.run["phase"] == "result", "Reachable feeding completion applies recovery and reaches result")
+	await FeedingChecks.new().choose_trait(self)
+	check(game.run["phase"] == "result", "Reachable trait selection completes the first milestone and reaches result")
 	await capture("10_result")
 	game.run["phase"] = "victory"
 	game.run["raid"] = 6

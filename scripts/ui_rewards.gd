@@ -14,6 +14,7 @@ func render() -> void:
 	_page_scroll.name = "FeedingScroll"
 	var rewards: Array = ui.state.run["rewards"]
 	var final_raid = int(ui.state.run["raid"]) + 1 >= int(Data.BALANCE["raids"])
+	var trait_reward: bool = ui.traits_screen.reward_after_raid()
 	var remaining = 0
 	for body in rewards:
 		if not body["claimed"]: remaining += 1
@@ -25,6 +26,7 @@ func render() -> void:
 				break
 	page.add_child(ui.label("3 / Feed the fallen", 25 if compact else 27, ui.PARCHMENT, compact))
 	var next_step = "NEXT: Recover & continue to complete the campaign." if final_raid else "NEXT: Recover & continue. Then prepare the next raid."
+	if trait_reward: next_step = "NEXT: Recover & continue, then choose a dungeon trait that lasts for this run."
 	if remaining > 0:
 		var body = rewards[ui.feed_body]
 		var monster = ui.state.get_monster(ui.feed_monster)
@@ -80,6 +82,7 @@ func render() -> void:
 	else:
 		feeding.add_child(ui.label("The meal is finished.", 22 if compact else 24, ui.MOSS, compact))
 		var instructions = "Next: Recover & continue to complete the campaign and receive rank D promotion." if final_raid else "Next: Recover & continue to restore health. You can select learned skills and any earned transformation before the next raid."
+		if trait_reward: instructions = "Next: Recover & continue to restore health, then choose a lasting dungeon trait. Your equipped cards will help you compare the choices."
 		feeding.add_child(ui.label(instructions, 16, ui.MUTED, true))
 	var team = ui.panel(columns)
 	team.custom_minimum_size.x = 0 if compact else 345

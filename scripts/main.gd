@@ -5,6 +5,7 @@ const Data = preload("res://scripts/game_data.gd")
 const Screens = preload("res://scripts/ui_screens.gd")
 const CombatScreen = preload("res://scripts/ui_battle.gd")
 const RewardsScreen = preload("res://scripts/ui_rewards.gd")
+const TraitScreen = preload("res://scripts/ui_traits.gd")
 const Portrait = preload("res://scripts/monster_portrait.gd")
 const Chamber = preload("res://scripts/ui_chamber.gd")
 const TouchScroller = preload("res://scripts/touch_scroller.gd")
@@ -32,6 +33,7 @@ var grimoire_return = "title"
 var screens
 var combat_screen
 var rewards_screen
+var traits_screen
 var actor_nodes: Dictionary = {}
 var margin: MarginContainer
 var _layout_size := Vector2.ZERO
@@ -68,6 +70,7 @@ func _ready() -> void:
 	screens = Screens.new(self)
 	combat_screen = CombatScreen.new(self)
 	rewards_screen = RewardsScreen.new(self)
+	traits_screen = TraitScreen.new(self)
 	_apply_theme()
 	add_child(TouchScroller.new(self))
 	var room = Chamber.new()
@@ -213,6 +216,7 @@ func refresh() -> void:
 			"prep": screens.preparation()
 			"combat": combat_screen.render()
 			"feeding": rewards_screen.render()
+			"trait": traits_screen.render()
 			"result", "victory", "defeat": screens.results()
 	toast = label("A dungeon lives through the choices of its keeper.", 12 if is_compact() else 13, MUTED, true)
 	root_box.add_child(toast)

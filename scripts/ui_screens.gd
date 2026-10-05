@@ -47,7 +47,7 @@ func title_screen() -> void:
 	else: copy.add_child(spacer)
 	var how = ui.panel(copy)
 	how.add_child(ui.label("A raid in four steps", 19 if compact else 20, ui.EMBER, compact))
-	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: transfer one enemy ability.\n4   RECOVER: regain HP, ready the next raid.", 14 if compact else 16, ui.PARCHMENT, true))
+	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: transfer one enemy ability.\n4   RECOVER: regain HP; earn milestone traits.", 14 if compact else 16, ui.PARCHMENT, true))
 	how.add_child(ui.label("End turn resolves the invaders. Healing cards can be played again.", 14, ui.MUTED, true))
 	var art = ui.panel(columns, true)
 	art.add_child(ui.label("YOUR HUMBLE BEGINNINGS", 13 if compact else 15, ui.MOSS, compact))
@@ -77,6 +77,7 @@ func preparation() -> void:
 	text.add_child(ui.label("Choose two skills per monster; check their energy costs. Monsters act through owned cards. Invaders choose living targets each round, then keep their shown intentions. Next: inspect and defend.", 14, ui.MUTED, true))
 	top.add_child(ui.primary("Defend the dungeon", func():
 		ui.act(ui.state.start_raid, "Choose a card, then one of its highlighted targets."), 0 if compact else 230))
+	ui.traits_screen.summary(page)
 	var roster = _flow(compact)
 	roster.add_theme_constant_override("separation", 14)
 	roster.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -84,10 +85,12 @@ func preparation() -> void:
 	for monster in ui.state.run["monsters"]:
 		_roster_card(monster, roster)
 	page.add_child(ui.label("INCOMING  /  " + ui.state.raid_name().to_upper(), 15 if compact else 17, ui.EMBER, compact))
+	var incoming: Array = ui.state.party_preview()
+	ui.traits_screen.champion_warning(incoming, page)
 	var party = _flow(compact)
 	party.add_theme_constant_override("separation", 12)
 	page.add_child(party)
-	for enemy in ui.state.party_preview():
+	for enemy in incoming:
 		var box = ui.panel(party, true)
 		var row = HBoxContainer.new()
 		box.add_child(row)
@@ -271,6 +274,7 @@ func results() -> void:
 	box.add_child(ui.label(heading, 16, ui.RED if defeat or breach else ui.EMBER, compact))
 	box.add_child(ui.label(title, 27 if compact else 34, ui.PARCHMENT, compact))
 	box.add_child(ui.label(message, 17, ui.MUTED, true))
+	ui.traits_screen.summary(box)
 	var row = _flow(compact)
 	row.add_theme_constant_override("separation", 16)
 	box.add_child(row)

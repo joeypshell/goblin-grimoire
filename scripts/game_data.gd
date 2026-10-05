@@ -24,6 +24,7 @@ const ABILITIES = {
 	"smoke_step": {"name": "Smoke Step", "rarity": "uncommon", "cost": 1, "target": "self", "affinity": "Trickery", "description": "Gain 4 block and evade the next damaging hit.", "effects": [{"kind": "block", "amount": 4}, {"kind": "status", "status": "evasion", "amount": 1}]},
 	"arcane_bolt": {"name": "Arcane Bolt", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Mystic", "description": "Deal 7 damage.", "effects": [{"kind": "damage", "amount": 7}]},
 	"regrowth": {"name": "Regrowth", "rarity": "rare", "cost": 1, "target": "ally", "affinity": "Vitality", "description": "Add a regeneration application healing 3, then 2, then 1 at your faction's turn end. Each reapplication decays separately. Repeatable.", "effects": [{"kind": "status", "status": "regen", "amount": 3}]},
+	"banner_volley": {"name": "Banner Volley", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Flame", "description": "Deal 5 damage and add 1 burning to every foe. Captain Torren announces this every third round; stun him to cancel that action.", "effects": [{"kind": "damage", "amount": 5}, {"kind": "status", "status": "burn", "amount": 1}]},
 	"ogre_aegis": {"name": "Ogre Aegis", "rarity": "rare", "cost": 2, "target": "all_allies", "affinity": "Guard", "description": "Give every ally 8 block; your passive adds 2 more. Costs 2 energy.", "effects": [{"kind": "block", "amount": 8}]},
 	"burning_cleave": {"name": "Burning Cleave", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Flame", "description": "Deal 4 damage and add a 2-strength burning application to every foe; your passive adds a separate 1 burning. Costs 2 energy.", "effects": [{"kind": "damage", "amount": 4}, {"kind": "status", "status": "burn", "amount": 2}]},
 	"petrifying_gaze": {"name": "Petrifying Gaze", "rarity": "rare", "cost": 2, "target": "enemy", "affinity": "Control", "description": "Add 4 poison and stun one action; your passive adds 1 poison strength. Resolve prevents consecutive stuns. Costs 2 energy.", "effects": [{"kind": "status", "status": "poison", "amount": 4}, {"kind": "status", "status": "stun", "amount": 1}]},
@@ -148,7 +149,16 @@ static func generate_party(raid_index: int, rng: RandomNumberGenerator) -> Array
 			"class_name": class_id, "form": class_id, "hp": hp, "max_hp": hp,
 			"abilities": skills, "armor": maxi(0, int(template.get("armor", 0))), "block": 0, "statuses": {}})
 	ensure_priest_offense(party)
+	ensure_champion_mechanics(party)
 	return party
+
+static func ensure_champion_mechanics(party: Array) -> void:
+	# Idempotent migration preserves HP, defenses and already locked intentions.
+	for actor in party:
+		if actor.get("id", "") != "raid_2_foe_0": continue
+		actor["champion"] = "cinder_banner"
+		if not actor.get("abilities", []).has("banner_volley"):
+			actor["abilities"].append("banner_volley")
 
 static func ensure_priest_offense(party: Array) -> void:
 	# Older active parties can contain heal-only priests. Keep their locked intent,

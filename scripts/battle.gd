@@ -2,6 +2,8 @@ class_name Battle
 extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
+const Preview = preload("res://scripts/battle_preview.gd")
+const Traits = preload("res://scripts/battle_traits.gd")
 const LAYERED_STATUSES = ["poison", "burn", "regen"]
 signal changed
 signal finished(outcome: String)
@@ -17,11 +19,19 @@ var outcome: String = "active"
 var log: Array = []
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var intents: Array = []
+var traits: Array = []
+var trait_state: Dictionary = {}
+var _ticking_statuses: bool = false
+var _venom_queue: Array = []
 
-func setup(roster: Array, party: Array, random: RandomNumberGenerator) -> void:
+func setup(roster: Array, party: Array, random: RandomNumberGenerator, active_traits: Array = []) -> void:
 	monsters = roster
 	enemies = party.duplicate(true)
 	rng = random
+	traits = active_traits.duplicate()
+	trait_state = Traits.fresh_state()
+	_ticking_statuses = false
+	_venom_queue.clear()
 	hand.clear()
 	draw_pile.clear()
 	discard.clear()
@@ -74,61 +84,7 @@ func legal_targets(card: Dictionary) -> Array:
 	return result
 
 func preview(card: Dictionary, target_id: String) -> String:
-	if not Data.ABILITIES.has(card.get("ability", "")):
-		return "Unknown card."
-	var owner: Dictionary = get_actor(card.get("owner", ""))
-	if not owner.is_empty() and int(owner.get("statuses", {}).get("stun", 0)) > 0:
-		return "%s is stunned this turn. Owned cards cannot be played; dungeon cards remain available." % owner["name"]
-	var ability: Dictionary = Data.ABILITIES[card["ability"]]
-	if ability["target"] in ["enemy", "ally"] and not legal_targets(card).has(target_id):
-		return "Choose a living legal target."
-	var targets: Array = _targets(ability["target"], owner, target_id)
-	if targets.is_empty():
-		return "Choose a living legal target."
-	var lines: Array = []
-	for actor in targets:
-		var parts: Array = []
-		for effect in ability["effects"]:
-			if effect.get("to", "target") == "self" and actor != owner:
-				continue
-			var amount: int = _amount(effect, ability, owner, actor)
-			match effect["kind"]:
-				"damage":
-					var prevented: Dictionary = damage_breakdown(actor, amount)
-					if int(actor.get("statuses", {}).get("evasion", 0)) > 0:
-						parts.append("evades %d damage" % amount)
-					else:
-						parts.append("%d damage (%d HP, %d armor, %d blocked)" % [amount, prevented["hp"], prevented["armor"], prevented["block"]])
-				"block": parts.append("+%d block" % amount)
-				"heal": parts.append("heal %d HP" % mini(amount, int(actor["max_hp"]) - int(actor["hp"])))
-				"status":
-					var status_id: String = effect["status"]
-					if status_id == "stun" and int(actor.get("statuses", {}).get("resolve", 0)) > 0:
-						parts.append("Resolve blocks stun")
-					elif status_id == "stun" and int(actor.get("statuses", {}).get("stun", 0)) > 0:
-						parts.append("already stunned; stun does not stack")
-					else:
-						parts.append("+%d %s%s" % [amount, _status_name(status_id), " (decays independently)" if status_id in LAYERED_STATUSES else ""])
-				"cleanse":
-					var removed: Array = []
-					for status_id in effect.get("statuses", []):
-						if int(actor.get("statuses", {}).get(status_id, 0)) > 0: removed.append(_status_name(status_id))
-					parts.append("cleanse " + ", ".join(removed) if not removed.is_empty() else "nothing to cleanse")
-		lines.append("%s: %s" % [actor["name"], ", ".join(parts)])
-	for effect in ability["effects"]:
-		if effect.get("to", "target") == "self" and not owner.is_empty() and not targets.has(owner):
-			lines.append("%s: +%d %s" % [owner["name"], int(effect["amount"]), _status_name(effect.get("status", "block"))])
-	if not owner.is_empty() and owner.get("form", "") == "red_ogre":
-		for effect in ability["effects"]:
-			if effect["kind"] == "damage":
-				lines.append("Kindling adds 1 burning to each victim.")
-				break
-	if not owner.is_empty() and owner.get("form", "") == "ember_basilisk":
-		for effect in ability["effects"]:
-			if effect.get("status", "") == "poison":
-				lines.append("Volatile venom adds 2 burning to each victim.")
-				break
-	return "\n".join(lines)
+	return Preview.describe(self, card, target_id)
 
 func play_card(index: int, target_id: String) -> bool:
 	if outcome != "active" or index < 0 or index >= hand.size():
@@ -149,6 +105,7 @@ func play_card(index: int, target_id: String) -> bool:
 	_add_log("%s plays %s." % [owner.get("name", "Dungeon"), ability["name"]])
 	_resolve(ability, owner, target_id)
 	_remove_ko_cards()
+	Traits.played(self, card)
 	_check_outcome()
 	changed.emit()
 	return true
@@ -193,6 +150,7 @@ func end_turn() -> void:
 
 func _begin_turn() -> void:
 	turn += 1
+	Traits.begin_turn(self)
 	energy = int(Data.BALANCE["energy"])
 	for monster in monsters:
 		monster["block"] = 0
@@ -203,6 +161,8 @@ func _begin_turn() -> void:
 		if int(enemy["hp"]) <= 0:
 			continue
 		var choices: Array = enemy["abilities"].duplicate()
+		var banner_captain: bool = enemy.get("champion", "") == "cinder_banner"
+		if banner_captain: choices.erase("banner_volley")
 		# Avoid pure healing choices when all adventurers are already healthy.
 		var wounded: bool = false
 		for ally in enemies:
@@ -213,7 +173,11 @@ func _begin_turn() -> void:
 			choices.erase("regrowth")
 		if choices.is_empty():
 			choices = enemy["abilities"].duplicate()
-		var ability_id: String = choices[rng.randi_range(0, choices.size() - 1)]
+			if banner_captain: choices.erase("banner_volley")
+		var ability_id: String = "banner_volley" if banner_captain and turn % 3 == 0 else ""
+		if ability_id == "":
+			if choices.is_empty(): continue
+			ability_id = choices[rng.randi_range(0, choices.size() - 1)]
 		var ability: Dictionary = Data.ABILITIES[ability_id]
 		var candidates: Array = _targets(ability["target"], enemy, "")
 		if candidates.is_empty():
@@ -250,6 +214,7 @@ func _targets(target_type: String, caster: Dictionary, target_id: String) -> Arr
 func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> void:
 	var default_targets: Array = _targets(ability["target"], caster, target_id)
 	var kindling: Array = []
+	var retaliators: Array = []
 	for effect in ability["effects"]:
 		var targets: Array = [caster] if effect.get("to", "target") == "self" else default_targets
 		for actor in targets:
@@ -258,7 +223,8 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 			var amount: int = _amount(effect, ability, caster, actor)
 			match effect["kind"]:
 				"damage":
-					_damage(actor, amount)
+					var blocked: int = _damage(actor, amount)
+					Traits.collect_retaliation(self, caster, actor, blocked, retaliators)
 					if caster.get("form", "") == "red_ogre" and not kindling.has(actor["id"]):
 						kindling.append(actor["id"])
 				"block": actor["block"] = int(actor.get("block", 0)) + amount
@@ -280,6 +246,7 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 		var actor: Dictionary = get_actor(actor_id)
 		if int(actor["hp"]) > 0:
 			_status(actor, "burn", 1)
+	Traits.retaliate(self, caster, retaliators)
 	if not caster.is_empty() and not _is_monster(caster["id"]):
 		_clear_status(caster, "resolve")
 
@@ -307,13 +274,13 @@ func damage_breakdown(actor: Dictionary, amount: int, piercing: bool = false) ->
 	var blocked: int = 0 if piercing else mini(maxi(0, int(actor.get("block", 0))), hit - armored)
 	return {"armor": armored, "block": blocked, "hp": mini(maxi(0, int(actor.get("hp", 0))), hit - armored - blocked)}
 
-func _damage(actor: Dictionary, amount: int, piercing: bool = false) -> void:
+func _damage(actor: Dictionary, amount: int, piercing: bool = false) -> int:
 	if int(actor["hp"]) <= 0:
-		return
+		return 0
 	if not piercing and int(actor["statuses"].get("evasion", 0)) > 0:
 		_decrease_status(actor, "evasion", 1)
 		_add_log("%s evades the hit." % actor["name"])
-		return
+		return 0
 	var prevented: Dictionary = damage_breakdown(actor, amount, piercing)
 	actor["block"] = int(actor.get("block", 0)) - int(prevented["block"])
 	var lost: int = int(prevented["hp"])
@@ -323,11 +290,14 @@ func _damage(actor: Dictionary, amount: int, piercing: bool = false) -> void:
 	if int(prevented["block"]) > 0: defenses.append("%d blocked" % prevented["block"])
 	_add_log("%s takes %d damage%s." % [actor["name"], lost, " (" + ", ".join(defenses) + ")" if not defenses.is_empty() else ""])
 	if int(actor["hp"]) <= 0:
+		var poisoned: bool = int(actor["statuses"].get("poison", 0)) > 0
 		actor["block"] = 0
 		actor["statuses"] = {}
 		actor["status_layers"] = {}
 		_add_log("%s is knocked out." % actor["name"])
 		_remove_ko_cards()
+		Traits.knocked_out(self, actor, poisoned)
+	return int(prevented["block"])
 
 func _status(actor: Dictionary, status_id: String, amount: int) -> void:
 	if int(actor["hp"]) <= 0 or amount <= 0: return
@@ -389,6 +359,7 @@ func _decrease_status(actor: Dictionary, status_id: String, amount: int) -> void
 		actor["statuses"][status_id] = left
 
 func _tick_statuses(faction: Array) -> void:
+	_ticking_statuses = true
 	for actor in faction:
 		if int(actor["hp"]) <= 0:
 			continue
@@ -411,6 +382,8 @@ func _tick_statuses(faction: Array) -> void:
 		if _is_monster(actor["id"]):
 			_clear_status(actor, "resolve")
 			if int(actor["statuses"].get("stun", 0)) > 0: _consume_stun(actor)
+	_ticking_statuses = false
+	Traits.flush_venom(self)
 
 func _is_monster(id: String) -> bool:
 	for monster in monsters:
@@ -470,11 +443,17 @@ func _add_log(message: String) -> void:
 func to_dict() -> Dictionary:
 	return {"enemies": enemies.duplicate(true), "monster_combat": monsters.duplicate(true), "hand": hand.duplicate(true),
 		"draw_pile": draw_pile.duplicate(true), "discard": discard.duplicate(true), "energy": energy,
-		"turn": turn, "outcome": outcome, "log": log.duplicate(), "intents": intents.duplicate(true), "rng_state": str(rng.state)}
+		"turn": turn, "outcome": outcome, "log": log.duplicate(), "intents": intents.duplicate(true), "rng_state": str(rng.state),
+		"traits": traits.duplicate(), "trait_state": trait_state.duplicate(true)}
 
 func restore(saved: Dictionary, roster: Array, random: RandomNumberGenerator) -> void:
 	monsters = roster
 	rng = random
+	traits = saved.get("traits", []).duplicate()
+	trait_state = saved.get("trait_state", {}).duplicate(true)
+	Traits.ensure_state(self)
+	_ticking_statuses = false
+	_venom_queue.clear()
 	if saved.has("rng_state"):
 		rng.state = int(saved["rng_state"])
 	enemies = saved.get("enemies", []).duplicate(true)

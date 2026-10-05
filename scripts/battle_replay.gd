@@ -25,6 +25,15 @@ func _record(kind: String, actor_id: String, targets: Array, before: Dictionary,
 	frames.append({"kind": kind, "actor_id": actor_id, "target_ids": targets.duplicate(),
 		"before": before.duplicate(true), "after": after.duplicate(true), "message": message, "ability_id": ability_id})
 
+func _changed_receivers(before: Dictionary, after: Dictionary, targets: Array) -> void:
+	var previous: Dictionary = {}
+	for actor in before["monster_combat"] + before["enemies"]: previous[actor["id"]] = actor
+	for actor in after["monster_combat"] + after["enemies"]:
+		var old: Dictionary = previous.get(actor["id"], {})
+		if old.is_empty() or targets.has(actor["id"]): continue
+		if actor["hp"] != old["hp"] or actor.get("block", 0) != old.get("block", 0) or actor.get("statuses", {}) != old.get("statuses", {}):
+			targets.append(actor["id"])
+
 func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> void:
 	if not _capturing:
 		super._resolve(ability, caster, target_id)
@@ -37,12 +46,14 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 		ids.append(target["id"])
 		names.append(target["name"])
 	super._resolve(ability, caster, target_id)
+	var after: Dictionary = to_dict()
+	_changed_receivers(before, after, ids)
 	var ability_id: String = ""
 	for id in Data.ABILITIES:
 		if Data.ABILITIES[id] == ability:
 			ability_id = id
 			break
-	_record("enemy", caster["id"], ids, before, to_dict(),
+	_record("enemy", caster["id"], ids, before, after,
 		"%s uses %s on %s." % [caster["name"], ability["name"], ", ".join(names)], ability_id)
 
 func _tick_statuses(faction: Array) -> void:
@@ -55,7 +66,9 @@ func _tick_statuses(faction: Array) -> void:
 			if int(actor.get("statuses", {}).get(status, 0)) > 0 and not affected.has(actor["id"]): affected.append(actor["id"])
 	super._tick_statuses(faction)
 	if not _capturing: return
-	_record("player_end" if friendly else "enemy_end", "", affected, before, to_dict(),
+	var after: Dictionary = to_dict()
+	_changed_receivers(before, after, affected)
+	_record("player_end" if friendly else "enemy_end", "", affected, before, after,
 		"Your turn ends · discard unplayed cards; monster effects tick." if friendly else "Invaders finish · their poison, burn and regeneration tick.")
 
 func _consume_stun(actor: Dictionary) -> void:

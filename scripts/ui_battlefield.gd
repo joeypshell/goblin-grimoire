@@ -110,7 +110,10 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 		text = Copy.intent(battle, actor)["line"]
 		if acting and ui.turn_kind == "stun": text = "STUNNED · action skipped"
 		elif actor["id"] in ui.acted_actor_ids: text = "DONE · " + text
-	var intent = ui.label(text, 11, ui.EMBER if enemy else ui.MUTED, true)
+	# Keep the actor's numeric action readable; the full-width battle counter
+	# carries the Captain's countdown/counterplay without shrinking its creature.
+	var caption: String = text.split("\n")[0]
+	var intent = ui.label(caption, 11, ui.EMBER if enemy else ui.MUTED, true)
 	intent.name = "Intent_" + actor["id"]
 	intent.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(intent)

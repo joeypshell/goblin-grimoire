@@ -107,6 +107,7 @@ func test_knocked_out_feeding(t) -> void:
 	game.save_game()
 	var reload = t.state_at("knocked_out_feeding")
 	reload.load_game()
+	t.choose_campaign_trait(reload)
 	reload.continue_after_result()
 	t.check(t.same_saved_value(reload.run["monsters"].map(func(m): return m["hp"]), recovered), "Saved successful result cannot duplicate post-feeding recovery")
 	t.check(not reload.eligible(monster["id"]).is_empty(), "Declined later branch persists into next preparation")

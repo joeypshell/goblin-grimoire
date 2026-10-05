@@ -31,6 +31,8 @@ jobs:
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/flow_smoke.gd
       - name: Verify illustrated cards and cosmetic motion
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/art_smoke.gd
+      - name: Verify dungeon trait choices and champion UI
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/trait_smoke.gd
       - name: Cache web export templates
         if: github.event_name == 'push'
         id: templates

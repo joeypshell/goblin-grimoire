@@ -1,0 +1,132 @@
+extends RefCounted
+
+const Data = preload("res://scripts/game_data.gd")
+const Traits = preload("res://scripts/dungeon_traits.gd")
+const SHORT = {
+	"venom_nest": "Poisoned KO spreads 2 Poison",
+	"spiteful_shields": "Block absorbs a hit: retaliate 3",
+	"pack_instinct": "3 different owners: +1 energy, draw 1"
+}
+var ui
+
+func _init(owner) -> void:
+	ui = owner
+
+func render() -> void:
+	var compact: bool = ui.is_compact()
+	var page = ui.scroll(ui.content)
+	page.get_parent().name = "TraitChoiceScroll"
+	var heading = ui.label("Dungeon trait reward", 25 if compact else 30, ui.EMBER, true)
+	heading.name = "TraitMilestone"
+	page.add_child(heading)
+	page.add_child(ui.label("Choose one lasting bonus for this run. It changes how your cards work together. Devouring still grants one random unknown skill.", 15, ui.PARCHMENT, true))
+	var recovery: String = "Recovery is already applied. Your choice leads to the raid result, then preparation."
+	if ui.state.run.get("trait_return", "result") == "prep": recovery = "This saved run has an earned trait choice. Choose it, then return to preparation."
+	if ui.state.trait_choices().size() == 2:
+		recovery += " Your first trait stays active; choose a different second trait."
+	page.add_child(ui.label(recovery, 13, ui.MUTED, true))
+	summary(page, false)
+	var choices = VBoxContainer.new() if compact else HBoxContainer.new()
+	choices.add_theme_constant_override("separation", 12)
+	page.add_child(choices)
+	for id in ui.state.trait_choices():
+		var definition: Dictionary = Traits.DEFINITIONS[id]
+		var box = ui.panel(choices, true)
+		box.name = "TraitChoice_" + id
+		box.add_child(ui.label(definition["name"], 22, ui.MOSS, true))
+		box.add_child(ui.label(definition["description"], 15, ui.PARCHMENT, true))
+		var current = ui.label(compatibility(id), 14, ui.EMBER, true)
+		current.name = "TraitCompatibility_" + id
+		box.add_child(current)
+		box.add_child(ui.label(definition["hint"], 13, ui.MUTED, true))
+		var take = ui.primary("Choose " + definition["name"], func(): _choose(id))
+		take.name = "TraitSelect_" + id
+		take.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(take)
+	page.add_child(ui.label("Traits are saved with this run. A new run starts with fresh choices.", 12, ui.MUTED, true))
+
+func _choose(id: String) -> void:
+	if not ui.state.choose_trait(id): return
+	ui.card_index = -1
+	ui.refresh()
+	ui.toast.text = Traits.DEFINITIONS[id]["name"] + " now shapes your dungeon."
+
+func summary(parent: Node, show_milestone: bool = true) -> void:
+	var lines: Array = []
+	for id in ui.state.run.get("traits", []):
+		if Traits.DEFINITIONS.has(id): lines.append(Traits.DEFINITIONS[id]["name"] + " / " + SHORT[id])
+	if not lines.is_empty():
+		var build = ui.label("YOUR DUNGEON BUILD\n" + "\n".join(lines), 13, ui.MOSS, true)
+		build.name = "TraitSummary"
+		parent.add_child(build)
+	if show_milestone:
+		var next = ui.label(Traits.milestone(ui.state.run), 13, ui.EMBER, true)
+		next.name = "TraitMilestone"
+		parent.add_child(next)
+
+func combat_summary(battle) -> String:
+	var names: Array = []
+	for id in battle.traits:
+		if not Traits.DEFINITIONS.has(id): continue
+		if id == "pack_instinct":
+			names.append("Pack 3/3 used" if battle.trait_state.get("pack_triggered", false) else "Pack %d/3" % battle.trait_state.get("owners", []).size())
+		else: names.append(Traits.DEFINITIONS[id]["name"])
+	return " · ".join(names)
+
+func rules(parent: Node, battle) -> void:
+	if battle.traits.is_empty(): return
+	parent.add_child(ui.label("YOUR DUNGEON TRAITS", 15, ui.MOSS, true))
+	for id in battle.traits:
+		if not Traits.DEFINITIONS.has(id): continue
+		var definition: Dictionary = Traits.DEFINITIONS[id]
+		parent.add_child(ui.label(definition["name"] + ": " + definition["description"], 14, ui.PARCHMENT, true))
+		parent.add_child(ui.label(definition["hint"], 13, ui.MUTED, true))
+
+func reward_after_raid() -> bool:
+	var next_raid: int = int(ui.state.run.get("raid", 0)) + 1
+	return Traits.MILESTONES.has(next_raid) and not ui.state.run.get("trait_milestones", []).has(next_raid) and not Traits.choices(ui.state.run.get("traits", [])).is_empty()
+
+func compatibility(id: String) -> String:
+	var cards: Array = []
+	var affordable: Array = []
+	for monster in ui.state.run.get("monsters", []):
+		var abilities: Array = [Data.FORMS[monster["form"]]["signature"]] + monster["selected"]
+		var has_affordable: bool = false
+		for ability_id in abilities:
+			cards.append(ability_id)
+			if int(Data.ABILITIES[ability_id]["cost"]) <= 1: has_affordable = true
+		if has_affordable: affordable.append(monster["name"])
+	if id == "pack_instinct":
+		return "CURRENT DECK: %d/3 monsters have a 1-energy card equipped%s." % [affordable.size(), " / " + ", ".join(affordable) if not affordable.is_empty() else ""]
+	cards.append_array(["rally", "core_pulse", "snare_dungeon"])
+	var count: int = 0
+	var names: Array = []
+	for ability_id in cards:
+		for effect in Data.ABILITIES[ability_id]["effects"]:
+			if (id == "venom_nest" and effect.get("status", "") == "poison") or (id == "spiteful_shields" and effect["kind"] == "block"):
+				count += 1
+				if not names.has(Data.ABILITIES[ability_id]["name"]): names.append(Data.ABILITIES[ability_id]["name"])
+				break
+	if count == 0:
+		var known: Dictionary = {}
+		for monster in ui.state.run.get("monsters", []):
+			for ability_id in monster.get("learned", []):
+				for effect in Data.ABILITIES.get(ability_id, {}).get("effects", []):
+					if effect.get("status", "") != "poison": continue
+					if not known.has(ability_id): known[ability_id] = []
+					if not known[ability_id].has(monster["name"]): known[ability_id].append(monster["name"])
+		var learned: Array = []
+		for ability_id in known:
+			learned.append(Data.ABILITIES[ability_id]["name"] + " (" + ", ".join(known[ability_id]) + ")")
+		if not learned.is_empty():
+			return "CURRENT DECK: No poison equipped. Your team knows %s; equip %s during next preparation." % [", ".join(learned), "it" if learned.size() == 1 else "a poison skill"]
+		return "CURRENT DECK: No poison equipped yet. Look for Poisoned Blade in future meals."
+	return "CURRENT DECK: %d %s cards / %s." % [count, "poison" if id == "venom_nest" else "Block", ", ".join(names)]
+
+func champion_warning(party: Array, parent: Node) -> void:
+	for actor in party:
+		if actor.get("champion", "") != "cinder_banner": continue
+		var warning = ui.label("CAPTAIN'S BANNER: Every third round, Banner Volley deals 5 damage and adds 1 Burn to ALL monsters. Stun cancels the announced volley unless Resolve protects him; defeat the captain to stop future volleys.", 14, ui.RED, true)
+		warning.name = "BannerWarning"
+		parent.add_child(warning)
+		return

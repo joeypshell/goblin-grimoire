@@ -1,6 +1,33 @@
 extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
+const Traits = preload("res://scripts/dungeon_traits.gd")
+
+func choose_trait(t) -> void:
+	var game = t.game
+	var ui = t.ui
+	t.check(game.run["phase"] == "trait" and game.run["raid"] == 1, "First feeding completion opens its earned trait milestone after recovery")
+	if game.run["phase"] != "trait": return
+	var choices: Array = game.trait_choices()
+	var hp_before: Array = game.run["monsters"].map(func(m): return m["hp"])
+	var random_before: int = game.rng.state
+	await t.capture("10a_trait_choice")
+	for id in choices:
+		var select = ui.find_child("TraitSelect_" + id, true, false)
+		var advice = ui.find_child("TraitCompatibility_" + id, true, false)
+		t.check(select is Button and advice is Label and advice.text != "", "Every offered trait has a real action and readable deck-compatibility advice")
+	var chosen: String = choices[0]
+	var button = ui.find_child("TraitSelect_" + chosen, true, false)
+	if button != null:
+		await t.ensure_reachable(button, "Trait choice")
+		t.check(button.size.y >= 43.9, "Earned trait action has a forty-four-pixel logical tap target")
+		button.pressed.emit()
+		await t.settle()
+	t.check(game.run["phase"] == "result" and game.run["traits"] == [chosen] and game.run["trait_milestones"] == [1], "Reachable trait action records the actual chosen lasting rule and its milestone")
+	t.check(game.rng.state == random_before and game.run["monsters"].map(func(m): return m["hp"]) == hp_before, "Trait UI choice consumes no RNG and cannot repeat recovery")
+	var summary = ui.find_child("TraitSummary", true, false)
+	t.check(summary is Label and summary.text.contains(Traits.DEFINITIONS[chosen]["name"]), "Result visibly identifies the selected dungeon build")
+	await t.capture("10b_trait_result")
 
 func exercise(t) -> Dictionary:
 	var ui = t.ui

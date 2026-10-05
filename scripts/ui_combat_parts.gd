@@ -75,6 +75,7 @@ func actor(actor: Dictionary, parent: Node, enemy: bool, compact: bool) -> void:
 	if legal: lines.append("PLAY HERE: " + Copy.preview(battle, selected, actor))
 	var detail_text: String = "\n".join(lines)
 	var detail = ui.label(detail_text, 12 if compact else 13, ui.MOSS if legal else (ui.EMBER if enemy or acting else ui.MUTED), true)
+	detail.name = ("Intent_" if enemy else "ActorDetail_") + str(actor["id"])
 	text.add_child(detail)
 	var width: float = ui.content_width()
 	if not compact or not ui.is_portrait(): width = (width - (8 if compact else 18)) / 2.0

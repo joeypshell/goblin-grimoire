@@ -37,6 +37,13 @@ func _banner(parent: Node, compact: bool) -> void:
 	row.add_child(ui.label("%d / %d ENERGY" % [battle.energy, Data.BALANCE["energy"]], 16 if compact else 23, ui.EMBER))
 	var context: String = "ROUND %d · Draw %d · Discard %d · Targets locked" % [battle.turn, battle.draw_pile.size(), battle.discard.size()]
 	if ui.resolving_turn: context = "Cards paused · watch the highlighted actor and target"
+	var build: String = ui.traits_screen.combat_summary(battle)
+	if build != "":
+		context = ("Cards paused" if ui.resolving_turn else "ROUND %d · Draw %d · Discard %d" % [battle.turn, battle.draw_pile.size(), battle.discard.size()]) + " · " + build
+	var uses_field: bool = not compact or (not ui.is_portrait() and ui.get_viewport_rect().size.x >= 900 and ui.get_viewport_rect().size.y >= 560)
+	if uses_field and not ui.resolving_turn:
+		var captain: String = Copy.banner_guidance(battle)
+		if captain != "": context += " · " + captain
 	var counter = ui.label(context, 11 if compact else 13, ui.MUTED, true)
 	counter.name = "DeckCounter"
 	box.add_child(counter)
@@ -309,6 +316,7 @@ func _show_log() -> void:
 	box.custom_minimum_size.y = minf(420, ui.get_viewport_rect().size.y - 70)
 	box.add_child(ui.label("The chamber's record", 21 if ui.is_compact() else 25, ui.EMBER))
 	var history = ui.scroll(box)
+	ui.traits_screen.rules(history, ui.combat_battle())
 	for entry in ui.combat_battle().log: history.add_child(ui.label(entry, 14, ui.PARCHMENT, true))
 	for rule in [
 		"Your monsters act through owned cards. Costs use your shared energy. Unplayed cards discard at turn end. Healing cards cycle normally and can be reused.",
@@ -318,6 +326,7 @@ func _show_log() -> void:
 		"Stun causes one skipped invader action or prevents a monster's owned cards for one player turn. Stun does not stack. After skipping, Resolve protects against Stun through the next normal action or player turn, then expires. Other card effects still apply to a protected target.",
 		"Mend restores HP and cleanses every Poison and Burn application on its target. It does not remove other statuses."
 	]: history.add_child(ui.label(rule, 13, ui.MUTED, true))
+	history.add_child(ui.label("Captain Torren's Banner Volley is announced every third round: 5 damage and 1 Burn to all monsters. Stun skips the volley unless Resolve prevents Stun. Defeating the captain cancels his pending action and future volleys.", 13, ui.MUTED, true))
 	var motion = CheckButton.new()
 	motion.name = "ReduceMotion"
 	motion.text = "Reduce motion"

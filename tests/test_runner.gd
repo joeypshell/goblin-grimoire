@@ -8,6 +8,7 @@ const Inheritance = preload("res://tests/test_inheritance.gd")
 const Armor = preload("res://tests/test_armor.gd")
 const Balance = preload("res://tests/test_balance.gd")
 const Campaigns = preload("res://tests/test_campaigns.gd")
+const Traits = preload("res://tests/test_traits.gd")
 
 var checks := 0
 var failures: Array = []
@@ -32,6 +33,7 @@ func _run() -> void:
 	Inheritance.new().run(self)
 	Armor.new().run(self)
 	Balance.new().run(self)
+	Traits.new().run(self)
 	test_campaign()
 	Campaigns.new().run(self)
 	print("RESULT: %d checks across %d groups; %d failures; campaign %d turns / %d card plays" % [checks, groups, failures.size(), campaign_turns, campaign_plays])
@@ -413,6 +415,19 @@ func ability_value(id: String) -> float:
 		if effect.get("status", "") == "stun": score += 3.0
 	return score / float(definition["cost"])
 
+func choose_campaign_trait(game, preferred: Array = ["venom_nest", "spiteful_shields", "pack_instinct"]) -> void:
+	while game.run["phase"] == "trait":
+		var choices: Array = game.trait_choices()
+		var chosen: String = str(choices[0]) if not choices.is_empty() else ""
+		for id in preferred:
+			if choices.has(id):
+				chosen = id
+				break
+		var random_before: int = game.rng.state
+		check(game.choose_trait(chosen), "Campaign chooses an actually offered dungeon trait through normal API")
+		check(game.rng.state == random_before, "Dungeon trait choice preserves campaign RNG")
+		if game.run["phase"] == "trait" and game.trait_choices() == choices: break
+
 func test_campaign() -> void:
 	group("normal real-card F/E campaign, partial feeding/combat saves, first and advanced evolution, promotion")
 	var game = state_at("campaign")
@@ -445,6 +460,7 @@ func test_campaign() -> void:
 			var expected := mini(int(monster["max_hp"]), int(before_recovery[index]) + int(ceil(float(monster["max_hp"]) * 0.25)))
 			check(monster["hp"] == expected, "Win recovery occurs once after feeding, respecting maximum HP")
 		check(not game.finish_feeding(), "Repeated feeding completion cannot recover/advance twice")
+		choose_campaign_trait(game)
 		if raid_index < 5:
 			game.continue_after_result()
 	check(seen_ranks.has("F") and seen_ranks.has("E"), "Both F and E rank campaigns were exercised")
@@ -455,6 +471,7 @@ func test_campaign() -> void:
 		if monster["form"] in ["oni", "ember_basilisk", "ancient_ogre", "nightstalker"]:
 			advanced = true
 	check(advanced, "Normal campaign actually performs a later lineage branch")
+	check(game.run["traits"].size() == 2 and game.run["trait_milestones"] == [1, 3], "Normal campaign earns two distinct trait milestones")
 	var discovery_count: int = game.discoveries().size()
 	game.new_run(44)
 	check(game.discoveries().size() == discovery_count and game.run["raid"] == 0 and game.run["core"] == 100, "Restart after promotion preserves discovered-only grimoire and resets progression")

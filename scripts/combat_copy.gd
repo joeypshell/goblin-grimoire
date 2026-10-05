@@ -2,6 +2,7 @@ extends RefCounted
 
 # Presentation-only queries. These never draw cards, resolve effects or use RNG.
 const Data = preload("res://scripts/game_data.gd")
+const BattleTraits = preload("res://scripts/battle_traits.gd")
 
 static func owner_name(battle, card: Dictionary) -> String:
 	if card["owner"] == "": return "Dungeon shared"
@@ -27,13 +28,20 @@ static func guidance(battle, selected: int, resolving: bool, turn_message: Strin
 		var ability: Dictionary = Data.ABILITIES[card["ability"]]
 		var actor: String = battle.get_actor(card["owner"]).get("name", "Dungeon")
 		var tap: String = {"enemy": "Tap a highlighted invader to play.", "ally": "Tap a highlighted monster to play.", "self": "Tap its highlighted owner to play.", "all_enemies": "Tap any invader · hits ALL invaders.", "all_allies": "Tap any monster · affects ALL monsters."}[ability["target"]]
-		return "%s uses %s · %d energy\n%s\n%s" % [actor, ability["name"], ability["cost"], tap, card_effect(battle, card)]
+		var bonus: String = pack_bonus(battle, card)
+		return "%s uses %s · %d energy\n%s\n%s%s" % [actor, ability["name"], ability["cost"], tap, card_effect(battle, card), "\n" + bonus if bonus != "" else ""]
 	if battle.energy <= 0: return "No energy left. End your turn to let invaders act, then draw 5 new cards."
 	var playable: bool = false
 	for card in battle.hand:
 		if unavailable(battle, card) == "": playable = true
 	if not playable: return "No playable cards remain. End your turn for fresh cards and energy."
 	return "1 · Choose a card, then its target. Monsters act through their own cards."
+
+static func pack_bonus(battle, card: Dictionary) -> String:
+	if not battle.traits.has("pack_instinct") or battle.trait_state.get("pack_triggered", false): return ""
+	var owners: Array = battle.trait_state.get("owners", [])
+	if card.get("owner", "") == "" or owners.has(card["owner"]) or owners.size() != 2: return ""
+	return "Pack Instinct: this third owner grants +1 energy and draws 1 card."
 
 static func next_step(battle, resolving: bool) -> String:
 	if resolving: return "Invaders act, effects tick, then your next hand."
@@ -108,6 +116,8 @@ static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target
 				break
 			if effect.get("status", "") == "poison" and caster.get("form", "") == "ember_basilisk":
 				parts.append("+2 Burn")
+	elif detailed and battle.traits.has("venom_nest") and int(target.get("statuses", {}).get("poison", 0)) > 0 and not battle._is_monster(target.get("id", "")):
+		parts.append("Venom Nest: KO spreads 2 Poison")
 	return ", ".join(parts)
 
 static func card_effect(battle, card: Dictionary) -> String:
@@ -126,12 +136,21 @@ static func preview(battle, card: Dictionary, actor: Dictionary) -> String:
 	for effect in ability["effects"]:
 		if effect.get("to", "target") == "self" and actor.get("id", "") != caster.get("id", ""):
 			text += " · owner +%d %s" % [effect["amount"], _status_name(effect.get("status", "block"))]
+	if battle.traits.has("spiteful_shields") and battle._is_monster(actor.get("id", "")):
+		for effect in ability["effects"]:
+			if effect["kind"] == "block":
+				text += " · Spiteful Shields: blocking a hit retaliates 3"
+				break
 	return text
 
 static func intent(battle, actor: Dictionary) -> Dictionary:
 	if int(actor["hp"]) <= 0: return {"line": "DEFEATED · will not act", "targets": [], "damage": 0}
 	if battle.outcome != "active": return {"line": "Raid ended · no further actions", "targets": [], "damage": 0}
-	if int(actor.get("statuses", {}).get("stun", 0)) > 0: return {"line": "STUNNED · next action skipped", "targets": [], "damage": 0}
+	if int(actor.get("statuses", {}).get("stun", 0)) > 0:
+		var skipped: String = "STUNNED · next action skipped"
+		for locked in battle.intents:
+			if locked["enemy_id"] == actor["id"] and locked["ability"] == "banner_volley": skipped = "STUNNED · Banner Volley cancelled"
+		return {"line": skipped, "targets": [], "damage": 0}
 	for locked in battle.intents:
 		if locked["enemy_id"] != actor["id"]: continue
 		var ability: Dictionary = Data.ABILITIES[locked["ability"]]
@@ -152,7 +171,17 @@ static func intent(battle, actor: Dictionary) -> Dictionary:
 			if effect["kind"] == "damage": damage += int(effect["amount"])
 		var ids: Array = []
 		for receiver in targets: ids.append(receiver["id"])
-		return {"line": "%s · %s to %s" % [ability["name"], effects, destination], "targets": ids, "damage": damage}
+		var line: String = "%s · %s to %s" % [ability["name"], effects, destination]
+		var retaliation: int = 0
+		for receiver in targets:
+			if BattleTraits.retaliation_preview(battle, receiver, actor, damage) != "": retaliation += 1
+		if retaliation > 0: line += "\nBlock forecast: %d retaliation%s of 3 damage" % [retaliation, "s" if retaliation != 1 else ""]
+		if locked["ability"] == "banner_volley":
+			line += "\nResolve prevents Stun: defeat the captain or protect all monsters." if int(actor.get("statuses", {}).get("resolve", 0)) > 0 else "\nCOUNTERPLAY: Stun or defeat the captain."
+		elif actor.get("champion", "") == "cinder_banner":
+			var rounds: int = 3 - battle.turn % 3
+			line += "\nBanner Volley in %d round%s" % [rounds, "s" if rounds != 1 else ""]
+		return {"line": line, "targets": ids, "damage": damage}
 	return {"line": "No pending action", "targets": [], "damage": 0}
 
 static func threats(battle, actor_id: String, acted_ids: Array = []) -> String:
@@ -165,3 +194,16 @@ static func threats(battle, actor_id: String, acted_ids: Array = []) -> String:
 			names.append(enemy["name"])
 			damage += int(action["damage"])
 	return "%d announced damage · %s" % [damage, ", ".join(names)] if damage > 0 else "No direct attack aimed here"
+
+static func banner_guidance(battle) -> String:
+	if battle.outcome != "active": return ""
+	for captain in battle.enemies:
+		if captain.get("champion", "") != "cinder_banner" or int(captain["hp"]) <= 0: continue
+		for locked in battle.intents:
+			if locked["enemy_id"] != captain["id"] or locked["ability"] != "banner_volley": continue
+			if int(captain.get("statuses", {}).get("stun", 0)) > 0: return "Captain: Banner Volley cancelled"
+			if int(captain.get("statuses", {}).get("resolve", 0)) > 0: return "Banner Volley: Resolve blocks Stun; defeat the captain or protect all monsters"
+			return "COUNTERPLAY: Stun or defeat the captain to cancel Banner Volley"
+		var rounds: int = 3 - battle.turn % 3
+		return "Captain: Banner Volley in %d round%s" % [rounds, "s" if rounds != 1 else ""]
+	return ""

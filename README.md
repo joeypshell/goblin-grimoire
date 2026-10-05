@@ -14,6 +14,8 @@ Or download the standalone Windows build from [Releases](https://github.com/joey
 
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
 
+After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, or coordinate all three monsters for extra energy and a draw with **Pack Instinct**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
+
 ## Launch
 
 Open `project.godot` in Godot 4.7 and press **F5** to play, or run:
@@ -32,6 +34,7 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 - After victory, choose a body and a recipient, then **Devour & inherit**. One of that adventurer's unknown abilities is rolled randomly, with common abilities more likely. Possible results and their chances are shown before devouring; the saved result appears afterward. You can skip a body. Learned abilities can be selected for the next raid.
 - An **Evolve** action appears only for transformations a monster has earned. You can accept it or return to it during preparation.
 - Finish feeding to recover 25% of each monster's maximum HP. Clear two raids and a champion at F, then E. Defeating the E champion wins and records promotion to D.
+- After raid one and the F champion, choose a run-wide trait before continuing. Traits have no duplicates and combine for the remaining raids. Continue preserves a pending choice. Older runs receive any missed trait choices at the next safe preparation or recovery boundary.
 - **Save & title** and **Continue** preserve the current battle or reward phase. **New Run** preserves permanent discoveries.
 - **Log & rules** shows the combat record and a saved **Reduce motion** preference. The browser's motion preference supplies the initial setting when no choice has been saved.
 
@@ -40,6 +43,10 @@ No equipment or shops. D through S are data definitions for future campaigns; th
 ## Balance and rules
 
 Edit `scripts/game_data.gd`: `BALANCE` contains energy, hand size, core HP, 25-HP breach damage, recovery, and status tuning. `ABILITIES` defines costs, targets, affinities, rarity, and effects; `INHERITANCE_WEIGHTS` uses common 4, uncommon 2, rare 1. Weights are normalized across the actual corpse's abilities that the recipient does not already know. A lone eligible ability has a 100% chance. `FORMS` defines HP, signatures, passives, and portrait colors. `CLASSES` and `ENCOUNTERS` control coherent seeded parties and difficulty, including permanent armor (warrior 1, defender 2, other classes 0). `RECIPES` stores hidden progression; **reading that developer data reveals discoveries**.
+
+`scripts/dungeon_traits.gd` defines trait choices, their two reward milestones and player-facing descriptions. Venom Nest spreads a fresh 2-strength poison application when an already poisoned invader dies, including poison-tick deaths. Spiteful Shields retaliates for 3 direct damage after an announced attack finishes, once per surviving monster whose Block absorbed that attack; Armor, Evasion and status damage alone do not trigger it. Pack Instinct counts three distinct monster card owners, excludes shared cards and grants one bonus energy and card draw per turn. Its progress survives saving mid-turn.
+
+Captain Torren, the F champion, announces **Banner Volley** every third round: 5 direct damage and 1 burning to every monster. His volley replaces his ordinary action. Defeat him or stun that announced action to cancel it, or prepare team Block and healing. Resolve still prevents consecutive stuns. Banner Volley is a rare Flame ability in his actual corpse pool and can be inherited by the same weighted random rule.
 
 The initial deck has 12 cards: each monster's signature and two selected skills, plus three shared dungeon cards. Friendly knockouts remove every card belonging to that monster for the current battle. Cards cycle through discard and reshuffle; healing has no use cap or exhaustion. Duplicate known abilities cannot be consumed again. Only uniquely consumed abilities count toward a recipe. Preparation and feeding show each monster's consumed affinities; inheritance odds also show each possible skill's affinity. Every first evolution has an advanced branch, while unmet recipes stay hidden.
 
@@ -63,6 +70,7 @@ godot --headless --path . --script tests/test_runner.gd
 godot --headless --path . --script tests/mobile_smoke.gd
 godot --headless --path . --script tests/flow_smoke.gd
 godot --headless --path . --script tests/art_smoke.gd
+godot --headless --path . --script tests/trait_smoke.gd
 ```
 
 Run `godot --path . --script tests/mobile_smoke.gd` with a graphics display for native screenshots and real Godot touch-event checks. Run `godot --path . --script tests/art_smoke.gd` to capture illustrated card and battlefield views and check cosmetic state, reduced motion, and save continuation. The headless variants check layout and UI actions without rendering PNGs. See [docs/testing.md](docs/testing.md) for checks actually performed, including the limits of iPhone verification. Tests do not erase player saves. The empty-profile reset is a debug API, absent from the game interface.

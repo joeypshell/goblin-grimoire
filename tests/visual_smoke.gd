@@ -64,6 +64,7 @@ func _run() -> void:
 	for index in range(game.run["rewards"].size()):
 		game.skip_body(index)
 	game.finish_feeding()
+	if game.run["phase"] == "trait": game.choose_trait(game.trait_choices()[0])
 	ui.refresh()
 	await capture("09_raid_result")
 	game.run["phase"] = "victory"

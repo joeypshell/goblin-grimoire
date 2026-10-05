@@ -1,5 +1,27 @@
 # Verification
 
+## v0.6.0 dungeon builds and champion payoff
+
+The gameplay suite passed **3,217 checks across 13 groups**, with zero failures. New coverage exercises earned choices after the first raid and F champion, rejection before an earned reward, no duplicate traits, exactly-once recovery and choice saves, pending-choice reload, two missed legacy milestones at a safe boundary, and no RNG consumption from reward queries or selection. Tests use isolated verification profiles; the normal native run and grimoire hashes remain unchanged.
+
+Combat regressions cover direct and status-tick poisoned deaths, independent fresh poison layers, enemy-array order independence, no same-tick spread chain, once-only corpse marking, and no activation report when no recipients survive. Shield retaliation checks Armor/Evasion/status exclusions, lethal defenders, once per recipient per announced attack, defended retaliation, area attacks and a poisoned KO caused by retaliation. Pack checks distinct owners, shared-card exclusion, failed plays, once-per-turn activation, saved two-owner progress, draw/shuffle and exact replay state. Captain tests cover scheduled rounds, ordinary actions between volleys, locked previews, Stun cancellation, Resolve, defeat cancellation, and the transferable ability's relative targeting.
+
+Five bounded campaigns used production cards, party generation, weighted inheritance and ordinary trait-selection APIs:
+
+| Seed / feeding policy | Traits | Result | Ended turns / card plays |
+| --- | --- | --- | ---: |
+| 730204 / discovery driver | Venom Nest + Spiteful Shields | Victory | 33 / 96 |
+| 101 / concentrated | Venom Nest + Spiteful Shields | Victory | 38 / 110 |
+| 101 / spread | Pack Instinct + Venom Nest | Defeat at raid index 4 after four breaches | 53 / 151 |
+| 730205 / concentrated | Venom Nest + Spiteful Shields | Victory | 35 / 97 |
+| 730205 / spread | Pack Instinct + Venom Nest | Victory | 47 / 142 |
+
+These demonstrate reachable victories and normal failure/retry behavior, not human win rates or trait rankings. Feeding policies and combat decisions consume the shared RNG differently; their later encounters are not matched comparisons. The driver knows developer recipes and is not tuned to each trait. Whether players find the builds more engaging remains a human playtest question.
+
+Final UI checks passed **15,916 headless / 16,124 native mobile assertions across 180 views**, including 28 native touch assertions; **2,415 native flow assertions with 24 sequence captures**; **8,397 art assertions in each mode across 74 views**; and **2,749 trait assertions in each mode across 56 views**. The dedicated trait suite covers first/second choices, scrolling to the lower choice actions, learned but unequipped poison guidance, the visible champion numbers and counterplay, cancelling its announced volley, saved Pack progress and named compound activations at 1280×720, 390×844, 375×667 and 844×320. Native pixel review caught Captain caption overflow and compact callouts obscuring names; the final captions retain numeric intentions, the existing wide counter carries champion guidance, and mobile actor flashes plus written numeric feedback keep names and HP visible. Desktop floating feedback fits only inside creature art. No minimum-size feedback loop was introduced.
+
+The exported browser build completed a real first raid through card/target controls, consumed all three actual bodies, and reached the first trait reward. At emulated **390×844 / DPR 3** (canvas **1170×2532**), reload/Continue preserved the pending options and learned-but-unequipped Poisoned Blade guidance. Scrolling reached all three choices. Selecting the third option awarded Pack Instinct, showed the champion milestone and capped recovery, and another reload preserved the selected trait without reopening the reward or applying recovery twice. Browser warnings and errors were empty. Windows version metadata reads 0.6.0 and the exported game's headless startup exits cleanly. Physical iPhone Safari is unavailable; these are emulated browser and native Godot touch checks.
+
 ## v0.5.0 balance pass
 
 The gameplay and persistence suite passed **3,162 checks across 11 groups**, with zero failures. Five actual six-raid campaigns completed through ordinary play, feeding, evolution, recovery and save APIs, with no breaches:
