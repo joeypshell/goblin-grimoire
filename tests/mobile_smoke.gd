@@ -21,7 +21,7 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	profile_root = "user://verification/mobile_%d/" % Time.get_ticks_usec()
+	profile_root = "user://verification/mobile_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
 	DirAccess.make_dir_recursive_absolute("res://tests/artifacts/")
 	var ignore_file = FileAccess.open("res://tests/artifacts/.gdignore", FileAccess.WRITE)
 	if ignore_file != null:
@@ -34,7 +34,9 @@ func _run() -> void:
 	surface.size = SIZES[0]
 	root.add_child(surface)
 	ui = MainScene.instantiate()
+	ui.state = State.new(profile_root + "bootstrap/")
 	surface.add_child(ui)
+	check(ui.state._prefix.begins_with(profile_root), "Scene startup preserves its explicitly isolated verification profile")
 	if not OS.get_cmdline_user_args().has("--touch-only"):
 		for pixels in SIZES:
 			await exercise_size(pixels)

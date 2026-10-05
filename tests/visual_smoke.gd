@@ -14,10 +14,11 @@ func _initialize() -> void:
 
 func _run() -> void:
 	root.size = Vector2i(1280, 720)
+	game = State.new("user://verification/visual_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()])
 	ui = MainScene.instantiate()
-	root.add_child(ui)
-	game = State.new("user://verification/visual_%d/" % Time.get_ticks_usec())
 	ui.state = game
+	root.add_child(ui)
+	if ui.state != game: errors.append("Scene startup failed to retain its isolated verification profile")
 	ui.refresh()
 	await capture("01_title")
 	ui.menu = "grimoire"

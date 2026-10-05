@@ -62,7 +62,7 @@ var turn_detail: String:
 
 func _ready() -> void:
 	_update_density()
-	state = State.new()
+	if state == null: state = State.new()
 	reduced_motion = Preferences.read_motion(state._prefix)
 	flow = TurnPresentation.new(self)
 	screens = Screens.new(self)

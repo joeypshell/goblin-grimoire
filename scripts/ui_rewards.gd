@@ -83,7 +83,7 @@ func render() -> void:
 		feeding.add_child(ui.label(instructions, 16, ui.MUTED, true))
 	var team = ui.panel(columns)
 	team.custom_minimum_size.x = 0 if compact else 345
-	team.add_child(ui.label("YOUR MONSTERS / NEXT DECK", 14 if compact else 15, ui.MOSS, compact))
+	team.add_child(ui.label("YOUR MONSTERS / DISCOVERIES" if final_raid else "YOUR MONSTERS / NEXT DECK", 14 if compact else 15, ui.MOSS, compact))
 	var roster = team if compact else ui.scroll(team)
 	for monster in ui.state.run["monsters"]:
 		var group = VBoxContainer.new()
@@ -97,6 +97,7 @@ func render() -> void:
 		row.add_child(info)
 		info.add_child(ui.label(monster["name"] + "  ·  " + ui.form_name(monster["form"]), 15, ui.PARCHMENT, compact))
 		info.add_child(ui.label(str(monster["feeds"]) + " meals  ·  " + str(monster["hp"]) + " / " + str(monster["max_hp"]) + " HP", 12, ui.MUTED))
+		ui.screens.consumed_affinities(monster, group)
 		var picks = VBoxContainer.new() if compact else HBoxContainer.new()
 		group.add_child(picks)
 		for slot in range(2):
@@ -126,7 +127,7 @@ func _meal_results(rewards: Array, parent: Node) -> void:
 		var inherited: String = str(body.get("taken", ""))
 		if inherited != "":
 			var monster: Dictionary = ui.state.get_monster(str(body.get("recipient", "")))
-			lines.append("INHERITED: %s learned %s from %s." % [monster.get("name", "Your monster"), ui.ability_name(inherited), body["name"]])
+			lines.append("INHERITED: %s learned %s (%s) from %s." % [monster.get("name", "Your monster"), ui.ability_name(inherited), Data.ABILITIES[inherited]["affinity"], body["name"]])
 		elif body.get("skipped", false):
 			lines.append(body["name"] + " was left behind.")
 	if lines.is_empty(): return
@@ -174,7 +175,7 @@ func _body_choices(body_index: int, body: Dictionary, box: VBoxContainer) -> voi
 	for outcome in outcomes:
 		var id: String = outcome["ability"]
 		var ability: Dictionary = Data.ABILITIES[id]
-		var option = ui.label("%s · %.1f%% · %s" % [ability["name"], float(outcome["chance"]) * 100, str(outcome["rarity"]).capitalize()], 14, ui.PARCHMENT, true)
+		var option = ui.label("%s · %.1f%% · %s · %s" % [ability["name"], float(outcome["chance"]) * 100, str(outcome["rarity"]).capitalize(), ability["affinity"]], 14, ui.PARCHMENT, true)
 		option.name = "InheritanceChance_" + id
 		choices.add_child(option)
 		choices.add_child(ui.label("%d energy · %s" % [ability["cost"], ability["description"]], 12, ui.MUTED, true))
@@ -214,7 +215,8 @@ func reveal(info: Dictionary) -> void:
 	box.add_child(art)
 	box.add_child(ui.label(ui.form_name(info["to"]), 26 if compact else 33, ui.MOSS, true))
 	box.add_child(ui.label(Data.FORMS[info["to"]]["passive"], 17, ui.PARCHMENT, true))
-	box.add_child(ui.label("New signature: " + ui.ability_name(Data.FORMS[info["to"]]["signature"]), 15 if compact else 16, ui.EMBER, true))
+	var signature: String = Data.FORMS[info["to"]]["signature"]
+	box.add_child(ui.label("New signature: %s · %d energy" % [ui.ability_name(signature), Data.ABILITIES[signature]["cost"]], 15 if compact else 16, ui.EMBER, true))
 	box.add_child(ui.label("Identity and learned skills preserved. Health keeps its current percentage. This discovery is yours forever.", 14, ui.MUTED, true))
 	var accept = ui.primary("Welcome the transformation", ui.close_modal)
 	accept.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

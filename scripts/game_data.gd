@@ -11,25 +11,27 @@ const ABILITIES = {
 	"strike": {"name": "Strike", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Neutral", "description": "Deal 6 damage.", "effects": [{"kind": "damage", "amount": 6}]},
 	"guard": {"name": "Guard", "rarity": "common", "cost": 1, "target": "ally", "affinity": "Neutral", "description": "Give an ally 7 block until their next turn.", "effects": [{"kind": "block", "amount": 7}]},
 	"patch_up": {"name": "Patch Up", "rarity": "common", "cost": 1, "target": "ally", "affinity": "Neutral", "description": "Restore 6 HP to a living ally. Cycles normally and can be reused.", "effects": [{"kind": "heal", "amount": 6}]},
-	"mend": {"name": "Mend", "rarity": "common", "cost": 1, "target": "ally", "affinity": "Vitality", "description": "Restore 6 HP to a living ally. Cycles normally and can be reused.", "effects": [{"kind": "heal", "amount": 6}]},
+	"mend": {"name": "Mend", "rarity": "common", "cost": 1, "target": "ally", "affinity": "Vitality", "description": "Restore 4 HP and remove all poison and burning from a living ally. Repeatable.", "effects": [{"kind": "heal", "amount": 4}, {"kind": "cleanse", "statuses": ["poison", "burn"]}]},
 	"stab": {"name": "Goblin Stab", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Neutral", "description": "Deal 5 damage.", "effects": [{"kind": "damage", "amount": 5}]},
 	"rally": {"name": "Dungeon Rally", "rarity": "common", "cost": 1, "target": "all_allies", "affinity": "Neutral", "description": "Give every living monster 5 block.", "effects": [{"kind": "block", "amount": 5}]},
 	"core_pulse": {"name": "Core Pulse", "rarity": "common", "cost": 1, "target": "all_allies", "affinity": "Neutral", "description": "Restore 4 HP to every living monster. Repeatable.", "effects": [{"kind": "heal", "amount": 4}]},
-	"snare_dungeon": {"name": "Dungeon Snare", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Neutral", "description": "Deal 2 damage and stun for one announced action.", "effects": [{"kind": "damage", "amount": 2}, {"kind": "status", "status": "stun", "amount": 1}]},
-	"heavy_blow": {"name": "Heavy Blow", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Might", "description": "Deal 8 damage.", "effects": [{"kind": "damage", "amount": 8}]},
-	"shield_wall": {"name": "Shield Wall", "rarity": "uncommon", "cost": 1, "target": "all_allies", "affinity": "Guard", "description": "Give all living allies 7 block.", "effects": [{"kind": "block", "amount": 7}]},
-	"firebolt": {"name": "Firebolt", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Flame", "description": "Deal 5 damage and add 2 burning.", "effects": [{"kind": "damage", "amount": 5}, {"kind": "status", "status": "burn", "amount": 2}]},
-	"poisoned_blade": {"name": "Poisoned Blade", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Venom", "description": "Deal 4 damage and add 3 poison.", "effects": [{"kind": "damage", "amount": 4}, {"kind": "status", "status": "poison", "amount": 3}]},
-	"snare": {"name": "Snare", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Control", "description": "Deal 3 damage and stun. A stunned adventurer loses its next announced action; a stunned monster cannot play owned cards next turn.", "effects": [{"kind": "damage", "amount": 3}, {"kind": "status", "status": "stun", "amount": 1}]},
+	"snare_dungeon": {"name": "Dungeon Snare", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Neutral", "description": "Deal 2 damage and stun one action. After skipping, the target gains Resolve until it acts; further stun fails during Resolve.", "effects": [{"kind": "damage", "amount": 2}, {"kind": "status", "status": "stun", "amount": 1}]},
+	"heavy_blow": {"name": "Heavy Blow", "rarity": "common", "cost": 2, "target": "enemy", "affinity": "Might", "description": "Deal 12 damage in one hit. Costs 2 energy; good against armor and for finishing a foe.", "effects": [{"kind": "damage", "amount": 12}]},
+	"shield_wall": {"name": "Shield Wall", "rarity": "uncommon", "cost": 2, "target": "all_allies", "affinity": "Guard", "description": "Give all living allies 8 block. Costs 2 energy; protects several announced targets.", "effects": [{"kind": "block", "amount": 8}]},
+	"firebolt": {"name": "Firebolt", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Flame", "description": "Deal 5 damage and add burning that ticks 2, then 1. Each application decays separately and bypasses armor and block.", "effects": [{"kind": "damage", "amount": 5}, {"kind": "status", "status": "burn", "amount": 2}]},
+	"poisoned_blade": {"name": "Poisoned Blade", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Venom", "description": "Deal 4 damage and add poison that ticks 3, then 2, then 1. Each application decays separately and bypasses armor and block.", "effects": [{"kind": "damage", "amount": 4}, {"kind": "status", "status": "poison", "amount": 3}]},
+	"snare": {"name": "Snare", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Control", "description": "Deal 3 damage and stun one action or owned-card turn. Stun does not stack. After skipping, Resolve prevents another stun until the target acts.", "effects": [{"kind": "damage", "amount": 3}, {"kind": "status", "status": "stun", "amount": 1}]},
 	"smoke_step": {"name": "Smoke Step", "rarity": "uncommon", "cost": 1, "target": "self", "affinity": "Trickery", "description": "Gain 4 block and evade the next damaging hit.", "effects": [{"kind": "block", "amount": 4}, {"kind": "status", "status": "evasion", "amount": 1}]},
 	"arcane_bolt": {"name": "Arcane Bolt", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Mystic", "description": "Deal 7 damage.", "effects": [{"kind": "damage", "amount": 7}]},
-	"regrowth": {"name": "Regrowth", "rarity": "rare", "cost": 1, "target": "ally", "affinity": "Vitality", "description": "Add 3 regeneration: heal its strength at faction turn end, then decay by 1. Reapplications add strength.", "effects": [{"kind": "status", "status": "regen", "amount": 3}]},
-	"ogre_aegis": {"name": "Ogre Aegis", "rarity": "rare", "cost": 1, "target": "all_allies", "affinity": "Guard", "description": "Give every ally 8 block; your passive adds 2 more.", "effects": [{"kind": "block", "amount": 8}]},
-	"burning_cleave": {"name": "Burning Cleave", "rarity": "rare", "cost": 1, "target": "all_enemies", "affinity": "Flame", "description": "Deal 4 damage and add 2 burning to every foe; your passive adds another 1.", "effects": [{"kind": "damage", "amount": 4}, {"kind": "status", "status": "burn", "amount": 2}]},
-	"petrifying_gaze": {"name": "Petrifying Gaze", "rarity": "rare", "cost": 1, "target": "enemy", "affinity": "Control", "description": "Add 4 poison and stun one action; your passive adds 1 more poison.", "effects": [{"kind": "status", "status": "poison", "amount": 4}, {"kind": "status", "status": "stun", "amount": 1}]},
+	"regrowth": {"name": "Regrowth", "rarity": "rare", "cost": 1, "target": "ally", "affinity": "Vitality", "description": "Add a regeneration application healing 3, then 2, then 1 at your faction's turn end. Each reapplication decays separately. Repeatable.", "effects": [{"kind": "status", "status": "regen", "amount": 3}]},
+	"ogre_aegis": {"name": "Ogre Aegis", "rarity": "rare", "cost": 2, "target": "all_allies", "affinity": "Guard", "description": "Give every ally 8 block; your passive adds 2 more. Costs 2 energy.", "effects": [{"kind": "block", "amount": 8}]},
+	"burning_cleave": {"name": "Burning Cleave", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Flame", "description": "Deal 4 damage and add a 2-strength burning application to every foe; your passive adds a separate 1 burning. Costs 2 energy.", "effects": [{"kind": "damage", "amount": 4}, {"kind": "status", "status": "burn", "amount": 2}]},
+	"petrifying_gaze": {"name": "Petrifying Gaze", "rarity": "rare", "cost": 2, "target": "enemy", "affinity": "Control", "description": "Add 4 poison and stun one action; your passive adds 1 poison strength. Resolve prevents consecutive stuns. Costs 2 energy.", "effects": [{"kind": "status", "status": "poison", "amount": 4}, {"kind": "status", "status": "stun", "amount": 1}]},
 	"ambush": {"name": "Ambush", "rarity": "rare", "cost": 1, "target": "enemy", "affinity": "Trickery", "description": "Deal 9 damage and gain one evasion. Gain +2 damage against a foe with a harmful status.", "effects": [{"kind": "damage", "amount": 9}, {"kind": "status", "status": "evasion", "amount": 1, "to": "self"}]},
-	"spirit_flame": {"name": "Spirit Flame", "rarity": "rare", "cost": 1, "target": "all_enemies", "affinity": "Mystic", "description": "Deal 6 damage and add 2 burning to all foes. Your Mystic passive adds 2 damage.", "effects": [{"kind": "damage", "amount": 6}, {"kind": "status", "status": "burn", "amount": 2}]},
-	"ember_venom": {"name": "Ember Venom", "rarity": "rare", "cost": 1, "target": "all_enemies", "affinity": "Venom", "description": "Deal 3 damage and add 4 poison to all foes. Poison also adds 2 burning.", "effects": [{"kind": "damage", "amount": 3}, {"kind": "status", "status": "poison", "amount": 4}]}
+	"spirit_flame": {"name": "Spirit Flame", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Mystic", "description": "Deal 6 damage and add 2 burning to all foes. Your Mystic passive adds 2 damage. Costs 2 energy.", "effects": [{"kind": "damage", "amount": 6}, {"kind": "status", "status": "burn", "amount": 2}]},
+	"ember_venom": {"name": "Ember Venom", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Venom", "description": "Deal 3 damage and add 4 poison to all foes. Poison also adds 2 burning. Costs 2 energy.", "effects": [{"kind": "damage", "amount": 3}, {"kind": "status", "status": "poison", "amount": 4}]},
+	"renewing_aegis": {"name": "Renewing Aegis", "rarity": "rare", "cost": 2, "target": "all_allies", "affinity": "Vitality", "description": "Give every living ally 7 block and restore 3 HP. Your passive adds 3 block. Repeatable; costs 2 energy.", "effects": [{"kind": "block", "amount": 7}, {"kind": "heal", "amount": 3}]},
+	"nightfall": {"name": "Nightfall", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Trickery", "description": "Deal 7 damage to every foe and gain one evasion. Your passive adds 3 damage against foes with poison, burning or stun. Costs 2 energy.", "effects": [{"kind": "damage", "amount": 7}, {"kind": "status", "status": "evasion", "amount": 1, "to": "self"}]}
 }
 const FORMS = {
 	"goblin": {"name": "Goblin", "max_hp": 20, "signature": "stab", "passive": "Scrappy beginnings. Learn from the invaders you consume.", "color": "80b66d"},
@@ -38,7 +40,9 @@ const FORMS = {
 	"basilisk": {"name": "Basilisk", "max_hp": 28, "signature": "petrifying_gaze", "passive": "Venom gland: your poison applications gain 1 strength.", "color": "a2be63"},
 	"shadow_stalker": {"name": "Shadow Stalker", "max_hp": 26, "signature": "ambush", "passive": "Opportunist: deal 2 extra damage to foes with poison, burning, or stun.", "color": "a399d1"},
 	"oni": {"name": "Oni", "max_hp": 44, "signature": "spirit_flame", "passive": "Spirit mastery: your Mystic and Flame damage cards deal 2 extra damage.", "color": "e4a174"},
-	"ember_basilisk": {"name": "Ember Basilisk", "max_hp": 40, "signature": "ember_venom", "passive": "Volatile venom: your poison applications also add 2 burning.", "color": "dfb464"}
+	"ember_basilisk": {"name": "Ember Basilisk", "max_hp": 40, "signature": "ember_venom", "passive": "Volatile venom: your poison applications also add 2 burning.", "color": "dfb464"},
+	"ancient_ogre": {"name": "Ancient Ogre", "max_hp": 46, "signature": "renewing_aegis", "passive": "Ancient bulwark: your block cards grant 3 additional block to each target.", "color": "9fbd77"},
+	"nightstalker": {"name": "Nightstalker", "max_hp": 38, "signature": "nightfall", "passive": "Predator: deal 3 extra damage to foes with poison, burning or stun.", "color": "bbb0e4"}
 }
 const RECIPES = [
 	{"id": "green_ogre", "source": "goblin", "result": "green_ogre", "affinities": ["Might", "Guard"], "feeds": 2},
@@ -46,7 +50,9 @@ const RECIPES = [
 	{"id": "basilisk", "source": "goblin", "result": "basilisk", "affinities": ["Venom", "Control"], "feeds": 2},
 	{"id": "shadow_stalker", "source": "goblin", "result": "shadow_stalker", "affinities": ["Trickery", "Mystic"], "feeds": 2},
 	{"id": "oni", "source": "red_ogre", "result": "oni", "affinities": ["Mystic"], "feeds": 4},
-	{"id": "ember_basilisk", "source": "basilisk", "result": "ember_basilisk", "affinities": ["Flame"], "feeds": 4}
+	{"id": "ember_basilisk", "source": "basilisk", "result": "ember_basilisk", "affinities": ["Flame"], "feeds": 4},
+	{"id": "ancient_ogre", "source": "green_ogre", "result": "ancient_ogre", "affinities": ["Vitality"], "feeds": 4},
+	{"id": "nightstalker", "source": "shadow_stalker", "result": "nightstalker", "affinities": ["Venom"], "feeds": 4}
 ]
 const CLASSES = {
 	"warrior": {"name": "Warrior", "pool": ["heavy_blow", "strike", "guard"], "base_hp": 15, "armor": 1, "names": ["Bran", "Torren", "Edric"]},
@@ -94,7 +100,7 @@ static func inheritance_outcomes(abilities: Array, learned: Array) -> Array:
 	for outcome in outcomes: outcome["chance"] = float(outcome["weight"]) / float(total_weight)
 	return outcomes
 
-static func eligible(monster: Dictionary) -> Array:
+static func consumed_affinities(monster: Dictionary) -> Array:
 	var affinities: Array = []
 	var seen: Array = []
 	for ability_id in monster.get("consumed", []):
@@ -102,8 +108,12 @@ static func eligible(monster: Dictionary) -> Array:
 			continue
 		seen.append(ability_id)
 		var affinity: String = ABILITIES[ability_id]["affinity"]
-		if not affinities.has(affinity):
+		if affinity != "Neutral" and not affinities.has(affinity):
 			affinities.append(affinity)
+	return affinities
+
+static func eligible(monster: Dictionary) -> Array:
+	var affinities: Array = consumed_affinities(monster)
 	var choices: Array = []
 	for recipe in RECIPES:
 		if recipe["source"] != monster["form"] or int(monster["feeds"]) < int(recipe["feeds"]):
@@ -137,4 +147,12 @@ static func generate_party(raid_index: int, rng: RandomNumberGenerator) -> Array
 		party.append({"id": "raid_%d_foe_%d" % [index, slot], "name": actor_name,
 			"class_name": class_id, "form": class_id, "hp": hp, "max_hp": hp,
 			"abilities": skills, "armor": maxi(0, int(template.get("armor", 0))), "block": 0, "statuses": {}})
+	ensure_priest_offense(party)
 	return party
+
+static func ensure_priest_offense(party: Array) -> void:
+	# Older active parties can contain heal-only priests. Keep their locked intent,
+	# but supply an actual offensive ability for later turns and their eventual body.
+	for actor in party:
+		if actor.get("class_name", actor.get("form", "")) == "priest" and not actor.get("abilities", []).has("arcane_bolt"):
+			actor["abilities"].append("arcane_bolt")

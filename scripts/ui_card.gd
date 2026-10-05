@@ -76,7 +76,10 @@ func configure(ui, battle, card: Dictionary, compact: bool, portrait: bool, sele
 	box.add_child(_label(ability["name"], "CardTitle", (14 if portrait else 13) if compact else 16, ui.MUTED if disabled else ui.PARCHMENT))
 	var effect_label = _label(effect, "CardEffect", 11 if compact else 13, ui.MUTED if disabled else ui.MOSS)
 	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	effect_label.max_lines_visible = 2 if portrait or not compact else 1
+	var needs_two_lines: bool = false
+	for item in ability["effects"]:
+		if item["kind"] == "cleanse" or item.get("to", "target") == "self": needs_two_lines = true
+	effect_label.max_lines_visible = 2 if portrait or not compact or needs_two_lines else 1
 	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(effect_label)
 	_ignore_mouse(_face)

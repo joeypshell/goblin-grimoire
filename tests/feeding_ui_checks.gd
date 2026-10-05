@@ -20,6 +20,7 @@ func exercise(t) -> Dictionary:
 		t.check(label_ is Label and not label_ is BaseButton, "Inheritance odds are read-only text rather than an ability choice")
 		if label_ != null:
 			t.check(label_.text.contains(Data.ABILITIES[option["ability"]]["name"]) and label_.text.contains("%.1f%%" % (float(option["chance"]) * 100)) and label_.text.to_lower().contains(option["rarity"]), "Visible inheritance odds show the actual ability, weighted percentage and rarity")
+			t.check(label_.text.contains(Data.ABILITIES[option["ability"]]["affinity"]), "Inheritance odds identify the affinity available from this actual corpse")
 	t.check(JSON.stringify(before) == JSON.stringify(game.run) and random_before == game.rng.state, "Rendering random outcomes does not roll or modify the run")
 	await t.reachable_button("Devour", true)
 	await t.capture("07a_devour_chances")
@@ -43,5 +44,15 @@ func exercise(t) -> Dictionary:
 	t.check(game.evolve(recipient["id"], "red_ogre"), "Explicit earned lineage fixture opens the evolution reveal")
 	var info: Dictionary = game.last_evolution.duplicate(true)
 	game.last_evolution = {}
+	# Explicit long-history presentation fixture, using transferable invader skills.
+	for ability in ["heavy_blow", "shield_wall", "firebolt", "poisoned_blade", "snare", "smoke_step", "arcane_bolt", "regrowth", "mend"]:
+		if not recipient["learned"].has(ability): recipient["learned"].append(ability)
+		if not recipient["consumed"].has(ability): recipient["consumed"].append(ability)
+	recipient["feeds"] = recipient["consumed"].size()
 	ui.refresh()
+	await t.capture("07c_consumed_affinities")
+	var history = ui.find_child("ConsumedAffinities_" + recipient["id"], true, false)
+	t.check(history is Label, "Feeding displays the recipient's actual consumed-affinity history")
+	if history != null:
+		for affinity in Data.consumed_affinities(recipient): t.check(history.text.contains(affinity), "Visible consumed history includes earned affinity " + affinity)
 	return info

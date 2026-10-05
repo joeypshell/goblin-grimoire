@@ -10,6 +10,7 @@ func run(t) -> void:
 
 func test_timing(t) -> void:
 	var battle = t.fixture(t.roster(), [t.enemy("e0", "strike")])
+	battle.intents = [{"enemy_id": "e0", "ability": "strike", "target_id": "m0", "text": "Fixture blocked hit"}]
 	battle.hand = [t.card("guard")]
 	t.check(battle.play_card(0, "m0") and battle.monsters[0]["block"] == 7, "Guard grants its defined block immediately")
 	battle.end_turn()
@@ -24,20 +25,23 @@ func test_timing(t) -> void:
 	effects.hand = [t.card("regrowth", "m0", "regen_a"), t.card("regrowth", "m0", "regen_b")]
 	effects.play_card(0, "m0")
 	effects.play_card(0, "m0")
-	t.check(effects.monsters[0]["statuses"]["regen"] == 9, "Repeated Regrowth adds strength using the documented stacking rule")
+	t.check(effects.monsters[0]["statuses"]["regen"] == 9, "Repeated Regrowth displays the sum of separately decaying applications")
+	effects._tick_statuses(effects.monsters)
+	t.check(effects.monsters[0]["statuses"]["regen"] == 6, "Three regeneration applications each decay once, rather than extending a summed tail")
 	var dead_actor = t.fixture(t.roster(), [t.enemy("e0", "heavy_blow", 1), t.enemy("e1", "heavy_blow")])
 	dead_actor.intents = [{"enemy_id": "e0", "ability": "heavy_blow", "target_id": "m0", "text": "locked"}, {"enemy_id": "e1", "ability": "heavy_blow", "target_id": "m0", "text": "locked"}]
 	dead_actor.hand = [t.card("strike")]
 	dead_actor.play_card(0, "e0")
 	dead_actor.end_turn()
-	t.check(dead_actor.monsters[0]["hp"] == 12, "Defeated enemy cannot complete its pending announced action")
+	t.check(dead_actor.monsters[0]["hp"] == 8, "Defeated enemy cannot complete its pending announced action")
 	var people: Array = t.roster()
 	people[0]["hp"] = 1
 	var rotating = t.fixture(people, [t.enemy("e0", "heavy_blow"), t.enemy("e1", "strike")])
 	rotating.intents = [{"enemy_id": "e0", "ability": "heavy_blow", "target_id": "m0", "text": "locked"}, {"enemy_id": "e1", "ability": "strike", "target_id": "m0", "text": "locked"}]
 	rotating.end_turn()
-	t.check(people[0]["hp"] == 0 and people[1]["hp"] == 14, "Locked frontline rotates only after its announced target is knocked out")
+	t.check(people[0]["hp"] == 0 and people[1]["hp"] == 14, "Locked destination redirects only after its announced target is knocked out")
 	var stunned = t.fixture(t.roster(), [t.enemy("e0", "snare")])
+	stunned.intents = [{"enemy_id": "e0", "ability": "snare", "target_id": "m0", "text": "Fixture owner control"}]
 	stunned.end_turn()
 	stunned.hand = [t.card("strike"), t.card("core_pulse", "", "shared_pulse")]
 	t.check(stunned.monsters[0]["statuses"].get("stun", 0) == 1 and stunned.legal_targets(stunned.hand[0]).is_empty(), "Enemy Snare disables that monster's cards for the following player turn")

@@ -6,6 +6,8 @@ const State = preload("res://scripts/run_state.gd")
 const Edges = preload("res://tests/test_edges.gd")
 const Inheritance = preload("res://tests/test_inheritance.gd")
 const Armor = preload("res://tests/test_armor.gd")
+const Balance = preload("res://tests/test_balance.gd")
+const Campaigns = preload("res://tests/test_campaigns.gd")
 
 var checks := 0
 var failures: Array = []
@@ -18,7 +20,7 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	profile_root = "user://verification/%s/" % str(Time.get_unix_time_from_system()).replace(".", "_")
+	profile_root = "user://verification/gameplay_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
 	DirAccess.make_dir_recursive_absolute(profile_root)
 	print("Goblin Grimoire verification; isolated profile: ", profile_root)
 	test_data_and_cards()
@@ -29,7 +31,9 @@ func _run() -> void:
 	Edges.new().run(self)
 	Inheritance.new().run(self)
 	Armor.new().run(self)
+	Balance.new().run(self)
 	test_campaign()
+	Campaigns.new().run(self)
 	print("RESULT: %d checks across %d groups; %d failures; campaign %d turns / %d card plays" % [checks, groups, failures.size(), campaign_turns, campaign_plays])
 	for failure in failures:
 		print("FAIL: ", failure)
@@ -255,25 +259,45 @@ func position_value(battle) -> float:
 	var score := 0.0
 	var threatened := {}
 	for intent in battle.intents:
-		threatened[str(intent["target_id"])] = true
+		var caster: Dictionary = battle.get_actor(intent["enemy_id"])
+		if caster.is_empty() or int(caster["hp"]) <= 0 or int(caster.get("statuses", {}).get("stun", 0)) > 0:
+			continue
+		var ability: Dictionary = Data.ABILITIES[intent["ability"]]
+		for target in battle._targets(ability["target"], caster, intent["target_id"]):
+			for effect in ability["effects"]:
+				if effect["kind"] == "damage":
+					threatened[target["id"]] = float(threatened.get(target["id"], 0)) + battle._amount(effect, ability, caster, target)
 	for actor in battle.monsters:
 		score += float(actor["hp"]) * 1.2
 		score -= maxf(0.0, float(actor["max_hp"]) * 0.45 - float(actor["hp"])) * 1.3
 		if actor["hp"] <= 0:
 			score -= 45.0
 		if threatened.has(str(actor["id"])):
-			score += min(float(actor.get("block", 0)), 15.0) * 1.25
+			score += minf(float(actor.get("block", 0)), threatened[actor["id"]]) * 1.25
 		var statuses: Dictionary = actor.get("statuses", {})
-		score += float(statuses.get("regen", 0)) * 3.0
-		score -= float(statuses.get("poison", 0)) * 3.0 + float(statuses.get("burn", 0)) * 3.0
+		score += minf(status_potential(actor, "regen"), float(actor["max_hp"] - actor["hp"])) * 1.2
+		score -= (status_potential(actor, "poison") + status_potential(actor, "burn")) * 1.3
+		if threatened.has(actor["id"]): score += float(statuses.get("evasion", 0)) * 4.0
 	for actor in battle.enemies:
 		score -= float(actor["hp"]) * 1.5
 		if actor["hp"] <= 0:
 			score += 30.0
+			continue
 		var statuses: Dictionary = actor.get("statuses", {})
-		score += float(statuses.get("poison", 0)) * 4.0 + float(statuses.get("burn", 0)) * 4.0
-		score += float(statuses.get("stun", 0)) * 9.0
+		score += (status_potential(actor, "poison") + status_potential(actor, "burn")) * 1.1
+		# Consuming temporary defenses advances combat even when a hit loses no HP.
+		score -= float(actor.get("block", 0)) * 0.9
+		score -= float(statuses.get("evasion", 0)) * 6.0
+		if int(statuses.get("stun", 0)) > 0: score += 6.0
 	return score
+
+func status_potential(actor: Dictionary, status_id: String) -> float:
+	var layers: Array = actor.get("status_layers", {}).get(status_id, [])
+	if layers.is_empty() and int(actor.get("statuses", {}).get(status_id, 0)) > 0:
+		layers = [int(actor["statuses"][status_id])]
+	var total := 0.0
+	for strength in layers: total += float(strength * (strength + 1)) / 2.0
+	return total
 
 func win_raid(game, bound: int = 180) -> bool:
 	var played := 0
@@ -294,7 +318,7 @@ func win_raid(game, bound: int = 180) -> bool:
 					var copy = clone_battle(game)
 					if not copy.play_card(index, str(target)):
 						continue
-					var gain := position_value(copy) - baseline
+					var gain := (position_value(copy) - baseline) / float(Data.ABILITIES[value["ability"]]["cost"])
 					if copy.outcome == "won":
 						gain += 1000.0
 					if gain > best_gain:
@@ -311,16 +335,19 @@ func win_raid(game, bound: int = 180) -> bool:
 	campaign_turns += turns
 	campaign_plays += played
 	print("  raid ", game.run["raid"], ": ", turns, " turns, ", played, " card plays; phase ", game.run["phase"], "; monsters ", game.run["monsters"].map(func(m): return str(m["hp"]) + "/" + str(m["max_hp"])))
-	if game.run["phase"] != "feeding":
+	if game.run["phase"] == "combat":
 		print("  combat diagnostic: ", JSON.stringify(game.battle.to_dict()))
 	return game.run["phase"] == "feeding"
 
-func feed_campaign(game, test_partial: bool) -> bool:
+func feed_campaign(game, test_partial: bool, spread: bool = false) -> bool:
 	var partial_done := false
 	for body_index in range(game.run["rewards"].size()):
 		var body: Dictionary = game.run["rewards"][body_index]
 		check(not body["abilities"].is_empty(), "Every actual defeated adventurer offers transferable abilities")
 		var recipient: Dictionary = game.run["monsters"][0]
+		if spread:
+			for candidate in game.run["monsters"]:
+				if not game.inheritance_outcomes(body_index, candidate["id"]).is_empty() and int(candidate["feeds"]) < int(recipient["feeds"]): recipient = candidate
 		var outcomes: Array = game.inheritance_outcomes(body_index, recipient["id"])
 		if outcomes.is_empty():
 			for monster in game.run["monsters"]:
@@ -340,12 +367,8 @@ func feed_campaign(game, test_partial: bool) -> bool:
 		check(recipient["feeds"] == feed_before + 1 and recipient["learned"].has(chosen) and recipient["consumed"].has(chosen), "Consumption records exactly one feeding, learned skill and affinity history")
 		check(not game.claim_body(body_index, recipient["id"]), "Same body cannot be consumed twice")
 		var eligible: Array = game.eligible(recipient["id"])
-		# The campaign driver pursues lineages with another playable branch and
-		# may decline other earned choices, exactly as the player can.
-		for branch in ["oni", "ember_basilisk", "red_ogre", "basilisk"]:
-			if eligible.any(func(recipe): return recipe["id"] == branch):
-				check(game.evolve(recipient["id"], branch), "Campaign reveals and performs an actually earned lineage branch")
-				break
+		if not eligible.is_empty():
+			check(game.evolve(recipient["id"], eligible[0]["id"]), "Campaign reveals and performs an actually earned lineage branch")
 		if test_partial and not partial_done:
 			game.save_game()
 			var replacement = state_at("campaign")
@@ -361,13 +384,34 @@ func feed_campaign(game, test_partial: bool) -> bool:
 func configure_loadout(game) -> void:
 	for monster in game.run["monsters"]:
 		var first := "strike"
-		for ability in ["heavy_blow", "arcane_bolt", "firebolt", "poisoned_blade"]:
-			if monster["learned"].has(ability):
+		var best := ability_value(first)
+		for ability in monster["learned"]:
+			var value := ability_value(ability)
+			if value > best:
 				first = ability
-				break
+				best = value
 		check(game.set_selected(monster["id"], 0, first), "Preparation selects learned combat ability")
-		var heal := "mend" if monster["learned"].has("mend") else "patch_up"
+		var heal := "patch_up"
+		# Keep one repeatable support card; incoming poison/burn makes cleansing useful.
+		var ailments := false
+		for invader in game.party_preview():
+			for ability in invader["abilities"]:
+				for effect in Data.ABILITIES[ability]["effects"]:
+					if effect.get("status", "") in ["poison", "burn"]: ailments = true
+		if monster["learned"].has("mend") and ailments: heal = "mend"
+		elif monster["learned"].has("regrowth"): heal = "regrowth"
 		check(game.set_selected(monster["id"], 1, heal), "Preparation retains repeatable healing")
+
+func ability_value(id: String) -> float:
+	var definition: Dictionary = Data.ABILITIES[id]
+	if definition["target"] not in ["enemy", "all_enemies"]: return -1.0
+	var score := 0.0
+	for effect in definition["effects"]:
+		var amount: int = effect["amount"]
+		if effect["kind"] == "damage": score += amount
+		if effect.get("status", "") in ["poison", "burn"]: score += amount * (amount + 1) * 0.375
+		if effect.get("status", "") == "stun": score += 3.0
+	return score / float(definition["cost"])
 
 func test_campaign() -> void:
 	group("normal real-card F/E campaign, partial feeding/combat saves, first and advanced evolution, promotion")
@@ -408,7 +452,7 @@ func test_campaign() -> void:
 	check(game.discoveries().size() >= 2, "Normal campaign discovers first and advanced evolution")
 	var advanced := false
 	for monster in game.run["monsters"]:
-		if monster["form"] in ["oni", "ember_basilisk"]:
+		if monster["form"] in ["oni", "ember_basilisk", "ancient_ogre", "nightstalker"]:
 			advanced = true
 	check(advanced, "Normal campaign actually performs a later lineage branch")
 	var discovery_count: int = game.discoveries().size()

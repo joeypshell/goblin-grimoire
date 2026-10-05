@@ -67,21 +67,23 @@ func _draw() -> void:
 		_serpent(form == "ember_basilisk")
 		return
 	var skin: Color = _skin()
-	if form in ["goblin", "green_ogre", "red_ogre", "oni"]:
+	if form in ["goblin", "green_ogre", "red_ogre", "oni", "ancient_ogre"]:
 		_humanoid_limbs(skin, form != "goblin")
 	else:
 		_adventurer_body()
 	match form:
 		"goblin": _goblin()
 		"green_ogre": _ogre(skin, false)
+		"ancient_ogre": _ancient_ogre()
 		"red_ogre": _ogre(skin, true)
 		"oni": _oni()
 		"shadow_stalker": _stalker()
+		"nightstalker": _nightstalker()
 		_: _adventurer()
 	_weapons()
 
 func _skin() -> Color:
-	return {"goblin": Color("92b966"), "green_ogre": Color("7ba34b"), "red_ogre": Color("b85538"), "oni": Color("a36162")}.get(form, Color("c49b79"))
+	return {"goblin": Color("92b966"), "green_ogre": Color("7ba34b"), "red_ogre": Color("b85538"), "oni": Color("a36162"), "ancient_ogre": Color("9eaf70")}.get(form, Color("c49b79"))
 
 func _humanoid_limbs(skin: Color, large: bool) -> void:
 	var hip: float = 21 if large else 14
@@ -104,7 +106,7 @@ func _adventurer_body() -> void:
 	if form in ["mage", "controller"]: cloth = Color("737496")
 	if form == "priest": cloth = Color("ac9c69")
 	if form == "rogue": cloth = Color("777964")
-	if form == "shadow_stalker": cloth = Color("55516e")
+	if form in ["shadow_stalker", "nightstalker"]: cloth = Color("55516e") if form == "shadow_stalker" else Color("695981")
 	poly([Vector2(-22, 29), Vector2(-4, 31), Vector2(-8, 73), Vector2(-20, 77), Vector2(-25, 60)], cloth.darkened(0.3))
 	poly([Vector2(5, 31), Vector2(23, 29), Vector2(25, 60), Vector2(21, 77), Vector2(8, 73)], cloth.darkened(0.1))
 	poly([Vector2(-21, 71), Vector2(-8, 71), Vector2(-8, 83), Vector2(-31, 83)], Color("34392f"))
@@ -113,7 +115,7 @@ func _adventurer_body() -> void:
 	poly([Vector2(26, 13), Vector2(40, 24), Vector2(44, 48), Vector2(33, 51), Vector2(27, 28)], cloth.lightened(0.05))
 	draw_circle(Vector2(-38, 49), 6, Color("c49b79"))
 	draw_circle(Vector2(38, 49), 6, Color("c49b79"))
-	if form in ["mage", "priest", "controller", "shadow_stalker"]:
+	if form in ["mage", "priest", "controller", "shadow_stalker", "nightstalker"]:
 		poly([Vector2(-28, 30), Vector2(28, 30), Vector2(33, 75), Vector2(20, 81), Vector2(0, 76), Vector2(-22, 81), Vector2(-33, 75)], cloth)
 		line([Vector2(0, 37), Vector2(0, 76)], cloth.lightened(0.2), 2)
 	else:
@@ -130,15 +132,15 @@ func _serpent_body(ember: bool) -> void:
 	for x in [-20, -10, 0, 10, 20]: draw_circle(Vector2(x, 55), 2, skin.lightened(0.35))
 
 func _weapons() -> void:
-	if form in ["goblin", "rogue", "shadow_stalker"]:
+	if form in ["goblin", "rogue", "shadow_stalker", "nightstalker"]:
 		line([Vector2(35, 43), Vector2(44, 29)], Color("5c4936"), 4)
 		poly([Vector2(42, 32), Vector2(47, 7), Vector2(51, 32), Vector2(46, 37)], Color("d6d3b9"))
 	elif form in ["warrior", "red_ogre"]:
 		var grip: float = 53 if form == "red_ogre" else 38
 		line([Vector2(grip, 49), Vector2(grip + 7, 24)], Color("6a4f34"), 5)
 		poly([Vector2(grip + 3, 25), Vector2(grip + 2, -5), Vector2(grip + 15, -13), Vector2(grip + 18, 18), Vector2(grip + 9, 29)], Color("bbbca4"))
-	elif form in ["defender", "green_ogre"]:
-		var x: float = -52 if form == "green_ogre" else -38
+	elif form in ["defender", "green_ogre", "ancient_ogre"]:
+		var x: float = -52 if form in ["green_ogre", "ancient_ogre"] else -38
 		poly([Vector2(x - 17, 18), Vector2(x + 13, 18), Vector2(x + 15, 53), Vector2(x, 66), Vector2(x - 17, 53)], Color("727e68"))
 		line([Vector2(x, 24), Vector2(x, 56)], GOLD, 3)
 	elif form in ["mage", "controller", "priest", "oni"]:

@@ -80,6 +80,9 @@ func load_game() -> bool:
 		return false
 	_load_profile()
 	run = _read_json(_prefix + "run.json")
+	Data.ensure_priest_offense(run.get("party", []))
+	if run.get("battle") is Dictionary:
+		Data.ensure_priest_offense(run["battle"].get("enemies", []))
 	rng.seed = int(run["seed"])
 	rng.state = int(run["rng_state"])
 	battle = null
@@ -269,6 +272,7 @@ func _recover() -> void:
 		monster["hp"] = mini(int(monster["max_hp"]), int(monster["hp"]) + amount)
 		monster["block"] = 0
 		monster["statuses"] = {}
+		monster["status_layers"] = {}
 	run["recovered_id"] = run["resolved_id"]
 
 func finish_feeding() -> bool:

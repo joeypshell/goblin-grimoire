@@ -47,24 +47,26 @@ static func status(actor: Dictionary) -> String:
 	var tags: Array = []
 	for key in actor.get("statuses", {}):
 		if int(actor["statuses"][key]) > 0:
-			tags.append("%s %d" % [_status_name(key), actor["statuses"][key]])
+			if key == "resolve": tags.append("Resolve · stun protected")
+			else: tags.append("%s %d" % [_status_name(key), actor["statuses"][key]])
 	return " · ".join(tags)
 
 static func defenses(actor: Dictionary) -> String:
 	return "Armor %d · Block %d" % [Data.armor(actor), maxi(0, int(actor.get("block", 0)))]
 
 static func _status_name(id: String) -> String:
-	return {"burn": "Burn", "poison": "Poison", "regen": "Regen", "stun": "Stun", "evasion": "Evade"}.get(id, id.capitalize())
+	return {"burn": "Burn", "poison": "Poison", "regen": "Regen", "stun": "Stun", "evasion": "Evade", "resolve": "Resolve"}.get(id, id.capitalize())
 
 static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target: Dictionary, detailed: bool) -> String:
 	var parts: Array = []
 	var hp: int = int(target.get("hp", 999))
 	var block: int = int(target.get("block", 0))
 	var evasion: int = int(target.get("statuses", {}).get("evasion", 0))
+	var statuses: Dictionary = target.get("statuses", {}).duplicate()
 	for effect in ability["effects"]:
 		if effect.get("to", "target") == "self" and target.get("id", "") != caster.get("id", ""): continue
 		if hp <= 0: break
-		var amount: int = battle._amount(effect, ability, caster, target)
+		var amount: int = battle._amount(effect, ability, caster, target) if effect.has("amount") else 0
 		match effect["kind"]:
 			"damage":
 				var prevented: Dictionary = battle.damage_breakdown({"hp": hp, "block": block, "armor": Data.armor(target)}, amount)
@@ -79,9 +81,26 @@ static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target
 					parts.append("%d damage: %d HP lost%s" % [amount, lost, " (" + ", ".join(defenses) + ")" if not defenses.is_empty() else ""] if detailed else "%d damage" % amount)
 					hp -= lost
 					block -= int(prevented["block"])
-			"heal": parts.append("+%d HP" % mini(amount, int(target.get("max_hp", 999)) - hp) if detailed else "Heal %d" % amount)
+			"heal":
+				var restored: int = mini(amount, maxi(0, int(target.get("max_hp", 999)) - hp))
+				parts.append("+%d HP" % restored if detailed else "Heal %d" % amount)
+				hp += restored
 			"block": parts.append("+%d block" % amount)
-			"status": parts.append("+%d %s" % [amount, _status_name(effect["status"])])
+			"status":
+				var id: String = effect["status"]
+				if id == "stun" and int(statuses.get("resolve", 0)) > 0:
+					parts.append("Stun blocked: Resolve")
+				elif id == "stun" and int(statuses.get("stun", 0)) > 0:
+					parts.append("Already stunned; no extra skip")
+				else:
+					parts.append("+%d %s%s" % [amount, _status_name(id), " (decays separately)" if detailed and id in ["poison", "burn", "regen"] else ""])
+					statuses[id] = int(statuses.get(id, 0)) + amount
+			"cleanse":
+				var cleared: Array = []
+				for id in effect.get("statuses", []):
+					if not detailed or int(statuses.get(id, 0)) > 0: cleared.append(_status_name(id))
+					statuses.erase(id)
+				parts.append("Cleanse " + "/".join(cleared) if not cleared.is_empty() else "No Poison/Burn to cleanse")
 	if hp > 0:
 		for effect in ability["effects"]:
 			if effect["kind"] == "damage" and caster.get("form", "") == "red_ogre":
@@ -93,7 +112,12 @@ static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target
 
 static func card_effect(battle, card: Dictionary) -> String:
 	var ability: Dictionary = Data.ABILITIES[card["ability"]]
-	return _effect_text(battle, ability, battle.get_actor(card["owner"]), {}, false)
+	var caster: Dictionary = battle.get_actor(card["owner"])
+	var text: String = _effect_text(battle, ability, caster, {}, false)
+	for effect in ability["effects"]:
+		if effect.get("to", "target") == "self" and not caster.is_empty():
+			text += ", owner +%d %s" % [battle._amount(effect, ability, caster, caster), _status_name(effect.get("status", "block"))]
+	return text
 
 static func preview(battle, card: Dictionary, actor: Dictionary) -> String:
 	var ability: Dictionary = Data.ABILITIES[card["ability"]]

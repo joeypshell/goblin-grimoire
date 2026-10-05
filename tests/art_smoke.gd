@@ -9,6 +9,7 @@ const Data = preload("res://scripts/game_data.gd")
 const Copy = preload("res://scripts/combat_copy.gd")
 const Preferences = preload("res://scripts/ui_preferences.gd")
 const CombatChecks = preload("res://tests/ui_combat_checks.gd")
+const BalanceChecks = preload("res://tests/balance_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1920, 900), Vector2i(1024, 768), Vector2i(1050, 640), Vector2i(390, 844), Vector2i(375, 667), Vector2i(844, 320)]
 
 var ui
@@ -25,7 +26,7 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	profile_root = "user://verification/art_%d/" % Time.get_ticks_usec()
+	profile_root = "user://verification/art_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
 	DirAccess.make_dir_recursive_absolute("res://tests/artifacts/art/")
 	FileAccess.open("res://tests/artifacts/.gdignore", FileAccess.WRITE).close()
 	surface = SubViewport.new()
@@ -34,7 +35,9 @@ func _run() -> void:
 	surface.size = SIZES[0]
 	root.add_child(surface)
 	ui = MainScene.instantiate()
+	ui.state = State.new(profile_root + "bootstrap/")
 	surface.add_child(ui)
+	check(ui.state._prefix.begins_with(profile_root), "Scene startup preserves its explicitly isolated verification profile")
 	await test_stage_layout_stability()
 	for size_ in SIZES:
 		await test_size(size_)
@@ -170,6 +173,7 @@ func test_size(size_: Vector2i) -> void:
 	if pixels.x > pixels.y and pixels.y < 440:
 		await scroll_to_card()
 		await capture("05_disabled_landscape_hand")
+	await BalanceChecks.new().exercise(self, pixels)
 	if pixels == Vector2i(1920, 1080): await test_lineage_visuals()
 
 func scroll_to_card() -> void:
@@ -195,7 +199,9 @@ func numerical(text_: String) -> bool:
 
 func test_selected_statuses() -> void:
 	for monster in game.run["monsters"]:
-		monster["statuses"] = {"poison": 2, "burn": 1, "regen": 2}
+		monster["statuses"] = {}
+		monster["status_layers"] = {}
+		for status_id in ["poison", "burn", "regen"]: game.battle._status(monster, status_id, 1 if status_id == "burn" else 2)
 	ui.card_index = 1
 	ui.refresh()
 	await capture("04_selected_regrowth_statuses")
@@ -210,7 +216,7 @@ func test_selected_statuses() -> void:
 
 func test_lineage_visuals() -> void:
 	# These are explicit art fixtures, not unlocked discoveries or game rewards.
-	for forms in [["red_ogre", "basilisk", "shadow_stalker"], ["green_ogre", "oni", "ember_basilisk"]]:
+	for forms in [["red_ogre", "basilisk", "shadow_stalker"], ["green_ogre", "oni", "ember_basilisk"], ["ancient_ogre", "nightstalker", "goblin"]]:
 		for index in range(forms.size()):
 			var monster: Dictionary = game.run["monsters"][index]
 			monster["form"] = forms[index]

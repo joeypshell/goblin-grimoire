@@ -31,11 +31,13 @@ func _draw() -> void:
 	match form:
 		"goblin": _goblin()
 		"green_ogre": _ogre(Color("7ba34b"), false)
+		"ancient_ogre": _ancient_ogre()
 		"red_ogre": _ogre(Color("b85538"), true)
 		"oni": _oni()
 		"basilisk": _serpent(false)
 		"ember_basilisk": _serpent(true)
 		"shadow_stalker": _stalker()
+		"nightstalker": _nightstalker()
 		_: _adventurer()
 
 func _goblin() -> void:
@@ -76,6 +78,20 @@ func _ogre(skin: Color, flame: bool) -> void:
 	for x in [-34, -23]: draw_circle(Vector2(x, 33), 2, GOLD)
 	if flame:
 		poly([Vector2(22, 46), Vector2(16, 26), Vector2(26, 31), Vector2(30, 13), Vector2(41, 35), Vector2(35, 48)], Color("eb9854"))
+
+func _ancient_ogre() -> void:
+	_ogre(Color("9eaf70"), false)
+	line([Vector2(-20, -21), Vector2(-13, -17)], GOLD, 2)
+	line([Vector2(12, -17), Vector2(21, -21)], GOLD, 2)
+	poly([Vector2(-11, 22), Vector2(-5, 43), Vector2(0, 32), Vector2(5, 43), Vector2(12, 22)], Color("d8dcc3"))
+	draw_circle(Vector2(0, -22), 4, Color("cee596"))
+
+func _nightstalker() -> void:
+	_stalker()
+	line([Vector2(-21, -25), Vector2(0, -37), Vector2(22, -25)], Color("bfb1eb"), 3)
+	draw_circle(Vector2(0, -25), 4, Color("e0cb8c"))
+	line([Vector2(-28, 28), Vector2(-35, 43)], Color("bfb1eb"), 2)
+	line([Vector2(28, 28), Vector2(35, 43)], Color("bfb1eb"), 2)
 
 func _oni() -> void:
 	_ogre(Color("a36162"), false)

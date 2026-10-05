@@ -50,7 +50,7 @@ func _tick_statuses(faction: Array) -> void:
 	var friendly: bool = faction == monsters
 	var affected: Array = []
 	for actor in faction:
-		for status in ["poison", "burn", "regen", "stun"]:
+		for status in ["poison", "burn", "regen", "stun", "resolve"]:
 			if status == "stun" and not friendly: continue
 			if int(actor.get("statuses", {}).get(status, 0)) > 0 and not affected.has(actor["id"]): affected.append(actor["id"])
 	super._tick_statuses(faction)
@@ -58,12 +58,12 @@ func _tick_statuses(faction: Array) -> void:
 	_record("player_end" if friendly else "enemy_end", "", affected, before, to_dict(),
 		"Your turn ends · discard unplayed cards; monster effects tick." if friendly else "Invaders finish · their poison, burn and regeneration tick.")
 
-func _decrease_status(actor: Dictionary, status_id: String, amount: int) -> void:
-	var skipped: bool = _capturing and status_id == "stun" and not _is_monster(actor["id"]) and int(actor.get("statuses", {}).get("stun", 0)) > 0
+func _consume_stun(actor: Dictionary) -> void:
+	var skipped: bool = _capturing and not _is_monster(actor["id"]) and int(actor.get("statuses", {}).get("stun", 0)) > 0
 	var before: Dictionary = to_dict() if skipped else {}
-	super._decrease_status(actor, status_id, amount)
+	super._consume_stun(actor)
 	if skipped:
-		_record("stun", actor["id"], [], before, to_dict(), "%s is stunned · announced action skipped." % actor["name"])
+		_record("stun", actor["id"], [], before, to_dict(), "%s skips the stunned action · Resolve protects its next action." % actor["name"])
 
 func _begin_turn() -> void:
 	var before = to_dict()

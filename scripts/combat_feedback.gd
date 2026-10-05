@@ -20,7 +20,16 @@ static func changes(before: Dictionary, after: Dictionary) -> Dictionary:
 		if block != 0: parts.append("%+d block" % block)
 		for status in actor.get("statuses", {}):
 			var gain: int = int(actor["statuses"][status]) - int(old.get("statuses", {}).get(status, 0))
-			if gain > 0: parts.append("+%d %s" % [gain, status.capitalize()])
+			if gain > 0: parts.append("Resolve · stun protected" if status == "resolve" else "+%d %s" % [gain, status.capitalize()])
+		for status in ["poison", "burn"]:
+			if int(actor["hp"]) > 0 and int(old.get("statuses", {}).get(status, 0)) > 0 and int(actor.get("statuses", {}).get(status, 0)) == 0:
+				parts.append(status.capitalize() + " cleared")
+		if int(actor["hp"]) > 0:
+			if int(old.get("statuses", {}).get("resolve", 0)) > 0 and int(actor.get("statuses", {}).get("resolve", 0)) == 0:
+				parts.append("Resolve expired")
+			var regen: int = int(actor.get("statuses", {}).get("regen", 0))
+			if regen < int(old.get("statuses", {}).get("regen", 0)):
+				parts.append("Regen now %d" % regen if regen > 0 else "Regen ended")
 		if int(old.get("statuses", {}).get("evasion", 0)) > int(actor.get("statuses", {}).get("evasion", 0)) and hp == 0: parts.append("Evaded")
 		if int(old["hp"]) > 0 and int(actor["hp"]) <= 0: parts.append("KO")
 		if not parts.is_empty(): result[id] = {"name": actor["name"], "text": ", ".join(parts), "hp": hp}
@@ -30,7 +39,7 @@ static func describe(before: Dictionary, after: Dictionary) -> String:
 	var lines: Array = []
 	var delta = changes(before, after)
 	for id in delta: lines.append("%s: %s" % [delta[id]["name"], delta[id]["text"]])
-	return " · ".join(lines) if not lines.is_empty() else "No HP or block changed."
+	return " · ".join(lines) if not lines.is_empty() else "No HP, block or status changed."
 
 static func clear(ui) -> void:
 	for child in ui.get_children():

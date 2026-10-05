@@ -67,14 +67,14 @@ func _new_run() -> void:
 
 func preparation() -> void:
 	var compact = ui.is_compact()
-	var page = _page()
+	var page = ui.scroll(ui.content)
 	var top = _flow(compact)
 	page.add_child(top)
 	var text = VBoxContainer.new()
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(text)
 	text.add_child(ui.label("1 / Prepare the chamber", 25 if compact else 27, ui.PARCHMENT, compact))
-	text.add_child(ui.label("Choose two skills per monster. Monsters act only through their owned cards; End turn resolves invaders. Next: inspect the party and defend.", 14, ui.MUTED, true))
+	text.add_child(ui.label("Choose two skills per monster; check their energy costs. Monsters act through owned cards. Invaders choose living targets each round, then keep their shown intentions. Next: inspect and defend.", 14, ui.MUTED, true))
 	top.add_child(ui.primary("Defend the dungeon", func():
 		ui.act(ui.state.start_raid, "Choose a card, then one of its highlighted targets."), 0 if compact else 230))
 	var roster = _flow(compact)
@@ -115,7 +115,8 @@ func _roster_card(monster: Dictionary, parent: Node) -> void:
 	info.add_child(ui.label(ui.form_name(monster["form"]), 15, ui.MOSS, ui.is_compact()))
 	ui.health(monster, info)
 	var definition = Data.FORMS.get(monster["form"], {})
-	box.add_child(ui.label("Signature  ·  " + ui.ability_name(definition.get("signature", "stab")), 15, ui.EMBER, ui.is_compact()))
+	var signature: String = definition.get("signature", "stab")
+	box.add_child(ui.label("Signature  ·  %s · %d energy" % [ui.ability_name(signature), Data.ABILITIES[signature]["cost"]], 15, ui.EMBER, true))
 	if ui.is_compact(): box.add_child(ui.label(Data.ABILITIES.get(definition.get("signature", "stab"), {}).get("description", ""), 13, ui.PARCHMENT, true))
 	box.add_child(ui.label(definition.get("passive", ""), 13, ui.MUTED, true))
 	var gap = Control.new()
@@ -132,6 +133,7 @@ func _roster_card(monster: Dictionary, parent: Node) -> void:
 		if ui.is_compact():
 			box.add_child(ui.label(Data.ABILITIES[monster["selected"][slot]]["description"], 13, ui.MUTED, true))
 	box.add_child(ui.label(str(monster["feeds"]) + " meals  ·  " + str(monster["learned"].size()) + " learned skills", 12, ui.MUTED))
+	consumed_affinities(monster, box)
 	var earned = ui.state.eligible(monster["id"])
 	if not earned.is_empty():
 		box.add_child(ui.primary("Transformation available", func(): evolution_choices(monster), 0))
@@ -150,13 +152,20 @@ func skill_picker(monster: Dictionary, slot: int) -> OptionButton:
 	var ids: Array = monster["learned"]
 	for index in range(ids.size()):
 		var id = ids[index]
-		picker.add_item(ui.ability_name(id))
+		picker.add_item("%s · %d energy" % [ui.ability_name(id), Data.ABILITIES[id]["cost"]])
 		picker.set_item_disabled(index, id == monster["selected"][1 - slot])
 		if id == monster["selected"][slot]: picker.select(index)
 		picker.set_item_tooltip(index, Data.ABILITIES.get(id, {}).get("description", ""))
 	picker.item_selected.connect(func(index):
 		ui.act(func(): ui.state.set_selected(monster["id"], slot, ids[index]), "The next raid's deck has been updated."))
 	return picker
+
+func consumed_affinities(monster: Dictionary, parent: Node) -> void:
+	var affinities: Array = Data.consumed_affinities(monster)
+	var history: String = ", ".join(affinities) if not affinities.is_empty() else "None yet"
+	var known = ui.label("Consumed affinities: " + history, 12, ui.MOSS, true)
+	known.name = "ConsumedAffinities_" + str(monster["id"])
+	parent.add_child(known)
 
 func evolution_choices(monster: Dictionary) -> void:
 	var box = ui.open_modal()

@@ -23,7 +23,7 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	profile_root = "user://verification/flow_%d/" % Time.get_ticks_usec()
+	profile_root = "user://verification/flow_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
 	can_render = DisplayServer.get_name() != "headless"
 	DirAccess.make_dir_recursive_absolute("res://tests/artifacts/flow/")
 	FileAccess.open("res://tests/artifacts/.gdignore", FileAccess.WRITE).close()
@@ -34,7 +34,9 @@ func _run() -> void:
 	surface.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(surface)
 	ui = MainScene.instantiate()
+	ui.state = State.new(profile_root + "bootstrap/")
 	surface.add_child(ui)
+	check(ui.state._prefix.begins_with(profile_root), "Scene startup preserves its explicitly isolated verification profile")
 	await test_controller()
 	await test_terminal_transitions()
 	await test_visible_sequence(Vector2i(1280, 720))
@@ -63,6 +65,8 @@ func fixture(party: Array = []) -> RefCounted:
 	var random := RandomNumberGenerator.new()
 	random.seed = 43811
 	battle.setup(roster(), [enemy("e0", "heavy_blow")] if party.is_empty() else party, random)
+	if party.is_empty():
+		battle.intents[0]["target_id"] = "m0"
 	return battle
 
 func card(ability: String, owner: String = "m0") -> Dictionary:
@@ -86,14 +90,14 @@ func test_copy() -> void:
 	battle.monsters[0]["block"] = 3
 	var before: Dictionary = battle.to_dict()
 	var announced: Dictionary = Copy.intent(battle, battle.enemies[0])
-	check(announced["targets"] == ["m0"] and announced["damage"] == 8, "Numeric heavy blow names the actual monster destination and raw damage")
-	check(announced["line"].contains("8 damage") and announced["line"].contains("Rook"), "Enemy announcement visibly states damage and destination")
+	check(announced["targets"] == ["m0"] and announced["damage"] == 12, "Numeric heavy blow names the actual monster destination and raw damage")
+	check(announced["line"].contains("12 damage") and announced["line"].contains("Rook"), "Enemy announcement visibly states damage and destination")
 	var heal: Dictionary = Copy.intent(battle, battle.enemies[1])
-	check(heal["targets"] == ["e0"] and heal["line"].contains("Heal 6"), "Enemy Mend derives its own faction rather than monster ally targets")
+	check(heal["targets"] == ["e0"] and heal["line"].contains("Heal 4"), "Enemy Mend derives its own faction rather than monster ally targets")
 	var preview: String = Copy.preview(battle, card("heavy_blow"), battle.monsters[0])
-	check(preview.contains("5 HP lost") and preview.contains("3 blocked"), "Target preview separates damage from blocked HP loss")
+	check(preview.contains("9 HP lost") and preview.contains("3 blocked"), "Target preview separates damage from blocked HP loss")
 	battle.monsters[0]["statuses"]["evasion"] = 1
-	check(Copy.preview(battle, card("heavy_blow"), battle.monsters[0]).contains("Evades 8"), "Target preview explains an evasion instead of promising HP damage")
+	check(Copy.preview(battle, card("heavy_blow"), battle.monsters[0]).contains("Evades 12"), "Target preview explains an evasion instead of promising HP damage")
 	battle.monsters[0]["statuses"].clear()
 	battle.monsters[0]["hp"] = 19
 	check(Copy.preview(battle, card("mend"), battle.monsters[0]).contains("+1 HP"), "Heal preview is capped to missing HP")
@@ -117,6 +121,15 @@ func test_copy() -> void:
 		Copy.preview(fresh, card("strike"), fresh.enemies[0])
 	check(equal(untouched, fresh.to_dict()), "Repeated presentation queries preserve all combat fields and RNG")
 	check(before["monster_combat"][0]["hp"] == 20, "Copy query fixtures use independent snapshots")
+	var protected = fixture()
+	protected.enemies[0]["statuses"]["resolve"] = 1
+	var protected_before: Dictionary = protected.to_dict()
+	check(Copy.status(protected.enemies[0]).contains("stun protected") and Copy.preview(protected, card("snare"), protected.enemies[0]).contains("Stun blocked: Resolve"), "Protected target visibly explains why Snare will not stun")
+	protected._status(protected.monsters[0], "poison", 3)
+	protected._status(protected.monsters[0], "burn", 2)
+	var full_hp: String = Copy.preview(protected, card("mend"), protected.monsters[0])
+	check(full_hp.contains("+0 HP") and full_hp.contains("Cleanse Poison/Burn"), "Full-HP Mend still previews its actual cleansing benefit")
+	check(protected_before["enemies"] == protected.enemies, "Resolve presentation preserves the target's combat fields")
 
 func verify_replay(battle, tag: String):
 	var before: Dictionary = battle.to_dict()
@@ -140,8 +153,8 @@ func test_replay() -> void:
 	battle.monsters[0]["block"] = 5
 	var replay = verify_replay(battle, "blocked attack / draw")
 	var action: Dictionary = enemy_frames(replay)[0]
-	check(action["before"]["monster_combat"][0]["hp"] == 20 and action["after"]["monster_combat"][0]["hp"] == 17, "Trace shows the individual attack HP change after block")
-	check(Feedback.describe(action["before"], action["after"]).contains("Rook: -3 HP"), "Action feedback reports the actual recipient and HP lost")
+	check(action["before"]["monster_combat"][0]["hp"] == 20 and action["after"]["monster_combat"][0]["hp"] == 13, "Trace shows the individual attack HP change after block")
+	check(Feedback.describe(action["before"], action["after"]).contains("Rook: -7 HP"), "Action feedback reports the actual recipient and HP lost")
 	check(replay.frames[0]["kind"] == "player_end" and replay.frames.back()["kind"] == "draw", "Chronology separates ending player turn from refreshed player hand")
 	var saved_last: Dictionary = replay.frames.back()["after"].duplicate(true)
 	replay.frames[0]["before"]["monster_combat"][0]["hp"] = 999
@@ -160,6 +173,16 @@ func test_replay() -> void:
 	var skipping = verify_replay(skipped, "dead and stunned actors")
 	check(enemy_frames(skipping).size() == 1 and enemy_frames(skipping)[0]["actor_id"] == "e2", "Dead and stunned enemies never produce attacking frames")
 	check(skipping.frames.filter(func(frame): return frame["kind"] == "stun").size() == 1, "Stun consumption has an explicit skipped-action beat")
+	var stun_frame: Dictionary = skipping.frames.filter(func(frame): return frame["kind"] == "stun")[0]
+	check(stun_frame["after"]["enemies"][1]["statuses"].get("resolve", 0) == 1, "Skipped-action frame includes the atomic Resolve grant")
+	var layered = fixture([enemy("e0", "guard")])
+	layered._status(layered.enemies[0], "poison", 3)
+	layered._status(layered.enemies[0], "poison", 3)
+	layered._status(layered.monsters[0], "regen", 3)
+	layered._status(layered.monsters[0], "regen", 3)
+	layered.monsters[0]["hp"] = 10
+	var layer_trace = verify_replay(layered, "independent application trace")
+	check(layer_trace.enemies[0]["statuses"]["poison"] == 4 and layer_trace.monsters[0]["statuses"]["regen"] == 4, "Replay decays both applications separately and keeps the aggregate display accurate")
 	var dots = fixture([enemy("e0", "heavy_blow", 1)])
 	dots.enemies[0]["statuses"]["poison"] = 1
 	var victory = verify_replay(dots, "enemy DoT victory")
@@ -189,6 +212,7 @@ func set_game(tag: String, party: Array = []) -> void:
 	game.run["monsters"] = roster()
 	game.run["party"] = [enemy("e0", "heavy_blow"), enemy("e1", "guard")] if party.is_empty() else party
 	game.start_raid()
+	if party.is_empty(): game.battle.intents[0]["target_id"] = "m0"
 	game.end_calls = 0
 	game.save_calls = 0
 	ui.state = game

@@ -35,7 +35,7 @@ func _banner(parent: Node, compact: bool) -> void:
 	phase.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(phase)
 	row.add_child(ui.label("%d / %d ENERGY" % [battle.energy, Data.BALANCE["energy"]], 16 if compact else 23, ui.EMBER))
-	var context: String = "ROUND %d · Draw %d · Discard %d · Intentions locked" % [battle.turn, battle.draw_pile.size(), battle.discard.size()]
+	var context: String = "ROUND %d · Draw %d · Discard %d · Targets locked" % [battle.turn, battle.draw_pile.size(), battle.discard.size()]
 	if ui.resolving_turn: context = "Cards paused · watch the highlighted actor and target"
 	var counter = ui.label(context, 11 if compact else 13, ui.MUTED, true)
 	counter.name = "DeckCounter"
@@ -269,6 +269,11 @@ func show_card_details(index: int) -> void:
 		box.add_child(art)
 	box.add_child(ui.label("%s · %d energy" % [Copy.owner_name(battle, card), ability["cost"]], 16, ui.MOSS, true))
 	box.add_child(ui.label(ability["description"], 16, ui.PARCHMENT, true))
+	box.add_child(ui.label("Affinity: " + ability["affinity"], 14, ui.MOSS, true))
+	for effect in ability["effects"]:
+		if effect.get("status", "") in ["poison", "burn", "regen"]:
+			box.add_child(ui.label("Each application ticks and decays separately. Reapplying adds another application.", 14, ui.MUTED, true))
+			break
 	box.add_child(ui.label(Copy.target_prompt(ability["target"]), 14, ui.MUTED, true))
 	box.add_child(ui.button("Return to targets", ui.close_modal))
 
@@ -305,7 +310,14 @@ func _show_log() -> void:
 	box.add_child(ui.label("The chamber's record", 21 if ui.is_compact() else 25, ui.EMBER))
 	var history = ui.scroll(box)
 	for entry in ui.combat_battle().log: history.add_child(ui.label(entry, 14, ui.PARCHMENT, true))
-	history.add_child(ui.label("Your monsters act only through cards. Unplayed cards discard at turn end. Surviving invaders then act in their shown order. Armor reduces each direct hit before Block and stays for the battle. Block absorbs the remaining damage and expires at its faction's next turn. Poison and burn bypass Armor and Block. Poison, burn and regeneration tick at that faction's turn end and decay by 1. A defeated frontline target redirects to the first living monster.", 13, ui.MUTED, true))
+	for rule in [
+		"Your monsters act through owned cards. Costs use your shared energy. Unplayed cards discard at turn end. Healing cards cycle normally and can be reused.",
+		"Each round, offensive invader actions choose random living monsters. Their shown actions and targets stay locked until resolution. Surviving invaders act in the shown order; a defeated target redirects to the first valid living target.",
+		"Armor reduces each direct hit before Block and stays for the battle. Block absorbs remaining damage and expires at that faction's next turn. Poison and Burn bypass Armor and Block.",
+		"Poison, Burn and Regeneration keep separate applications. At faction turn end, each application ticks and then loses 1 strength. Two Poison 3 applications deal 6, then 4, then 2 damage. Regeneration follows the same timing for healing.",
+		"Stun causes one skipped invader action or prevents a monster's owned cards for one player turn. Stun does not stack. After skipping, Resolve protects against Stun through the next normal action or player turn, then expires. Other card effects still apply to a protected target.",
+		"Mend restores HP and cleanses every Poison and Burn application on its target. It does not remove other statuses."
+	]: history.add_child(ui.label(rule, 13, ui.MUTED, true))
 	var motion = CheckButton.new()
 	motion.name = "ReduceMotion"
 	motion.text = "Reduce motion"

@@ -1,5 +1,29 @@
 # Verification
 
+## v0.5.0 balance pass
+
+The gameplay and persistence suite passed **3,162 checks across 11 groups**, with zero failures. Five actual six-raid campaigns completed through ordinary play, feeding, evolution, recovery and save APIs, with no breaches:
+
+| Seed / feeding policy | Ended turns | Card plays |
+| --- | ---: | ---: |
+| 730204 / discovery driver | 37 | 106 |
+| 101 / concentrated | 43 | 122 |
+| 101 / spread | 53 | 158 |
+| 730205 / concentrated | 41 | 119 |
+| 730205 / spread | 45 | 132 |
+
+These runs use production HP, card costs, enemy targeting and weighted random inheritance. They include actual routes to both newly added advanced branches, with Nightstalker and Ancient Ogre reached in seed 101 campaigns. They demonstrate campaign reachability, not a human win rate or an optimal strategy ranking: the driver knows developer recipes, and its actions consume shared RNG, so later encounters and rewards can differ between feeding policies. The tactical driver now values removing enemy Block/Evasion and respects varying energy costs; older pacing measurements included its former reluctance to attack defended foes.
+
+Regressions cover nonstacking Stun in both factions, a skipped action atomically granting Resolve, immunity through the next normal action/turn and then expiry, independent Poison/Burn/Regeneration applications, lethal status damage before healing, cleanse removing both display totals and layers, two-energy actions, and each advanced signature and passive. Seeded offensive targets reach all living monsters, preserve announced actions through queries and reload, and retain deterministic KO redirection. Generated priests always have and use offense; continuing an older heal-only priest party supplies Arcane Bolt without changing its already locked intent or RNG. Legacy aggregate-only statuses migrate as one application; layered saves continue identically through actions, decay, targeting and shuffle. All profiles are explicitly isolated under `user://verification/`.
+
+Final UI checks passed **15,097 headless / 15,287 native mobile assertions across 162 views**, including 28 native touch checks; **2,390 headless / 2,414 native flow assertions**, with 24 rendered sequence captures; and **8,397 art assertions in each mode across 74 views**. Every UI harness injects its isolated bootstrap profile before scene startup, so even profile and motion-preference reads avoid the player's normal directory. Catalog fixtures separately check Resolve warnings, full-HP Mend cleansing, new signatures and owner Evasion, long card-detail scrolling, and consumed-affinity history. Native pixel review at 375×667, 390×844, 844×320 and 1920×1080 confirms the changed copy, cards and new creature forms; all final logs contain zero script/engine errors or warnings.
+
+The browser build was checked at 1280×720 and emulated 390×844 with a 1170×2532 canvas: an actual Strike spent one energy and dealt its predicted six damage, and reload/Continue preserved that result and the locked targets. Mobile Log & rules fit and scrolled; browser warnings/errors were empty. Windows version metadata and headless startup were verified. Physical iPhone Safari remains unavailable; browser emulation and native Godot touch tests do not establish its hardware performance.
+
+Legacy saves with multiple stun charges normalize to one displayed skipped turn, then grant Resolve and restore owned-card play. Both normalization and status consumption preserve the locked intentions and RNG.
+
+## Previous release: v0.4.0
+
 Run the simulation and persistence suite with Godot 4.7:
 
 ```sh

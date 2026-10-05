@@ -2,6 +2,7 @@ class_name Battle
 extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
+const LAYERED_STATUSES = ["poison", "burn", "regen"]
 signal changed
 signal finished(outcome: String)
 
@@ -31,6 +32,7 @@ func setup(roster: Array, party: Array, random: RandomNumberGenerator) -> void:
 	for actor in monsters + enemies:
 		actor["block"] = 0
 		actor["statuses"] = {}
+		actor["status_layers"] = {}
 	for monster in monsters:
 		var abilities: Array = [Data.FORMS[monster["form"]]["signature"]] + monster["selected"]
 		for slot in range(abilities.size()):
@@ -99,7 +101,19 @@ func preview(card: Dictionary, target_id: String) -> String:
 						parts.append("%d damage (%d HP, %d armor, %d blocked)" % [amount, prevented["hp"], prevented["armor"], prevented["block"]])
 				"block": parts.append("+%d block" % amount)
 				"heal": parts.append("heal %d HP" % mini(amount, int(actor["max_hp"]) - int(actor["hp"])))
-				"status": parts.append("+%d %s" % [amount, _status_name(effect["status"])])
+				"status":
+					var status_id: String = effect["status"]
+					if status_id == "stun" and int(actor.get("statuses", {}).get("resolve", 0)) > 0:
+						parts.append("Resolve blocks stun")
+					elif status_id == "stun" and int(actor.get("statuses", {}).get("stun", 0)) > 0:
+						parts.append("already stunned; stun does not stack")
+					else:
+						parts.append("+%d %s%s" % [amount, _status_name(status_id), " (decays independently)" if status_id in LAYERED_STATUSES else ""])
+				"cleanse":
+					var removed: Array = []
+					for status_id in effect.get("statuses", []):
+						if int(actor.get("statuses", {}).get(status_id, 0)) > 0: removed.append(_status_name(status_id))
+					parts.append("cleanse " + ", ".join(removed) if not removed.is_empty() else "nothing to cleanse")
 		lines.append("%s: %s" % [actor["name"], ", ".join(parts)])
 	for effect in ability["effects"]:
 		if effect.get("to", "target") == "self" and not owner.is_empty() and not targets.has(owner):
@@ -156,8 +170,8 @@ func end_turn() -> void:
 		if enemy.is_empty() or int(enemy["hp"]) <= 0:
 			continue
 		if int(enemy["statuses"].get("stun", 0)) > 0:
-			_decrease_status(enemy, "stun", 1)
 			_add_log("%s is stunned and loses the announced action." % enemy["name"])
+			_consume_stun(enemy)
 			continue
 		var ability: Dictionary = Data.ABILITIES[intent["ability"]]
 		var target_id: String = intent["target_id"]
@@ -205,7 +219,9 @@ func _begin_turn() -> void:
 		if candidates.is_empty():
 			continue
 		var target: Dictionary = candidates[0]
-		if ability["target"] == "ally":
+		if ability["target"] == "enemy":
+			target = candidates[rng.randi_range(0, candidates.size() - 1)]
+		elif ability["target"] == "ally":
 			for candidate in candidates:
 				if float(candidate["hp"]) / float(candidate["max_hp"]) < float(target["hp"]) / float(target["max_hp"]):
 					target = candidate
@@ -254,26 +270,33 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 					_status(actor, effect["status"], amount)
 					if effect["status"] == "poison" and caster.get("form", "") == "ember_basilisk":
 						_status(actor, "burn", 2)
+				"cleanse":
+					for status_id in effect.get("statuses", []):
+						var had_status: bool = int(actor.get("statuses", {}).get(status_id, 0)) > 0
+						_clear_status(actor, status_id)
+						if had_status: _add_log("%s is cleansed of %s." % [actor["name"], _status_name(status_id)])
 			_remove_ko_cards()
 	for actor_id in kindling:
 		var actor: Dictionary = get_actor(actor_id)
 		if int(actor["hp"]) > 0:
 			_status(actor, "burn", 1)
+	if not caster.is_empty() and not _is_monster(caster["id"]):
+		_clear_status(caster, "resolve")
 
 func _amount(effect: Dictionary, ability: Dictionary, caster: Dictionary, target: Dictionary) -> int:
-	var amount: int = int(effect["amount"])
+	var amount: int = int(effect.get("amount", 0))
 	var form: String = caster.get("form", "")
-	if effect["kind"] == "block" and form == "green_ogre":
-		amount += 2
+	if effect["kind"] == "block" and form in ["green_ogre", "ancient_ogre"]:
+		amount += 3 if form == "ancient_ogre" else 2
 	if effect.get("status", "") == "poison" and form == "basilisk":
 		amount += 1
 	if effect["kind"] == "damage":
 		if form == "oni" and ability["affinity"] in ["Mystic", "Flame"]:
 			amount += 2
-		if form == "shadow_stalker":
+		if form in ["shadow_stalker", "nightstalker"]:
 			for status_id in ["poison", "burn", "stun"]:
 				if int(target.get("statuses", {}).get(status_id, 0)) > 0:
-					amount += 2
+					amount += 3 if form == "nightstalker" else 2
 					break
 	return amount
 
@@ -302,14 +325,63 @@ func _damage(actor: Dictionary, amount: int, piercing: bool = false) -> void:
 	if int(actor["hp"]) <= 0:
 		actor["block"] = 0
 		actor["statuses"] = {}
+		actor["status_layers"] = {}
 		_add_log("%s is knocked out." % actor["name"])
 		_remove_ko_cards()
 
 func _status(actor: Dictionary, status_id: String, amount: int) -> void:
-	if int(actor["hp"]) > 0:
-		actor["statuses"][status_id] = int(actor["statuses"].get(status_id, 0)) + amount
+	if int(actor["hp"]) <= 0 or amount <= 0: return
+	_normalize_layers(actor)
+	if status_id == "stun":
+		if int(actor["statuses"].get("resolve", 0)) > 0:
+			_add_log("%s resists stun with Resolve." % actor["name"])
+			return
+		if int(actor["statuses"].get("stun", 0)) > 0:
+			_add_log("%s is already stunned; stun does not stack." % actor["name"])
+			return
+		amount = 1
+	if status_id in LAYERED_STATUSES:
+		if not actor["status_layers"].has(status_id): actor["status_layers"][status_id] = []
+		actor["status_layers"][status_id].append(amount)
+	actor["statuses"][status_id] = int(actor["statuses"].get(status_id, 0)) + amount
+
+func _normalize_layers(actor: Dictionary) -> void:
+	if not actor.has("statuses"): actor["statuses"] = {}
+	if int(actor["statuses"].get("stun", 0)) > 0: actor["statuses"]["stun"] = 1
+	if not actor.has("status_layers"): actor["status_layers"] = {}
+	for status_id in LAYERED_STATUSES:
+		var layers: Array = actor["status_layers"].get(status_id, [])
+		# Old saves and aggregate-only fixtures represent one existing application.
+		if not actor["status_layers"].has(status_id) and int(actor["statuses"].get(status_id, 0)) > 0:
+			layers = [int(actor["statuses"][status_id])]
+		var valid: Array = []
+		var total: int = 0
+		for layer in layers:
+			if int(layer) > 0:
+				valid.append(int(layer))
+				total += int(layer)
+		if total > 0:
+			actor["status_layers"][status_id] = valid
+			actor["statuses"][status_id] = total
+		else:
+			_clear_status(actor, status_id)
+
+func _clear_status(actor: Dictionary, status_id: String) -> void:
+	actor["statuses"].erase(status_id)
+	actor.get("status_layers", {}).erase(status_id)
+
+func _consume_stun(actor: Dictionary) -> void:
+	_clear_status(actor, "stun")
+	actor["statuses"]["resolve"] = 1
+	_add_log("%s gains Resolve until its next normal %s." % [actor["name"], "turn" if _is_monster(actor["id"]) else "action"])
 
 func _decrease_status(actor: Dictionary, status_id: String, amount: int) -> void:
+	if status_id in LAYERED_STATUSES:
+		_normalize_layers(actor)
+		for index in range(actor.get("status_layers", {}).get(status_id, []).size()):
+			actor["status_layers"][status_id][index] = int(actor["status_layers"][status_id][index]) - amount
+		_normalize_layers(actor)
+		return
 	var left: int = int(actor["statuses"].get(status_id, 0)) - amount
 	if left <= 0:
 		actor["statuses"].erase(status_id)
@@ -320,6 +392,7 @@ func _tick_statuses(faction: Array) -> void:
 	for actor in faction:
 		if int(actor["hp"]) <= 0:
 			continue
+		_normalize_layers(actor)
 		for status_id in ["poison", "burn"]:
 			var strength: int = int(actor["statuses"].get(status_id, 0))
 			if strength > 0:
@@ -336,7 +409,8 @@ func _tick_statuses(faction: Array) -> void:
 			_decrease_status(actor, "regen", int(Data.BALANCE["dot_decay"]))
 			_add_log("%s regenerates %d HP." % [actor["name"], healed])
 		if _is_monster(actor["id"]):
-			_decrease_status(actor, "stun", 1)
+			_clear_status(actor, "resolve")
+			if int(actor["statuses"].get("stun", 0)) > 0: _consume_stun(actor)
 
 func _is_monster(id: String) -> bool:
 	for monster in monsters:
@@ -386,7 +460,7 @@ func _check_outcome() -> bool:
 	return false
 
 func _status_name(status_id: String) -> String:
-	return {"burn": "burning", "regen": "regeneration", "evasion": "evasion", "stun": "stun", "poison": "poison"}.get(status_id, status_id)
+	return {"burn": "burning", "regen": "regeneration", "evasion": "evasion", "stun": "stun", "poison": "poison", "resolve": "Resolve"}.get(status_id, status_id)
 
 func _add_log(message: String) -> void:
 	log.append(message)
@@ -410,6 +484,9 @@ func restore(saved: Dictionary, roster: Array, random: RandomNumberGenerator) ->
 			monster["hp"] = int(snapshot["hp"])
 			monster["block"] = int(snapshot.get("block", 0))
 			monster["statuses"] = snapshot.get("statuses", {}).duplicate(true)
+			monster["status_layers"] = snapshot.get("status_layers", {}).duplicate(true)
+	for actor in monsters + enemies:
+		_normalize_layers(actor)
 	hand = saved.get("hand", []).duplicate(true)
 	draw_pile = saved.get("draw_pile", []).duplicate(true)
 	discard = saved.get("discard", []).duplicate(true)
