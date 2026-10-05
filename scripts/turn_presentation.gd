@@ -4,6 +4,7 @@ const Replay = preload("res://scripts/battle_replay.gd")
 const BattleModel = preload("res://scripts/battle.gd")
 const Feedback = preload("res://scripts/combat_feedback.gd")
 const Data = preload("res://scripts/game_data.gd")
+const CardFx = preload("res://scripts/card_fx.gd")
 
 var ui
 var active := false
@@ -56,6 +57,8 @@ func end_turn() -> void:
 		await ui.get_tree().process_frame
 		if not active or generation != _generation or not is_instance_valid(ui): return
 		Feedback.flash(ui, frame["before"], frame["after"])
+		if is_instance_valid(ui.battlefield):
+			ui.battlefield.present_action(actor_id, target_ids, frame.get("ability_id", ""), frame["before"], frame["after"])
 		await ui.get_tree().create_timer((0.55 if stage == "enemy" else 0.3) * delay_scale).timeout
 		if not active or generation != _generation or not is_instance_valid(ui): return
 		if actor_id != "": acted_ids.append(actor_id)
@@ -86,9 +89,15 @@ func play(target_id: String) -> void:
 	var battle = ui.state.battle
 	if battle == null or ui.card_index < 0 or ui.card_index >= battle.hand.size(): return
 	var card: Dictionary = battle.hand[ui.card_index].duplicate(true)
+	var origin: Rect2 = CardFx.source(ui, ui.card_index)
 	var before: Dictionary = battle.to_dict()
 	var owner: String = battle.get_actor(card["owner"]).get("name", "Dungeon")
 	var ability: String = Data.ABILITIES[card["ability"]]["name"]
+	var targets: Array = []
+	for target in battle._targets(Data.ABILITIES[card["ability"]]["target"], battle.get_actor(card["owner"]), target_id):
+		targets.append(target["id"])
+	for effect in Data.ABILITIES[card["ability"]]["effects"]:
+		if effect.get("to", "target") == "self" and card["owner"] != "" and not targets.has(card["owner"]): targets.append(card["owner"])
 	if not ui.state.play_card(ui.card_index, target_id): return
 	_generation += 1
 	var generation = _generation
@@ -100,3 +109,6 @@ func play(target_id: String) -> void:
 	await ui.get_tree().process_frame
 	if is_instance_valid(ui) and generation == _generation and ui.menu == "game" and ui.state.battle == battle and not is_instance_valid(ui.overlay):
 		Feedback.flash(ui, before, after)
+		if is_instance_valid(ui.battlefield):
+			ui.battlefield.present_action(card["owner"], targets, card["ability"], before, after)
+		CardFx.discard(ui, card["ability"], origin)

@@ -21,9 +21,9 @@ func end_turn() -> void:
 		_record("finish", "", [], snapshot, snapshot,
 			"Raid cleared · next: feed your monsters." if outcome == "won" else "Dungeon breached · recovery applied; next: regroup and retry.")
 
-func _record(kind: String, actor_id: String, targets: Array, before: Dictionary, after: Dictionary, message: String) -> void:
+func _record(kind: String, actor_id: String, targets: Array, before: Dictionary, after: Dictionary, message: String, ability_id: String = "") -> void:
 	frames.append({"kind": kind, "actor_id": actor_id, "target_ids": targets.duplicate(),
-		"before": before.duplicate(true), "after": after.duplicate(true), "message": message})
+		"before": before.duplicate(true), "after": after.duplicate(true), "message": message, "ability_id": ability_id})
 
 func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> void:
 	if not _capturing:
@@ -37,8 +37,13 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 		ids.append(target["id"])
 		names.append(target["name"])
 	super._resolve(ability, caster, target_id)
+	var ability_id: String = ""
+	for id in Data.ABILITIES:
+		if Data.ABILITIES[id] == ability:
+			ability_id = id
+			break
 	_record("enemy", caster["id"], ids, before, to_dict(),
-		"%s uses %s on %s." % [caster["name"], ability["name"], ", ".join(names)])
+		"%s uses %s on %s." % [caster["name"], ability["name"], ", ".join(names)], ability_id)
 
 func _tick_statuses(faction: Array) -> void:
 	var before = to_dict()

@@ -9,6 +9,7 @@ const Portrait = preload("res://scripts/monster_portrait.gd")
 const Chamber = preload("res://scripts/ui_chamber.gd")
 const TouchScroller = preload("res://scripts/touch_scroller.gd")
 const TurnPresentation = preload("res://scripts/turn_presentation.gd")
+const Preferences = preload("res://scripts/ui_preferences.gd")
 
 const INK = Color("161c19")
 const PANEL = Color("222b24")
@@ -41,6 +42,8 @@ var _modal_scroll: ScrollContainer
 var _modal_shell: PanelContainer
 var flow
 var last_action := ""
+var battlefield: Control
+var reduced_motion := false
 var resolving_turn: bool:
 	get: return flow != null and flow.active
 var acting_actor_id: String:
@@ -61,6 +64,7 @@ var turn_detail: String:
 func _ready() -> void:
 	_update_density()
 	state = State.new()
+	reduced_motion = Preferences.read_motion(state._prefix)
 	flow = TurnPresentation.new(self)
 	screens = Screens.new(self)
 	combat_screen = CombatScreen.new(self)
@@ -82,14 +86,22 @@ func _ready() -> void:
 
 func is_compact() -> bool:
 	var viewport_size = get_viewport_rect().size
-	return viewport_size.x < 1050 or viewport_size.y < 560
+	return viewport_size.x < 1050 or viewport_size.y < 680
 
 func is_portrait() -> bool:
 	var viewport_size = get_viewport_rect().size
 	return viewport_size.x < viewport_size.y
 
 func content_width() -> float:
-	return max(1.0, get_viewport_rect().size.x - (24 if is_compact() else 48))
+	return maxf(1.0, minf(1600, get_viewport_rect().size.x - (24 if is_compact() else 48)))
+
+func animations_enabled() -> bool:
+	return not reduced_motion
+
+func set_reduced_motion(value: bool, persist: bool = false) -> void:
+	reduced_motion = value
+	if persist: Preferences.save_motion(state._prefix, value)
+	refresh()
 
 func _update_density() -> void:
 	# Web canvases contain device pixels; controls retain CSS-sized touch targets.
@@ -172,6 +184,7 @@ func style(fill: Color, line: Color, radius: int = 8) -> StyleBoxFlat:
 
 func refresh() -> void:
 	flow.clear_feedback()
+	battlefield = null
 	var phase = "combat" if resolving_turn else str(state.run.get("phase", "prep"))
 	if phase != "combat": last_action = ""
 	var next_key = menu + ":" + phase
@@ -179,8 +192,9 @@ func refresh() -> void:
 	if _screen_key == next_key and is_instance_valid(content):
 		for sc in _scroll_nodes(content): offsets.append(Vector2i(sc.scroll_horizontal, sc.scroll_vertical))
 	_screen_key = next_key
+	var side_margin: int = 12 if is_compact() else maxi(24, int((get_viewport_rect().size.x - 1600) / 2))
 	for edge in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + edge, (12 if edge in ["left", "right"] else 10) if is_compact() else (24 if edge in ["left", "right"] else 18))
+		margin.add_theme_constant_override("margin_" + edge, side_margin if edge in ["left", "right"] else (10 if is_compact() else 18))
 	root_box.add_theme_constant_override("separation", 5 if is_compact() else 14)
 	actor_nodes.clear()
 	for child in root_box.get_children():

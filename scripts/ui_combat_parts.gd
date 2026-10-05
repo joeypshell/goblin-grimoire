@@ -98,9 +98,11 @@ func card(index: int, parent: Node, compact: bool, portrait: bool = false) -> vo
 	var card: Dictionary = battle.hand[index]
 	var ability: Dictionary = Data.ABILITIES[card["ability"]]
 	var reason: String = Copy.unavailable(battle, card, ui.resolving_turn)
-	var caption: String = "%s\n%s\n%s" % [Copy.owner_name(battle, card), ability["name"], reason]
-	if not compact: caption += "\n%d ENERGY · %s\n%s" % [ability["cost"], Copy.target_prompt(ability["target"]), ability["description"]]
-	var pick = ui.button(caption, func():
+	var pick = preload("res://scripts/ui_card.gd").new()
+	pick.name = "Card_%d" % index
+	parent.add_child(pick)
+	pick.configure(ui, battle, card, compact, portrait, index == ui.card_index, reason)
+	pick.pressed.connect(func():
 		if ui.resolving_turn: return
 		if ui.card_index == index:
 			ui.combat_screen.show_card_details(index)
@@ -108,41 +110,6 @@ func card(index: int, parent: Node, compact: bool, portrait: bool = false) -> vo
 		ui.card_index = index
 		ui.combat_screen.compact_side = "monsters" if ability["target"] in ["ally", "all_allies", "self"] else "enemies"
 		ui.refresh())
-	pick.name = "Card_%d" % index
-	pick.custom_minimum_size = Vector2(164, 100 if portrait else 78) if compact else Vector2(0, 140)
-	if not compact: pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pick.add_theme_font_size_override("font_size", 12 if compact else 14)
-	pick.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	pick.disabled = reason != ""
-	pick.tooltip_text = "%s · %d energy\n%s\n%s" % [Copy.owner_name(battle, card), ability["cost"], ability["description"], reason]
-	pick.add_theme_stylebox_override("normal", ui.style(Color("554b32") if index == ui.card_index else Color("313b2e"), ui.EMBER if index == ui.card_index else Color("71805a"), 8))
-	parent.add_child(pick)
-	if compact:
-		# Fixed three-line face: owner, cost/action, effect or disabled reason.
-		for state in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
-			pick.add_theme_color_override(state, Color.TRANSPARENT)
-		var margin = MarginContainer.new()
-		margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		for edge in ["left", "right", "top", "bottom"]: margin.add_theme_constant_override("margin_" + edge, 8)
-		pick.add_child(margin)
-		var box = VBoxContainer.new()
-		box.alignment = BoxContainer.ALIGNMENT_CENTER
-		box.add_theme_constant_override("separation", 3)
-		margin.add_child(box)
-		var owner_row = HBoxContainer.new()
-		box.add_child(owner_row)
-		var owner_label = ui.label("Shared dungeon" if card["owner"] == "" else Copy.owner_name(battle, card), 11, ui.MUTED)
-		owner_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		owner_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		owner_row.add_child(owner_label)
-		owner_row.add_child(ui.label("%d energy" % ability["cost"], 11, ui.EMBER))
-		var title = ui.label(ability["name"], 14, ui.PARCHMENT if reason == "" else ui.MUTED)
-		title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		box.add_child(title)
-		var effect = ui.label(reason if reason != "" else ("Tap again for details" if index == ui.card_index else Copy.card_effect(battle, card)), 11, ui.RED if reason != "" else ui.MOSS)
-		effect.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		box.add_child(effect)
-		_ignore_mouse(margin)
 
 func _ignore_mouse(node: Node) -> void:
 	if node is Control: node.mouse_filter = Control.MOUSE_FILTER_IGNORE

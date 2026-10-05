@@ -3,6 +3,8 @@ extends RefCounted
 const Data = preload("res://scripts/game_data.gd")
 const Copy = preload("res://scripts/combat_copy.gd")
 const Parts = preload("res://scripts/ui_combat_parts.gd")
+const Battlefield = preload("res://scripts/ui_battlefield.gd")
+const CardFace = preload("res://scripts/ui_card.gd")
 var ui
 var parts
 var compact_side: String = "enemies"
@@ -35,31 +37,47 @@ func _banner(parent: Node, compact: bool) -> void:
 	row.add_child(ui.label("%d / %d ENERGY" % [battle.energy, Data.BALANCE["energy"]], 16 if compact else 23, ui.EMBER))
 	var context: String = "ROUND %d · Draw %d · Discard %d · Intentions locked" % [battle.turn, battle.draw_pile.size(), battle.discard.size()]
 	if ui.resolving_turn: context = "Cards paused · watch the highlighted actor and target"
-	box.add_child(ui.label(context, 11 if compact else 13, ui.MUTED, true))
+	var counter = ui.label(context, 11 if compact else 13, ui.MUTED, true)
+	counter.name = "DeckCounter"
+	box.add_child(counter)
 
 func _render_desktop() -> void:
 	var battle = ui.combat_battle()
 	ui.content.add_theme_constant_override("separation", 8)
 	_banner(ui.content, false)
-	var board = HBoxContainer.new()
-	board.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	board.add_theme_constant_override("separation", 18)
-	ui.content.add_child(board)
-	for side in ["monsters", "enemies"]:
-		var column = VBoxContainer.new()
-		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		board.add_child(column)
-		column.add_child(ui.label("YOUR MONSTERS · THEY ACT THROUGH CARDS" if side == "monsters" else "INVADERS · THEIR NEXT ACTIONS", 14, ui.MOSS if side == "monsters" else ui.EMBER))
-		var actors = _actor_scroll(column, 70)
-		for actor in battle.monsters if side == "monsters" else battle.enemies:
-			parts.actor(actor, actors, side == "enemies", false)
+	_stage(ui.content, battle)
 	_instruction(ui.content, false)
+	var center = CenterContainer.new()
+	ui.content.add_child(center)
 	var hand = HBoxContainer.new()
 	hand.add_theme_constant_override("separation", 10)
-	ui.content.add_child(hand)
+	center.add_child(hand)
 	for index in range(battle.hand.size()): parts.card(index, hand, false)
 	if battle.hand.is_empty(): hand.add_child(ui.label(_empty_hand_message(), 16, ui.MUTED))
 	_footer(false)
+
+func _stage(parent: Node, battle) -> void:
+	var board = VBoxContainer.new()
+	board.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	board.add_theme_constant_override("separation", 3)
+	parent.add_child(board)
+	var titles = HBoxContainer.new()
+	board.add_child(titles)
+	for side in ["YOUR MONSTERS · PLAY CARDS TO ACT", "INVADERS · ANNOUNCED ACTIONS"]:
+		var heading = ui.label(side, 12, ui.MOSS if side.begins_with("YOUR") else ui.EMBER)
+		heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		titles.add_child(heading)
+	var center = CenterContainer.new()
+	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	board.add_child(center)
+	var stage = Battlefield.new()
+	stage.custom_minimum_size = Vector2(minf(ui.content_width(), 1400), 140)
+	center.add_child(stage)
+	center.resized.connect(func():
+		if is_instance_valid(stage): stage.custom_minimum_size.y = clampf(center.size.y, 140, 360))
+	stage.setup(ui, battle)
+	ui.battlefield = stage
 
 func _render_compact() -> void:
 	var battle = ui.combat_battle()
@@ -113,6 +131,8 @@ func _render_compact() -> void:
 		var actors = _actor_scroll(layout, 100)
 		for actor in visible_actors:
 			if not actor.is_empty(): parts.actor(actor, actors, not battle._is_monster(actor["id"]), true)
+	elif ui.get_viewport_rect().size.x >= 900 and ui.get_viewport_rect().size.y >= 560:
+		_stage(layout, battle)
 	else:
 		var board = HBoxContainer.new()
 		board.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -130,7 +150,7 @@ func _render_compact() -> void:
 	_instruction(layout, true)
 	var card_scroll = ScrollContainer.new()
 	card_scroll.name = "HandScroll"
-	card_scroll.custom_minimum_size.y = 110 if portrait else 88
+	card_scroll.custom_minimum_size.y = 158 if portrait else 112
 	card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	card_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	card_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -193,8 +213,6 @@ func _instruction(parent: Node, compact: bool) -> void:
 	var message: String = Copy.guidance(battle, ui.card_index, ui.resolving_turn, ui.turn_message)
 	if ui.resolving_turn:
 		if ui.turn_detail != "": message += "\n" + ui.turn_detail
-	elif not compact and ui.card_index >= 0 and ui.card_index < battle.hand.size():
-		message += "\n" + Data.ABILITIES[battle.hand[ui.card_index]["ability"]]["description"]
 	elif ui.card_index < 0 and ui.last_action != "": message += "\n" + ui.last_action
 	if compact and not ui.is_portrait() and ui.get_viewport_rect().size.y < 440 and ui.card_index < 0 and not ui.resolving_turn:
 		message += " Scroll down for cards; choosing one returns to targets."
@@ -222,7 +240,15 @@ func show_card_details(index: int) -> void:
 	var card: Dictionary = battle.hand[index]
 	var ability: Dictionary = Data.ABILITIES[card["ability"]]
 	var box = ui.open_modal()
-	box.add_child(ui.label(ability["name"], 24, ui.EMBER))
+	box.add_child(ui.label(ability["name"], 24, ui.EMBER, true))
+	var texture: Texture2D = CardFace.texture_for(card["ability"])
+	if texture != null:
+		var art = TextureRect.new()
+		art.texture = texture
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art.custom_minimum_size.y = 150 if ui.is_compact() else 220
+		box.add_child(art)
 	box.add_child(ui.label("%s · %d energy" % [Copy.owner_name(battle, card), ability["cost"]], 16, ui.MOSS, true))
 	box.add_child(ui.label(ability["description"], 16, ui.PARCHMENT, true))
 	box.add_child(ui.label(Copy.target_prompt(ability["target"]), 14, ui.MUTED, true))
@@ -262,4 +288,11 @@ func _show_log() -> void:
 	var history = ui.scroll(box)
 	for entry in ui.combat_battle().log: history.add_child(ui.label(entry, 14, ui.PARCHMENT, true))
 	history.add_child(ui.label("Your monsters act only through cards. Unplayed cards discard at turn end. Surviving invaders then act in their shown order. Block expires at its faction's next turn; poison, burn and regeneration tick at that faction's turn end and decay by 1. A defeated frontline target redirects to the first living monster.", 13, ui.MUTED, true))
+	var motion = CheckButton.new()
+	motion.name = "ReduceMotion"
+	motion.text = "Reduce motion"
+	motion.custom_minimum_size.y = 44
+	motion.button_pressed = ui.reduced_motion
+	motion.toggled.connect(func(value): ui.set_reduced_motion(value, true))
+	box.add_child(motion)
 	box.add_child(ui.button("Return to battle", ui.close_modal))

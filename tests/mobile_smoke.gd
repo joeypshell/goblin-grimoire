@@ -3,7 +3,7 @@ extends SceneTree
 const MainScene = preload("res://scenes/main.tscn")
 const State = preload("res://scripts/run_state.gd")
 const Data = preload("res://scripts/game_data.gd")
-const SIZES = [Vector2i(375, 667), Vector2i(390, 844), Vector2i(430, 932), Vector2i(844, 390), Vector2i(844, 320), Vector2i(756, 330), Vector2i(1280, 720)]
+const SIZES = [Vector2i(375, 667), Vector2i(390, 844), Vector2i(430, 932), Vector2i(844, 390), Vector2i(844, 320), Vector2i(756, 330), Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1920, 900)]
 
 var ui
 var game

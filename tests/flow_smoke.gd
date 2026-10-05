@@ -283,8 +283,12 @@ func test_visible_sequence(pixels: Vector2i) -> void:
 	if pixels.x >= 1000:
 		for monster in game.run["monsters"]:
 			var actor_button = named_button(ui, "Actor_" + monster["id"])
+			if actor_button == null: actor_button = ui.actor_nodes.get(monster["id"])
+			check(actor_button != null, "Desktop renders each monster's actual target control")
+			if actor_button == null: continue
 			var sc = actor_button.get_parent()
 			while sc != null and not sc is ScrollContainer: sc = sc.get_parent()
+			if sc == null and is_instance_valid(ui.battlefield): sc = ui.battlefield
 			check(sc != null and sc.get_global_rect().grow(1).encloses(actor_button.get_global_rect()), "Desktop baseline shows all three monster actors without scrolling")
 	ui.end_player_turn()
 	var committed: Dictionary = game.battle.to_dict()

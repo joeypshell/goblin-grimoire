@@ -8,6 +8,8 @@ The browser game has responsive phone layouts, including iPhone portrait and lan
 
 Combat shows **YOUR TURN**, each card's acting monster, numeric invader intentions and their targets. Selecting a card keeps those intentions visible and adds its projected effect. Ending your turn visibly walks through monster effects, each invader's action, invader effects, and your fresh hand. Actual HP, block and status changes appear alongside each action. **Skip animation** jumps to the committed result. Preparation, feeding and recovery each explain the next step.
 
+Cards now have painterly goblin illustrations for attack, guard, and healing categories, with their owner, energy cost, and numerical effect visible on the face. Desktop combat stages full-body creatures in the chamber with idle motion, attack lunges, and hit/heal/shield reactions. Playing a card shows a small cosmetic discard flight after its immediate result. The phone hand remains horizontally scrollable; tap a selected card again for its full description. Turn on **Reduce motion** in **Log & rules** to remove cosmetic movement and card fades. See [the art direction and original generation prompts](docs/art-direction.md).
+
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
@@ -31,6 +33,7 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 - An **Evolve** action appears only for transformations a monster has earned. You can accept it or return to it during preparation.
 - Finish feeding to recover 25% of each monster's maximum HP. Clear two raids and a champion at F, then E. Defeating the E champion wins and records promotion to D.
 - **Save & title** and **Continue** preserve the current battle or reward phase. **New Run** preserves permanent discoveries.
+- **Log & rules** shows the combat record and a saved **Reduce motion** preference. The browser's motion preference supplies the initial setting when no choice has been saved.
 
 No equipment or shops. D through S are data definitions for future campaigns; this version plays F and E only.
 
@@ -46,7 +49,7 @@ Seeded encounter variations are recorded with the run. Intentions are locked at 
 
 ## Architecture and verification
 
-`game_data.gd` is balance/content; `battle.gd` is simulation; `run_state.gd` owns progression, separate run/profile saves, exactly-once rewards and recovery. `main.gd` and focused `ui_*.gd` modules render the interface. `battle_replay.gd` captures the existing turn simulation on an isolated clone; `turn_presentation.gd` presents its immutable snapshots after committing and saving the real turn once. Skipping or reloading cannot apply the actions again. Original vector portraits and chamber art require no asset downloads.
+`game_data.gd` is balance/content; `battle.gd` is simulation; `run_state.gd` owns progression, separate run/profile saves, exactly-once rewards and recovery. `main.gd` and focused `ui_*.gd` modules render the interface. `battle_replay.gd` captures the existing turn simulation on an isolated clone; `turn_presentation.gd` presents its immutable snapshots after committing and saving the real turn once. Skipping or reloading cannot apply the actions again. Painterly card illustrations are bundled in `assets/cards/`; original vector creature and chamber art remains part of the prototype. `ui_card.gd`, `ui_battlefield.gd`, `battle_creature.gd`, and `card_fx.gd` handle cosmetic rendering without changing battle or RNG state.
 
 The project bundles Noto Sans and Noto Sans Symbols 2 from [Google Fonts](https://github.com/google/fonts), under their included SIL Open Font Licenses in `assets/fonts/`, so native and browser text match.
 
@@ -57,9 +60,10 @@ godot --headless --editor --path . --quit
 godot --headless --path . --script tests/test_runner.gd
 godot --headless --path . --script tests/mobile_smoke.gd
 godot --headless --path . --script tests/flow_smoke.gd
+godot --headless --path . --script tests/art_smoke.gd
 ```
 
-Run `godot --path . --script tests/mobile_smoke.gd` with a graphics display for native screenshots and real Godot touch-event checks. The headless variant checks responsive layout and UI actions for CI. See [docs/testing.md](docs/testing.md) for checks actually performed, including the limits of iPhone verification. Tests do not erase player saves. The empty-profile reset is a debug API, absent from the game interface.
+Run `godot --path . --script tests/mobile_smoke.gd` with a graphics display for native screenshots and real Godot touch-event checks. Run `godot --path . --script tests/art_smoke.gd` to capture illustrated card and battlefield views and check cosmetic state, reduced motion, and save continuation. The headless variants check layout and UI actions without rendering PNGs. See [docs/testing.md](docs/testing.md) for checks actually performed, including the limits of iPhone verification. Tests do not erase player saves. The empty-profile reset is a debug API, absent from the game interface.
 
 Export with Godot's matching export templates installed:
 
