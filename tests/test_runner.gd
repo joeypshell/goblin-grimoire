@@ -4,6 +4,8 @@ const Data = preload("res://scripts/game_data.gd")
 const Combat = preload("res://scripts/battle.gd")
 const State = preload("res://scripts/run_state.gd")
 const Edges = preload("res://tests/test_edges.gd")
+const Inheritance = preload("res://tests/test_inheritance.gd")
+const Armor = preload("res://tests/test_armor.gd")
 
 var checks := 0
 var failures: Array = []
@@ -25,6 +27,8 @@ func _run() -> void:
 	test_lineage_and_profile()
 	test_breach_and_recovery()
 	Edges.new().run(self)
+	Inheritance.new().run(self)
+	Armor.new().run(self)
 	test_campaign()
 	print("RESULT: %d checks across %d groups; %d failures; campaign %d turns / %d card plays" % [checks, groups, failures.size(), campaign_turns, campaign_plays])
 	for failure in failures:
@@ -317,38 +321,37 @@ func feed_campaign(game, test_partial: bool) -> bool:
 		var body: Dictionary = game.run["rewards"][body_index]
 		check(not body["abilities"].is_empty(), "Every actual defeated adventurer offers transferable abilities")
 		var recipient: Dictionary = game.run["monsters"][0]
-		var wanted := ["heavy_blow", "firebolt", "arcane_bolt", "shield_wall", "poisoned_blade", "snare", "mend", "regrowth"]
-		var chosen := ""
-		for ability in wanted:
-			if body["abilities"].has(ability) and not recipient["learned"].has(ability):
-				chosen = ability
-				break
-		if chosen.is_empty():
+		var outcomes: Array = game.inheritance_outcomes(body_index, recipient["id"])
+		if outcomes.is_empty():
 			for monster in game.run["monsters"]:
-				for ability in body["abilities"]:
-					if not monster["learned"].has(ability):
-						recipient = monster
-						chosen = str(ability)
-						break
-				if not chosen.is_empty():
+				outcomes = game.inheritance_outcomes(body_index, monster["id"])
+				if not outcomes.is_empty():
+					recipient = monster
 					break
-		if chosen.is_empty():
+		if outcomes.is_empty():
 			check(game.skip_body(body_index), "Bodies with no desired new skills may be skipped")
 			continue
 		var feed_before: int = recipient["feeds"]
-		check(not game.claim_body(body_index, recipient["id"], "nonexistent_ability"), "Cannot invent an ability absent from the actual body")
-		check(game.claim_body(body_index, recipient["id"], chosen), "Claim real defeated body for chosen recipient and actual skill")
+		var random_before: int = game.rng.state
+		check(not game.claim_body(body_index, "nonexistent_monster") and game.rng.state == random_before, "Invalid recipient cannot claim a real body or advance RNG")
+		check(game.claim_body(body_index, recipient["id"]), "Claim real defeated body for chosen recipient with one random inheritance")
+		var chosen: String = body["taken"]
+		check(outcomes.any(func(value): return value["ability"] == chosen) and body["abilities"].has(chosen), "Random result comes from the actual corpse's eligible ability pool")
 		check(recipient["feeds"] == feed_before + 1 and recipient["learned"].has(chosen) and recipient["consumed"].has(chosen), "Consumption records exactly one feeding, learned skill and affinity history")
-		check(not game.claim_body(body_index, recipient["id"], chosen), "Same body cannot be consumed twice")
+		check(not game.claim_body(body_index, recipient["id"]), "Same body cannot be consumed twice")
 		var eligible: Array = game.eligible(recipient["id"])
-		if not eligible.is_empty():
-			check(game.evolve(recipient["id"], eligible[0]["id"]), "Campaign reveals and performs eligible evolution")
+		# The campaign driver pursues lineages with another playable branch and
+		# may decline other earned choices, exactly as the player can.
+		for branch in ["oni", "ember_basilisk", "red_ogre", "basilisk"]:
+			if eligible.any(func(recipe): return recipe["id"] == branch):
+				check(game.evolve(recipient["id"], branch), "Campaign reveals and performs an actually earned lineage branch")
+				break
 		if test_partial and not partial_done:
 			game.save_game()
 			var replacement = state_at("campaign")
 			check(replacement.load_game(), "Partially consumed feeding screen reloads")
 			check(replacement.run["rewards"][body_index]["claimed"], "Body remains claimed after feeding reload")
-			check(not replacement.claim_body(body_index, recipient["id"], chosen), "Reload cannot reconsume an already claimed body")
+			check(not replacement.claim_body(body_index, recipient["id"]), "Reload cannot reconsume an already claimed body")
 			check(JSON.stringify(replacement.run["rewards"]) == JSON.stringify(game.run["rewards"]), "Partly fed reward identities and abilities do not reroll")
 			game.run = replacement.run
 			game.rng = replacement.rng

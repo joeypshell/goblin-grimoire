@@ -8,6 +8,7 @@ const Combat = preload("res://scripts/battle.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Copy = preload("res://scripts/combat_copy.gd")
 const Preferences = preload("res://scripts/ui_preferences.gd")
+const CombatChecks = preload("res://tests/ui_combat_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1920, 900), Vector2i(1024, 768), Vector2i(1050, 640), Vector2i(390, 844), Vector2i(375, 667), Vector2i(844, 320)]
 
 var ui
@@ -314,6 +315,7 @@ func motion_offsets() -> Dictionary:
 
 func capture(tag: String) -> void:
 	await settle()
+	CombatChecks.defenses(self, ui)
 	if is_instance_valid(ui.battlefield): inspect_stage_labels(ui.battlefield)
 	var path := "res://tests/artifacts/art/%dx%d/" % [pixels.x, pixels.y]
 	DirAccess.make_dir_recursive_absolute(path)

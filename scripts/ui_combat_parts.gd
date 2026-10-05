@@ -45,7 +45,6 @@ func actor(actor: Dictionary, parent: Node, enemy: bool, compact: bool) -> void:
 	name.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	heading.add_child(name)
 	var health_text: String = "%d/%d HP" % [actor["hp"], actor["max_hp"]]
-	if int(actor.get("block", 0)) > 0: health_text += " · %d block" % actor["block"]
 	heading.add_child(ui.label(health_text, 12 if compact else 14, ui.MOSS))
 	var bar = ProgressBar.new()
 	bar.custom_minimum_size.y = 4
@@ -53,6 +52,9 @@ func actor(actor: Dictionary, parent: Node, enemy: bool, compact: bool) -> void:
 	bar.value = actor["hp"]
 	bar.show_percentage = false
 	text.add_child(bar)
+	var defenses = ui.label(Copy.defenses(actor), 12, ui.PARCHMENT)
+	defenses.name = "Defense_" + actor["id"]
+	text.add_child(defenses)
 	var lines: Array = []
 	if acting: lines.append("ACTING NOW")
 	elif receiving: lines.append("CURRENT TARGET")

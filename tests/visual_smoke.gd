@@ -38,16 +38,22 @@ func _run() -> void:
 	game.run["phase"] = "feeding"
 	game.run["rewards"] = []
 	for actor in game.battle.enemies:
-		game.run["rewards"].append({"id": actor["id"], "name": actor["name"], "class_name": actor["class_name"], "form": actor["form"], "abilities": actor["abilities"].duplicate(), "claimed": false})
+		game.run["rewards"].append({"id": actor["id"], "name": actor["name"], "class_name": actor["class_name"], "form": actor["form"], "abilities": actor["abilities"].duplicate(), "armor": Data.armor(actor), "claimed": false})
 	game.run["resolved_id"] = 1
 	ui.refresh()
 	await capture("06_feeding")
 	var monster: Dictionary = game.run["monsters"][0]
-	game.claim_body(0, monster["id"], "heavy_blow")
-	game.claim_body(1, monster["id"], "firebolt")
+	game.claim_body(0, monster["id"])
+	game.claim_body(1, monster["id"])
+	# Explicit earned-evolution visual fixture, independent of random results.
+	for ability in ["heavy_blow", "firebolt"]:
+		if not monster["learned"].has(ability): monster["learned"].append(ability)
+		if not monster["consumed"].has(ability): monster["consumed"].append(ability)
 	game.evolve(monster["id"], "red_ogre")
+	var reveal_info: Dictionary = game.last_evolution.duplicate(true)
+	game.last_evolution = {}
 	ui.refresh()
-	ui.rewards_screen.reveal(game.last_evolution)
+	ui.rewards_screen.reveal(reveal_info)
 	await capture("07_evolution_reveal")
 	ui.close_modal()
 	ui.menu = "grimoire"

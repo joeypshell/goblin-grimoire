@@ -92,11 +92,11 @@ func preview(card: Dictionary, target_id: String) -> String:
 			var amount: int = _amount(effect, ability, owner, actor)
 			match effect["kind"]:
 				"damage":
-					var hp_damage: int = maxi(0, amount - int(actor.get("block", 0)))
+					var prevented: Dictionary = damage_breakdown(actor, amount)
 					if int(actor.get("statuses", {}).get("evasion", 0)) > 0:
 						parts.append("evades %d damage" % amount)
 					else:
-						parts.append("%d damage (%d HP)" % [amount, mini(hp_damage, int(actor["hp"]))])
+						parts.append("%d damage (%d HP, %d armor, %d blocked)" % [amount, prevented["hp"], prevented["armor"], prevented["block"]])
 				"block": parts.append("+%d block" % amount)
 				"heal": parts.append("heal %d HP" % mini(amount, int(actor["max_hp"]) - int(actor["hp"])))
 				"status": parts.append("+%d %s" % [amount, _status_name(effect["status"])])
@@ -277,6 +277,13 @@ func _amount(effect: Dictionary, ability: Dictionary, caster: Dictionary, target
 					break
 	return amount
 
+func damage_breakdown(actor: Dictionary, amount: int, piercing: bool = false) -> Dictionary:
+	# Armor prevents part of every direct hit; only Block is spent. Damage over time bypasses both.
+	var hit: int = maxi(0, amount)
+	var armored: int = 0 if piercing else mini(Data.armor(actor), hit)
+	var blocked: int = 0 if piercing else mini(maxi(0, int(actor.get("block", 0))), hit - armored)
+	return {"armor": armored, "block": blocked, "hp": mini(maxi(0, int(actor.get("hp", 0))), hit - armored - blocked)}
+
 func _damage(actor: Dictionary, amount: int, piercing: bool = false) -> void:
 	if int(actor["hp"]) <= 0:
 		return
@@ -284,11 +291,14 @@ func _damage(actor: Dictionary, amount: int, piercing: bool = false) -> void:
 		_decrease_status(actor, "evasion", 1)
 		_add_log("%s evades the hit." % actor["name"])
 		return
-	var absorbed: int = 0 if piercing else mini(int(actor.get("block", 0)), amount)
-	actor["block"] = int(actor.get("block", 0)) - absorbed
-	var lost: int = mini(int(actor["hp"]), maxi(0, amount - absorbed))
+	var prevented: Dictionary = damage_breakdown(actor, amount, piercing)
+	actor["block"] = int(actor.get("block", 0)) - int(prevented["block"])
+	var lost: int = int(prevented["hp"])
 	actor["hp"] = int(actor["hp"]) - lost
-	_add_log("%s takes %d damage%s." % [actor["name"], lost, " (%d blocked)" % absorbed if absorbed > 0 else ""])
+	var defenses: Array = []
+	if int(prevented["armor"]) > 0: defenses.append("%d armor" % prevented["armor"])
+	if int(prevented["block"]) > 0: defenses.append("%d blocked" % prevented["block"])
+	_add_log("%s takes %d damage%s." % [actor["name"], lost, " (" + ", ".join(defenses) + ")" if not defenses.is_empty() else ""])
 	if int(actor["hp"]) <= 0:
 		actor["block"] = 0
 		actor["statuses"] = {}

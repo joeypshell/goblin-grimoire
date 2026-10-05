@@ -3,6 +3,8 @@ extends SceneTree
 const MainScene = preload("res://scenes/main.tscn")
 const State = preload("res://scripts/run_state.gd")
 const Data = preload("res://scripts/game_data.gd")
+const CombatChecks = preload("res://tests/ui_combat_checks.gd")
+const FeedingChecks = preload("res://tests/feeding_ui_checks.gd")
 const SIZES = [Vector2i(375, 667), Vector2i(390, 844), Vector2i(430, 932), Vector2i(844, 390), Vector2i(844, 320), Vector2i(756, 330), Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1920, 900)]
 
 var ui
@@ -67,7 +69,6 @@ func exercise_size(pixels: Vector2i) -> void:
 	ui.card_index = -1
 	ui.feed_body = 0
 	ui.feed_monster = ""
-	ui.feed_ability = ""
 	ui.refresh()
 	await capture("01_title")
 	ui.menu = "grimoire"
@@ -119,21 +120,7 @@ func exercise_size(pixels: Vector2i) -> void:
 	await reachable_button("End turn", true)
 	await capture("06_after_card")
 	fixture_feeding()
-	ui.refresh()
-	await capture("07_feeding")
-	ui.feed_ability = "heavy_blow"
-	ui.refresh()
-	await reachable_button("Consume", true)
-	var consume = find_button(ui, "Consume")
-	if consume != null:
-		consume.pressed.emit()
-		await settle()
-	check(game.run["rewards"][0]["claimed"], "Reachable feeding confirmation claims its actual body")
-	game.claim_body(1, game.run["monsters"][0]["id"], "firebolt")
-	game.evolve(game.run["monsters"][0]["id"], "red_ogre")
-	var reveal_info: Dictionary = game.last_evolution.duplicate(true)
-	game.last_evolution = {}
-	ui.refresh()
+	var reveal_info: Dictionary = await FeedingChecks.new().exercise(self)
 	ui.rewards_screen.reveal(reveal_info)
 	await capture("08_reveal")
 	await test_modal_orientation()
@@ -183,12 +170,11 @@ func fixture_feeding() -> void:
 	game.run["phase"] = "feeding"
 	game.run["rewards"] = []
 	for actor in game.battle.enemies:
-		game.run["rewards"].append({"id": actor["id"], "name": actor["name"], "class_name": actor["class_name"], "form": actor["form"], "abilities": actor["abilities"].duplicate(), "claimed": false})
+		game.run["rewards"].append({"id": actor["id"], "name": actor["name"], "class_name": actor["class_name"], "form": actor["form"], "abilities": actor["abilities"].duplicate(), "armor": Data.armor(actor), "claimed": false})
 	game.run["resolved_id"] = 1
 	ui.card_index = -1
 	ui.feed_body = 0
 	ui.feed_monster = game.run["monsters"][0]["id"]
-	ui.feed_ability = ""
 
 func fixture_evolved_combat() -> void:
 	game.new_run(730205)
@@ -271,6 +257,7 @@ func ensure_reachable(control: Control, label: String) -> void:
 
 func capture(name: String) -> void:
 	await settle()
+	if ui.state.run.get("phase", "") == "combat": CombatChecks.defenses(self, ui)
 	check(not is_instance_valid(ui.overlay) or name == "08_reveal", "Screen is not obscured by an unintended modal: " + name)
 	var destination := "res://tests/artifacts/mobile/%dx%d/" % [current_size.x, current_size.y]
 	DirAccess.make_dir_recursive_absolute(destination)

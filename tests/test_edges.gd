@@ -85,11 +85,12 @@ func test_knocked_out_feeding(t) -> void:
 	game.end_turn()
 	t.check(game.run["phase"] == "feeding" and game.run["monsters"][0]["hp"] == 0 and game.run["monsters"][1]["hp"] == 6, "Victory defers recovery until its feeding phase finishes")
 	var monster: Dictionary = game.run["monsters"][0]
-	t.check(game.claim_body(0, monster["id"], "heavy_blow"), "A knocked-out monster can consume a defeated body independent of killing blow")
-	t.check(game.claim_body(1, monster["id"], "firebolt"), "Knocked-out recipient can absorb another actual body")
+	t.check(game.claim_body(0, monster["id"]), "A knocked-out monster can consume a defeated body independent of killing blow")
+	t.check(game.claim_body(1, monster["id"]), "Knocked-out recipient can absorb another actual body")
 	# Explicit rare-state fixture: both lineages earned, so budget—not unmet requirements—blocks a chain.
-	monster["learned"].append("arcane_bolt")
-	monster["consumed"].append("arcane_bolt")
+	for ability in ["heavy_blow", "firebolt", "arcane_bolt"]:
+		if not monster["learned"].has(ability): monster["learned"].append(ability)
+		if not monster["consumed"].has(ability): monster["consumed"].append(ability)
 	monster["feeds"] = 4
 	t.check(game.evolve(monster["id"], "red_ogre") and monster["hp"] == 0, "Evolution preserves knockout until normal recovery")
 	t.check(not game.eligible(monster["id"]).is_empty(), "Later branch is actually earned in the chained-evolution fixture")

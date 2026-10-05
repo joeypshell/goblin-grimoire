@@ -305,7 +305,7 @@ func _show_log() -> void:
 	box.add_child(ui.label("The chamber's record", 21 if ui.is_compact() else 25, ui.EMBER))
 	var history = ui.scroll(box)
 	for entry in ui.combat_battle().log: history.add_child(ui.label(entry, 14, ui.PARCHMENT, true))
-	history.add_child(ui.label("Your monsters act only through cards. Unplayed cards discard at turn end. Surviving invaders then act in their shown order. Block expires at its faction's next turn; poison, burn and regeneration tick at that faction's turn end and decay by 1. A defeated frontline target redirects to the first living monster.", 13, ui.MUTED, true))
+	history.add_child(ui.label("Your monsters act only through cards. Unplayed cards discard at turn end. Surviving invaders then act in their shown order. Armor reduces each direct hit before Block and stays for the battle. Block absorbs the remaining damage and expires at its faction's next turn. Poison and burn bypass Armor and Block. Poison, burn and regeneration tick at that faction's turn end and decay by 1. A defeated frontline target redirects to the first living monster.", 13, ui.MUTED, true))
 	var motion = CheckButton.new()
 	motion.name = "ReduceMotion"
 	motion.text = "Reduce motion"

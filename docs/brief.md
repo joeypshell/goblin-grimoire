@@ -1,3 +1,5 @@
+The original request is archived below. The user's October 5, 2026 correction supersedes its manual inheritance choice: choose only the body and recipient, then roll one unknown actual ability with common/uncommon/rare weights 4:2:1. The current implementation also shows permanent Armor separately from temporary Block; devouring transfers only an ability. Current rules and validation are documented in README.md and docs/testing.md.
+
 Build a playable 2D dungeon-defense roguelite deckbuilder called **Goblin Grimoire** (working title). Implement it, run it, and verify the complete gameplay loop. Do not stop at a design document, scaffolding, or disconnected screens.
 
 Inspect the repository and its instructions first. Preserve an existing engine and working project. For an empty repository, use Godot 4.x with GDScript and the available compatible engine version. Make reasonable implementation choices and continue without asking about routine details. Document assumptions and editable balance values.

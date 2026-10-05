@@ -157,7 +157,7 @@ func _resolve_battle() -> void:
 	if battle.outcome == "won":
 		run["rewards"] = []
 		for enemy in battle.enemies:
-			run["rewards"].append({"id": enemy["id"], "name": enemy["name"], "class_name": enemy["class_name"], "form": enemy["form"], "abilities": enemy["abilities"].duplicate(), "claimed": false})
+			run["rewards"].append({"id": enemy["id"], "name": enemy["name"], "class_name": enemy["class_name"], "form": enemy["form"], "armor": Data.armor(enemy), "abilities": enemy["abilities"].duplicate(), "claimed": false})
 		run["phase"] = "feeding"
 	else:
 		run["core"] = maxi(0, int(run["core"]) - int(Data.BALANCE["breach"]))
@@ -185,13 +185,31 @@ func set_selected(monster_id: String, slot: int, ability_id: String) -> bool:
 	changed.emit()
 	return true
 
-func claim_body(body_index: int, monster_id: String, ability_id: String) -> bool:
+func inheritance_outcomes(body_index: int, monster_id: String) -> Array:
 	if run.get("phase", "") != "feeding" or body_index < 0 or body_index >= run["rewards"].size():
-		return false
+		return []
 	var body = run["rewards"][body_index]
 	var monster = get_monster(monster_id)
-	if monster.is_empty() or body["claimed"] or ability_id not in body["abilities"] or ability_id in monster["learned"]:
+	if monster.is_empty() or body.get("claimed", false):
+		return []
+	return Data.inheritance_outcomes(body.get("abilities", []), monster.get("learned", []))
+
+func claim_body(body_index: int, monster_id: String) -> bool:
+	var outcomes: Array = inheritance_outcomes(body_index, monster_id)
+	if outcomes.is_empty():
 		return false
+	var total_weight: int = 0
+	for outcome in outcomes: total_weight += int(outcome["weight"])
+	# Only a valid consumption advances RNG, exactly once, before it is saved.
+	var roll: int = rng.randi_range(1, total_weight)
+	var ability_id: String = outcomes.back()["ability"]
+	for outcome in outcomes:
+		roll -= int(outcome["weight"])
+		if roll <= 0:
+			ability_id = outcome["ability"]
+			break
+	var body = run["rewards"][body_index]
+	var monster = get_monster(monster_id)
 	body["claimed"] = true
 	body["recipient"] = monster_id
 	body["taken"] = ability_id

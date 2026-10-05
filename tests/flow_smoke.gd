@@ -8,6 +8,7 @@ const Feedback = preload("res://scripts/combat_feedback.gd")
 const State = preload("res://scripts/run_state.gd")
 const CountingState = preload("res://tests/flow_state_fixture.gd")
 const MainScene = preload("res://scenes/main.tscn")
+const CombatChecks = preload("res://tests/ui_combat_checks.gd")
 
 var checks := 0
 var errors: Array = []
@@ -351,6 +352,7 @@ func named_button(node: Node, name_: String):
 
 func capture(tag: String) -> void:
 	await settle()
+	if ui.state.run.get("phase", "") == "combat" or ui.resolving_turn: CombatChecks.defenses(self, ui)
 	inspect_bounds(ui, tag)
 	if can_render:
 		check(surface.get_texture().get_image().save_png("res://tests/artifacts/flow/" + tag + ".png") == OK, "Flow capture saved " + tag)

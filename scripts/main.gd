@@ -28,7 +28,6 @@ var overlay: Control
 var card_index = -1
 var feed_body = 0
 var feed_monster = ""
-var feed_ability = ""
 var grimoire_return = "title"
 var screens
 var combat_screen

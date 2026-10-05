@@ -96,7 +96,7 @@ func preparation() -> void:
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(info)
 		info.add_child(ui.label(enemy["name"], 18, ui.PARCHMENT, compact))
-		info.add_child(ui.label(enemy["class_name"] + "  ·  " + str(enemy["max_hp"]) + " HP", 13, ui.MOSS))
+		info.add_child(ui.label(enemy["class_name"] + "  ·  " + str(enemy["max_hp"]) + " HP  ·  Armor " + str(Data.armor(enemy)), 13, ui.MOSS, true))
 		var names: Array = []
 		for ability in enemy["abilities"]: names.append(ui.ability_name(ability))
 		info.add_child(ui.label(" / ".join(names), 13, ui.MUTED, true))

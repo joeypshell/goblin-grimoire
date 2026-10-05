@@ -50,6 +50,9 @@ static func status(actor: Dictionary) -> String:
 			tags.append("%s %d" % [_status_name(key), actor["statuses"][key]])
 	return " · ".join(tags)
 
+static func defenses(actor: Dictionary) -> String:
+	return "Armor %d · Block %d" % [Data.armor(actor), maxi(0, int(actor.get("block", 0)))]
+
 static func _status_name(id: String) -> String:
 	return {"burn": "Burn", "poison": "Poison", "regen": "Regen", "stun": "Stun", "evasion": "Evade"}.get(id, id.capitalize())
 
@@ -57,20 +60,25 @@ static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target
 	var parts: Array = []
 	var hp: int = int(target.get("hp", 999))
 	var block: int = int(target.get("block", 0))
+	var evasion: int = int(target.get("statuses", {}).get("evasion", 0))
 	for effect in ability["effects"]:
 		if effect.get("to", "target") == "self" and target.get("id", "") != caster.get("id", ""): continue
 		if hp <= 0: break
 		var amount: int = battle._amount(effect, ability, caster, target)
 		match effect["kind"]:
 			"damage":
-				var absorbed: int = mini(block, amount)
-				var lost: int = mini(hp, maxi(0, amount - absorbed))
-				if int(target.get("statuses", {}).get("evasion", 0)) > 0:
+				var prevented: Dictionary = battle.damage_breakdown({"hp": hp, "block": block, "armor": Data.armor(target)}, amount)
+				var lost: int = int(prevented["hp"])
+				if evasion > 0:
 					parts.append("Evades %d damage" % amount)
+					evasion -= 1
 				else:
-					parts.append("%d damage: %d HP lost%s" % [amount, lost, " (%d blocked)" % absorbed if absorbed > 0 else ""] if detailed else "%d damage" % amount)
+					var defenses: Array = []
+					if int(prevented["armor"]) > 0: defenses.append("%d armor" % prevented["armor"])
+					if int(prevented["block"]) > 0: defenses.append("%d blocked" % prevented["block"])
+					parts.append("%d damage: %d HP lost%s" % [amount, lost, " (" + ", ".join(defenses) + ")" if not defenses.is_empty() else ""] if detailed else "%d damage" % amount)
 					hp -= lost
-					block -= absorbed
+					block -= int(prevented["block"])
 			"heal": parts.append("+%d HP" % mini(amount, int(target.get("max_hp", 999)) - hp) if detailed else "Heal %d" % amount)
 			"block": parts.append("+%d block" % amount)
 			"status": parts.append("+%d %s" % [amount, _status_name(effect["status"])])

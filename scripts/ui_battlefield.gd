@@ -75,7 +75,6 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	column.add_child(name_label)
 	var hp_text: String = "%d/%d HP" % [actor["hp"], actor["max_hp"]]
-	if int(actor.get("block", 0)) > 0: hp_text += " · %d block" % actor["block"]
 	var full_preview: String = Copy.preview(battle, selected, actor) if legal else ""
 	if legal: hp_text += " · " + _short_preview(full_preview)
 	var hp = ui.label(hp_text, 11, ui.MOSS)
@@ -88,6 +87,10 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 	health.value = actor["hp"]
 	health.show_percentage = false
 	column.add_child(health)
+	var defenses = ui.label(Copy.defenses(actor), 11, ui.PARCHMENT)
+	defenses.name = "Defense_" + actor["id"]
+	defenses.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(defenses)
 	var body = Creature.new()
 	body.name = "Creature_" + actor["id"]
 	body.ui = ui
