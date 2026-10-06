@@ -12,6 +12,8 @@ const Chamber = preload("res://scripts/ui_chamber.gd")
 const TouchScroller = preload("res://scripts/touch_scroller.gd")
 const TurnPresentation = preload("res://scripts/turn_presentation.gd")
 const Preferences = preload("res://scripts/ui_preferences.gd")
+const MusicDirector = preload("res://scripts/music_director.gd")
+const AudioSettings = preload("res://scripts/ui_audio.gd")
 const ReportUploader = preload("res://scripts/report_uploader.gd")
 const ReportUI = preload("res://scripts/ui_run_reports.gd")
 
@@ -52,6 +54,8 @@ var reduced_motion := false
 var fast_combat := true
 var report_uploader
 var report_ui
+var audio
+var audio_settings
 var resolving_turn: bool:
 	get: return flow != null and flow.active
 var acting_actor_id: String:
@@ -72,6 +76,10 @@ var turn_detail: String:
 func _ready() -> void:
 	_update_density()
 	if state == null: state = State.new()
+	audio = MusicDirector.new()
+	audio.setup(state._prefix)
+	add_child(audio)
+	audio_settings = AudioSettings.new(self)
 	report_uploader = ReportUploader.new()
 	report_uploader.setup(state)
 	add_child(report_uploader)
@@ -216,6 +224,13 @@ func refresh() -> void:
 	flow.clear_feedback()
 	battlefield = null
 	var phase = "combat" if resolving_turn else str(state.run.get("phase", "prep"))
+	var music_context: String = "dungeon"
+	var game_music: bool = menu == "game" or (menu == "grimoire" and grimoire_return == "game")
+	if game_music:
+		if phase == "combat": music_context = "battle"
+		elif phase in ["victory", "defeat"]: music_context = phase
+	var champion: bool = game_music and phase == "combat" and int(state.run.get("raid", 0)) in [2, 5]
+	audio.set_context(music_context, champion)
 	if phase != "combat": last_action = ""
 	var next_key = menu + ":" + phase
 	var offsets: Array = []
@@ -467,6 +482,12 @@ func _size_modal() -> void:
 func close_modal() -> void:
 	if is_instance_valid(overlay):
 		overlay.queue_free()
+
+func _input(event: InputEvent) -> void:
+	# Observe the actual gesture before GUI controls consume it; leave gameplay input alone.
+	if audio == null: return
+	if (event is InputEventMouseButton or event is InputEventScreenTouch or event is InputEventKey) and event.pressed:
+		audio.unlock()
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if resolving_turn: return

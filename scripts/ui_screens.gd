@@ -42,6 +42,13 @@ func title_screen() -> void:
 	resume.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resume.disabled = not ui.state.has_save()
 	actions.add_child(resume)
+	var sound_row = HBoxContainer.new()
+	if compact: copy.add_child(sound_row)
+	var sound: Button = ui.button("Sound settings", ui.audio_settings.open, 0 if compact else 160)
+	sound.name = "OpenSoundSettings"
+	sound.focus_mode = Control.FOCUS_ALL
+	if compact: sound.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sound_row.add_child(sound)
 	var spacer = Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	if compact: spacer.free()
@@ -64,6 +71,7 @@ func title_screen() -> void:
 	art.add_child(ui.label("Three lives. One dungeon core.", 20 if compact else 24, ui.PARCHMENT, compact))
 	art.add_child(ui.label("A six-raid campaign of strange meals\nand unexpected transformations.", 15 if compact else 17, ui.MUTED, true))
 	art.add_child(ui.label("Rank F to E to D promotion", 16 if compact else 18, ui.EMBER, compact))
+	if not compact: art.add_child(sound_row)
 
 func _new_run() -> void:
 	ui.state.new_run()

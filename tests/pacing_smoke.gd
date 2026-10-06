@@ -52,6 +52,8 @@ func _run() -> void:
 	for failure in failures: print("PACING ISSUE: ", failure)
 	if is_instance_valid(ui): ui.free()
 	surface.free()
+	# AudioServer retires stopped music playback references on its next mix callback.
+	await create_timer(0.15).timeout
 	quit(0 if failures.is_empty() else 1)
 
 func check(condition: bool, message: String) -> void:

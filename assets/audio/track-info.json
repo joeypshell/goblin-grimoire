@@ -1,0 +1,40 @@
+[
+  {
+    "file": "dungeon_theme.ogg",
+    "title": "Darkest Child",
+    "artist": "Kevin MacLeod",
+    "source_page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100783",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Darkest%20Child.mp3",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "changes": "Near-silence trimmed; three-second equal-power loop seam; loudness normalized; encoded as OGG Vorbis.",
+    "source_seconds": 238.681,
+    "loop_seconds": 233.03,
+    "integrated_lufs": -23.0,
+    "true_peak_db": -10.38,
+    "decoded_peak": 0.302792,
+    "boundary_step": 0.011008,
+    "bytes": 3059966,
+    "source_sha256": "7591bd67ba227c2a3ffd97a6751c66e0b56d543ba91a6a2699a765191c880518",
+    "sha256": "97a9382b54aa337bb4d41fa3d523a8676efc74d1fd8c6dc28896b4d0d498f004"
+  },
+  {
+    "file": "raid_theme.ogg",
+    "title": "Darkest Child var A",
+    "artist": "Kevin MacLeod",
+    "source_page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100784",
+    "source_url": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Darkest%20Child%20var%20A.mp3",
+    "license": "CC BY 4.0",
+    "license_url": "https://creativecommons.org/licenses/by/4.0/",
+    "changes": "Near-silence trimmed; three-second equal-power loop seam; loudness normalized; encoded as OGG Vorbis.",
+    "source_seconds": 197.381,
+    "loop_seconds": 192.64,
+    "integrated_lufs": -23.0,
+    "true_peak_db": -10.01,
+    "decoded_peak": 0.315891,
+    "boundary_step": 0.006742,
+    "bytes": 2532955,
+    "source_sha256": "815146695bfd016d439def30d88f98763bf4dc1bf24129fd75d453fdba7ac628",
+    "sha256": "28077697f56a3bf1732125dd07d4f2108a8405c24a17749ecff305a235d1f337"
+  }
+]

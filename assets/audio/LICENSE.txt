@@ -1,0 +1,20 @@
+Goblin Grimoire soundtrack credits
+
+Darkest Child — Kevin MacLeod (incompetech.com)
+Darkest Child var A — Kevin MacLeod (incompetech.com)
+
+Both tracks are licensed under Creative Commons Attribution 4.0 International:
+https://creativecommons.org/licenses/by/4.0/
+
+Creator's track pages:
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100783
+https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100784
+
+Changes for this game: near-silence trimmed, a three-second equal-power
+loop transition added, loudness normalized, and re-encoded as OGG Vorbis.
+Music playback volume and transitions are controlled by the game.
+No endorsement by the composer is implied.
+
+The source and prepared-file hashes, durations and measured levels are
+recorded in track-info.json. The preparation tool is tools/prepare_music.py.
+These audio assets retain their CC BY 4.0 license independently of game code.

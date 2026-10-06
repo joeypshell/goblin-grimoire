@@ -48,6 +48,8 @@ func _run() -> void:
 	for issue in issues:
 		print("MOBILE ISSUE: ", issue)
 	surface.free()
+	# AudioServer retires stopped music playback references on its next mix callback.
+	await create_timer(0.15).timeout
 	quit(0 if issues.is_empty() else 1)
 
 func check(condition: bool, message: String) -> void:

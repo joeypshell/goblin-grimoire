@@ -12,6 +12,12 @@ Cards now have painterly goblin illustrations for attack, guard, and healing cat
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
+## v0.11 music pass
+
+The dungeon now has a continuous instrumental soundtrack. **Darkest Child** accompanies the title, preparation and feeding; its faster **var A** plays during raids. Both are by [Kevin MacLeod](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100784), used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Tracks are edited for looping, normalized to matching background levels and fade between contexts. Playing a card, ending a turn or opening a modal keeps the current music position.
+
+Open **Sound settings** on the title or inside **Log & rules** to change music volume or mute it. Muting remembers the chosen volume; both choices are saved on this device independently of your run and motion/speed settings. Browser music starts after your first click, tap or key press, and pauses while the page is hidden. Native music pauses when the app goes into the background. Physical iPhone Safari playback/resume still needs a device check. See [soundtrack credits and preparation](assets/audio/LICENSE.txt).
+
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
 
 After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, coordinate all three monsters with **Pack Instinct**, or protect a teammate for extra energy and a draw with **War Drums**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.

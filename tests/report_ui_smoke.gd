@@ -32,6 +32,8 @@ func _run() -> void:
 	print("REPORT UI: %d assertions; %d %s; %d issues" % [checks, captured, "screenshots" if can_render else "layouts", failures.size()])
 	for failure in failures: print("REPORT UI FAIL: ", failure)
 	surface.free()
+	# AudioServer retires stopped music playback references on its next mix callback.
+	await create_timer(0.15).timeout
 	quit(0 if failures.is_empty() else 1)
 
 func check(condition: bool, message: String) -> void:

@@ -1,5 +1,25 @@
 # Verification
 
+## v0.11.0 continuous music and sound controls
+
+The soundtrack uses credited, licensed **Darkest Child** and its faster **var A** by Kevin MacLeod. Creator pages and CC BY 4.0 terms are linked in the game and recorded in `assets/audio/LICENSE.txt`. The OGG loops last **233.03 and 192.64 seconds**, total **5,592,921 bytes**, and are normalized to **−23.0 LUFS**. Measured encoded true peaks are **−10.38 and −10.01 dB**, leaving headroom for equal-power context fades and the champion gain. Source/asset hashes, modifications and measurements are in `assets/audio/track-info.json`; `tools/prepare_music.py` reproduces the preparation from the creator MP3s using numpy, soundfile and imageio-ffmpeg.
+
+The music director passes **45 focused checks in both headless and native Dummy-audio modes**. Two persistent looping players use 1.5-second equal-power transitions; tests cover the midpoint, reversal during a fade, repeated context queries without restarting, mute/zero-volume/background pause, resume, explicit preference persistence, missing tracks and a single-track fallback. Loop preparation leaves shared stream resources unchanged. Browser gesture gating is exercised through the production director API; native focus handling and document-visibility wiring receive a source review.
+
+Sound-control checks using the actual imported OGGs pass **1,806 headless assertions across 24 layouts** and **1,832 native assertions across 24 screenshots**, with zero issues. Sizes are 1280×720, 375×667, 390×844 and 844×320. Native ScreenTouch opens, mutes, restores and closes settings; ScreenDrag changes the volume slider without stealing vertical scrolling. The title and Log & rules entries, reachable 44-pixel controls, saved level/mute, intact credits and return flow are verified. Settings and the Grimoire preserve the battle playback object, complete gameplay snapshot, save bytes and RNG. Existing speed/motion preferences survive audio updates. Normal profiles and reporting endpoints are not used.
+
+Screenshots were reviewed at desktop, narrow portrait and short landscape sizes. A desktop title-row allocation issue was corrected by putting Sound settings under the title art there; compact screens place it below New run/Continue. Tests that free scenes with active audio wait briefly for AudioServer's mixing callback to retire stopped playback references before quitting; the production director stops its players and removes its web visibility callback on exit.
+
+Final existing headless regressions pass with the actual music assets: mobile **16,435 assertions / 180 layouts**, turn flow **2,394**, pacing **1,694 / six layouts**, art **8,474 / 74**, traits **2,977 / 56**, party routes **8,680 / 52**, rewards **2,395 / 32**, tactical UI **3,354 / 32**, first-act UI **3,278 / 36** and report UI **1,088 / 28**. Every run exits zero with no script/engine errors or warnings. The teardown waits change no assertions, fixtures, gameplay or reporting behavior.
+
+These checks establish routing, continuity, saved settings and native touch behavior. Browser tools and a physical iPhone Safari device are unavailable in this session, so audible Safari playback, background/resume and hardware performance remain untested. Music generation through the connected service required a paid plan, so this pass uses the credited free license without a purchase. Reporting backend work remains deferred.
+
+```sh
+godot --headless --path . --script tests/test_music_director.gd
+godot --headless --path . --script tests/audio_ui_smoke.gd
+godot --audio-driver Dummy --path . --script tests/audio_ui_smoke.gd
+```
+
 ## v0.10.0 first-act build experiment
 
 The integrated gameplay suite passes **7,995 checks across 18 groups**, with zero failures. Focused stored-Bulwark/War Drums checks pass **1,521 assertions**; encounter-rule checks pass **206**. Coverage includes persistent charges, complete-card consumption, same-turn recharge limits, legal teammate protection, once-per-turn energy/draw, combined Pack Instinct rewards, exact snapshots and read-only previews. Ward checks exercise actual HP loss after Armor/Block/Evade, surviving captains, stable lowest-HP-percentage recipients and deferred area-card resolution. Ritual checks cover rounds 2/5/8, wounded teammates, stun/KO interruption, stable dead-target fallback, repeatable inherited healing and unchanged RNG.

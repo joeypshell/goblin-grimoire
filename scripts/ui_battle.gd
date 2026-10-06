@@ -356,5 +356,9 @@ func _show_log() -> void:
 	motion.button_pressed = ui.reduced_motion
 	motion.toggled.connect(func(value): ui.set_reduced_motion(value, true))
 	box.add_child(motion)
+	var sound: Button = ui.button("Sound settings", func(): ui.audio_settings.open(_show_log))
+	sound.name = "OpenSoundSettings"
+	sound.focus_mode = Control.FOCUS_ALL
+	box.add_child(sound)
 	box.add_child(ui.button("Playtest reports", ui.report_ui.open))
 	box.add_child(ui.button("Return to battle", ui.close_modal))

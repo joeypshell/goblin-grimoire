@@ -25,6 +25,10 @@ jobs:
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --editor --path . --quit
       - name: Verify gameplay and persistence
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/test_runner.gd
+      - name: Verify continuous music, fades and browser gesture gate
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/test_music_director.gd
+      - name: Verify music settings and mobile audio controls
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/audio_ui_smoke.gd
       - name: Verify phone layouts and UI actions
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/mobile_smoke.gd
       - name: Verify visible turn flow and safe playback
