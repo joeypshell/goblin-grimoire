@@ -225,33 +225,26 @@ func exercise_raid(raid: int) -> void:
 	check(same_party(game.battle.enemies, options[1]["party"]), "Combat starts with the exact chosen preview actors")
 	check(not game.select_party("standard"), "Locked combat rejects attempts to switch to the other party")
 	await capture("raid_%d_03_locked_combat" % raid)
-	# Breach fixture uses normal state resolution and recovery; no gameplay profile is touched.
+	# The selected party's wipe uses normal state resolution on an isolated profile.
 	for monster in game.battle.monsters: monster["hp"] = 0
 	game.end_turn()
-	check(game.run["last_result"] == "breach" and game.run["phase"] == "result", "Losing the fixture resolves a surviving-core breach")
+	check(game.run["last_result"] == "breach" and game.run["phase"] == "defeat" and game.run["monsters"].all(func(actor): return actor["hp"] == 0), "Losing the selected-party fight ends the dungeon immediately with all monsters still knocked out")
 	ui.refresh()
 	await settle()
 	var return_to_prep = action(ui, "Return to preparation")
-	check(return_to_prep != null, "Breach result exposes the ordinary return to preparation action")
-	if return_to_prep == null: return
-	await reachable(return_to_prep)
-	return_to_prep.pressed.emit()
+	check(return_to_prep == null and action(ui, "Defend") == null and named(ui, "PartyRetryNotice") == null, "A lost dungeon has no return, defend or locked-party retry control")
+	check(game.party_choices().is_empty() and named(ui, "PartyChoiceHeading") == null and not game.select_party("standard"), "Defeat exposes no route selection and cannot reroll the lost encounter")
+	check(not game.run.has("core") and game.run.get("rewards", []).is_empty(), "Defeat carries neither a separate Core pool nor corpse rewards")
+	var lost_saved = State.new(game._prefix)
+	check(lost_saved.load_game() and lost_saved.run["phase"] == "defeat" and lost_saved.run["monsters"].all(func(actor): return actor["hp"] == 0), "Continue preserves the selected-party defeat without recovery or retry")
+	await capture("raid_%d_04_dungeon_lost" % raid)
+	var begin = action(ui, "Begin another run")
+	check(begin is Button, "Defeat offers the production new-run action")
+	if begin == null: return
+	await reachable(begin)
+	begin.pressed.emit()
 	await settle()
-	check(game.run["phase"] == "prep" and game.party_choices().is_empty() and game.run["party_locked"], "Retry stays in preparation with the selected party locked")
-	check(named(ui, "PartyChoiceHeading") == null and named(ui, "PartySelect_standard") == null and named(ui, "PartySelect_alternate") == null, "Retry removes all unavailable selection controls")
-	var notice = named(ui, "PartyRetryNotice")
-	check(notice is Label and notice.text.contains("locked") and notice.text.contains("same invaders"), "Retry explains the locked party and next action")
-	check(named(ui, "PartySelectionCue").text.contains(options[1]["name"]) and equal(game.run["party"], options[1]["party"]), "Retry readiness and incoming party retain the selected alternative")
-	check(not game.select_party("standard"), "Retry state cannot reroll the locked party")
-	var retry_saved = State.new(game._prefix)
-	check(retry_saved.load_game() and retry_saved.run["party_locked"] and retry_saved.party_choices().is_empty() and equal(retry_saved.run["party"], options[1]["party"]), "Continue preserves the retry lock and exact incoming actors")
-	await capture("raid_%d_04_locked_retry" % raid)
-	defend = action(ui, "Defend")
-	if defend != null:
-		await reachable(defend)
-		defend.pressed.emit()
-		await settle()
-	check(game.run["phase"] == "combat" and same_party(game.battle.enemies, options[1]["party"]), "Defending the retry starts the same party again")
+	check(game.run["phase"] == "prep" and game.run["raid"] == 0 and game.run["monsters"].all(func(actor): return actor["form"] == "goblin" and actor["hp"] == actor["max_hp"]), "Begin another run creates three fresh goblins at raid one instead of retrying the lost party")
 
 func rotate_selection(option: Dictionary) -> void:
 	var before: Dictionary = game.run.duplicate(true)

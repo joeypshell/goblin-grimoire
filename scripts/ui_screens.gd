@@ -27,7 +27,7 @@ func title_screen() -> void:
 	columns.add_child(copy)
 	copy.add_child(ui.label("THE DUNGEON IS YOURS", 13 if compact else 15, ui.MOSS))
 	copy.add_child(ui.label("Small goblins.\nDangerous potential.", 30 if compact else 44, ui.PARCHMENT, compact))
-	copy.add_child(ui.label("Prepare your goblins. Play their cards.\nFeed the fallen. Defend the core.", 16 if compact else 19, ui.MUTED, true))
+	copy.add_child(ui.label("Prepare your goblins. Play their cards.\nFeed the fallen. Defend the dungeon.", 16 if compact else 19, ui.MUTED, true))
 	var actions = HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 8 if compact else 12)
 	copy.add_child(actions)
@@ -56,7 +56,7 @@ func title_screen() -> void:
 	var how = ui.panel(copy)
 	how.add_child(ui.label("A raid in four steps", 19 if compact else 20, ui.EMBER, compact))
 	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: transfer one enemy ability.\n4   RECOVER: regain HP; earn milestone traits.", 14 if compact else 16, ui.PARCHMENT, true))
-	how.add_child(ui.label("End turn resolves the invaders. Healing cards can be played again.", 14, ui.MUTED, true))
+	how.add_child(ui.label("End turn resolves the invaders. Healing cards can be played again. Lose all three monsters and the run ends.", 14, ui.MUTED, true))
 	how.add_child(ui.label("Anonymous gameplay reports upload automatically to help improve the game.", 13, ui.MUTED, true))
 	var reports = ui.button("Playtest reports", ui.report_ui.open, 0 if compact else 150)
 	reports.name = "OpenRunReports"
@@ -68,7 +68,7 @@ func title_screen() -> void:
 	var large = ui.portrait({"form": "goblin"}, 144 if compact else 285)
 	if not compact: large.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	art.add_child(large)
-	art.add_child(ui.label("Three lives. One dungeon core.", 20 if compact else 24, ui.PARCHMENT, compact))
+	art.add_child(ui.label("Three lives. One dungeon.", 20 if compact else 24, ui.PARCHMENT, compact))
 	art.add_child(ui.label("A six-raid campaign of strange meals\nand unexpected transformations.", 15 if compact else 17, ui.MUTED, true))
 	art.add_child(ui.label("Rank F to E to D promotion", 16 if compact else 18, ui.EMBER, compact))
 	if not compact: art.add_child(sound_row)
@@ -296,7 +296,6 @@ func results() -> void:
 	var phase = ui.state.run["phase"]
 	var victory = phase == "victory"
 	var defeat = phase == "defeat"
-	var breach = ui.state.run.get("last_result", "") == "breach"
 	var recovery = str(roundi(float(Data.BALANCE["recovery"]) * 100)) + "%"
 	var center = CenterContainer.new()
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -312,21 +311,17 @@ func results() -> void:
 		title = "Your dungeon has a future."
 		message = "The E-rank champion has fallen. Campaign complete. Next: read your discoveries or begin a new run with that knowledge."
 	elif defeat:
-		heading = "THE CORE HAS FALLEN"
+		heading = "DUNGEON LOST · RUN OVER"
 		title = "A dungeon lost. Knowledge kept."
-		message = "Your core is destroyed. Next: begin a new run with three fresh goblins. Your discoveries remain in the grimoire."
-	elif breach:
-		heading = "4 / BREACH  ·  " + str(Data.BALANCE["breach"]) + " CORE LOST"
-		title = "The goblins rise again."
-		message = "Your core survived. Every monster recovered " + recovery + " of maximum HP. Next: return to preparation and retry this same raid."
+		message = "All three monsters are defeated. Your dungeon is gone and this run is over. Begin a new run with three fresh goblins. Your discoveries remain in the grimoire."
 	elif ui.state.run.get("promotion", "") == "E":
 		heading = "4 / RECOVERY  ·  PROMOTED TO E"
 		title = "Word is spreading."
 		message = "The F-rank champion has fallen and recovery is applied. Next: select skills and inspect stronger invaders during rank E preparation."
-	box.add_child(ui.label(heading, 16, ui.RED if defeat or breach else ui.EMBER, compact))
+	box.add_child(ui.label(heading, 16, ui.RED if defeat else ui.EMBER, compact))
 	box.add_child(ui.label(title, 27 if compact else 34, ui.PARCHMENT, compact))
 	box.add_child(ui.label(message, 17, ui.MUTED, true))
-	ui.traits_screen.summary(box)
+	ui.traits_screen.summary(box, not defeat)
 	var row = _flow(compact)
 	row.add_theme_constant_override("separation", 16)
 	box.add_child(row)

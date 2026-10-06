@@ -286,7 +286,6 @@ func _header() -> void:
 	bar.add_child(spacer)
 	if menu == "game" and not state.run.is_empty():
 		bar.add_child(label("RANK " + state.rank_name() + "  ·  RAID " + str(min(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + " / " + str(Data.BALANCE["raids"]), 15, MOSS))
-		bar.add_child(_core_info_button(false))
 	if menu != "grimoire":
 		var book = button("Grimoire", open_grimoire)
 		book.disabled = resolving_turn
@@ -319,7 +318,6 @@ func _compact_header() -> void:
 		root_box.add_child(stats)
 	if in_game:
 		stats.add_child(label("RANK " + state.rank_name() + " · RAID " + str(mini(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + "/" + str(Data.BALANCE["raids"]), 12, MOSS))
-		stats.add_child(_core_info_button(true))
 	if menu != "grimoire":
 		var book = button("Grimoire", open_grimoire)
 		book.disabled = resolving_turn
@@ -338,34 +336,6 @@ func _compact_header() -> void:
 		home.add_theme_font_size_override("font_size", 13)
 		home.disabled = resolving_turn
 		stats.add_child(home)
-
-func _core_info_button(compact: bool) -> Button:
-	var info = button("CORE HP %d/%d" % [state.run["core"], Data.BALANCE["core"]], show_core_info)
-	info.name = "CoreInfo"
-	info.add_theme_font_size_override("font_size", 12 if compact else 17)
-	info.add_theme_color_override("font_color", EMBER)
-	if compact:
-		for kind in ["normal", "hover", "pressed", "disabled", "focus"]:
-			var slim: StyleBoxFlat = info.get_theme_stylebox(kind).duplicate()
-			slim.content_margin_left = 4
-			slim.content_margin_right = 4
-			info.add_theme_stylebox_override(kind, slim)
-	info.tooltip_text = "Your dungeon's health. Tap for breach and recovery rules."
-	info.disabled = resolving_turn
-	return info
-
-func show_core_info() -> void:
-	if resolving_turn or menu != "game" or state.run.is_empty() or is_instance_valid(overlay): return
-	var box = open_modal()
-	box.name = "DungeonCoreInfo"
-	box.add_child(label("Dungeon core", 23 if is_compact() else 27, EMBER, true))
-	box.add_child(label("Dungeon health: %d / %d HP" % [state.run["core"], Data.BALANCE["core"]], 18, MOSS, true))
-	box.add_child(label("If all three monsters are knocked out, invaders breach your dungeon. The core loses %d HP." % Data.BALANCE["breach"], 16, PARCHMENT, true))
-	box.add_child(label("If the core survives, your monsters recover and you retry this same raid. At 0 Core HP, the run ends.", 16, PARCHMENT, true))
-	box.add_child(label("Healing cards restore your monsters' HP. Core damage lasts for the rest of this run.", 14, MUTED, true))
-	var back = primary("Return to game", close_modal)
-	back.name = "CloseCoreInfo"
-	box.add_child(back)
 
 func label(value: String, size: int = 16, color: Color = PARCHMENT, wrap: bool = false) -> Label:
 	var node = Label.new()

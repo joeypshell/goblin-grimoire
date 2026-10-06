@@ -16,13 +16,13 @@ const ORIGINAL_PARTIES = [
 ]
 
 func run(t) -> void:
-	t.group("deterministic raid party choices, actual corpse pools, locked retries and legacy saves")
+	t.group("deterministic raid party choices, actual corpse pools, terminal destruction and legacy saves")
 	test_original_parties(t)
 	test_candidates(t)
 	test_future_choice_after_reload(t)
 	test_switches_and_saves(t)
 	test_actual_combat_and_corpses(t)
-	test_locked_retry(t)
+	test_locked_destruction(t)
 	test_advancement(t)
 	test_legacy(t)
 	test_alternate_campaign(t)
@@ -198,7 +198,7 @@ func test_actual_combat_and_corpses(t) -> void:
 			for slot in range(chosen.size()):
 				t.check(same_actor_pool(game.battle.enemies[slot], chosen[slot]) and game.battle.enemies[slot]["hp"] == chosen[slot]["hp"], "Combat enemy identity, armor, HP and abilities exactly match the selected preview")
 			victory(game)
-			t.check(game.run["phase"] == "feeding" and game.run["rewards"].size() == chosen.size() and game.run["party"] == chosen, "Winning produces one corpse per selected invader while keeping the retry template intact")
+			t.check(game.run["phase"] == "feeding" and game.run["rewards"].size() == chosen.size() and game.run["party"] == chosen, "Winning produces one corpse per selected invader while keeping the selected party history intact")
 			var monster: Dictionary = game.run["monsters"][0]
 			for slot in range(chosen.size()):
 				var body: Dictionary = game.run["rewards"][slot]
@@ -217,8 +217,8 @@ func test_actual_combat_and_corpses(t) -> void:
 			if not expected_first.is_empty():
 				t.check(game.claim_body(0, monster["id"]) and expected_first.has(game.run["rewards"][0]["taken"]), "Devouring a selected-path body still rolls one of its weighted actual skills")
 
-func test_locked_retry(t) -> void:
-	var game = game_at(t, "retry")
+func test_locked_destruction(t) -> void:
+	var game = game_at(t, "route_destruction")
 	prepare(game, 1, 39852)
 	game.party_preview()
 	game.select_party("alternate")
@@ -226,25 +226,25 @@ func test_locked_retry(t) -> void:
 	var chosen_name: String = game.selected_party_name()
 	game.start_raid()
 	var saved_combat: Dictionary = game.battle.to_dict()
-	var loaded = game_at(t, "retry")
+	var loaded = game_at(t, "route_destruction")
 	t.check(loaded.load_game() and t.same_saved_value(saved_combat, loaded.battle.to_dict()) and loaded.run["party"] == chosen and loaded.selected_party_name() == chosen_name, "Continue in active alternate combat preserves enemies, cards, locked intentions and party name")
 	for monster in loaded.run["monsters"]: monster["hp"] = 0
 	loaded.end_turn()
-	t.check(loaded.run["phase"] == "result" and loaded.run["core"] == 75 and loaded.run["raid"] == 1, "A route's breach follows normal core loss and retries the same raid")
-	t.check(loaded.run["party"] == chosen and loaded.run.get("party_locked", false) and loaded.selected_party_name() == chosen_name, "Breach retains the exact selected party and lock without enemy HP contamination")
-	var result = game_at(t, "retry")
-	t.check(result.load_game() and result.run["party"] == chosen and result.run.get("party_locked", false), "Breach result reload preserves its chosen retry route")
-	result.continue_after_result()
+	t.check(loaded.run["phase"] == "defeat" and not loaded.run.has("core") and loaded.run["raid"] == 1 and loaded.run["monsters"].all(func(monster): return monster["hp"] == 0), "Losing an alternate route immediately destroys the dungeon, without Core HP or monster revival")
+	t.check(loaded.run["party"] == chosen and loaded.selected_party_name() == chosen_name and loaded.run["rewards"].is_empty(), "Destruction preserves selected-party history without granting corpses or contaminating saved enemy HP")
+	var result = game_at(t, "route_destruction")
+	t.check(result.load_game() and result.run["phase"] == "defeat" and result.run["party"] == chosen and result.run["monsters"].all(func(monster): return monster["hp"] == 0), "Destroyed-route save reloads the same terminal result and knocked-out roster")
 	var before: Dictionary = result.run.duplicate(true)
 	var random_before: int = result.rng.state
 	result.save_calls = 0
-	t.check(result.party_choices().is_empty() and not result.select_party("standard") and not result.select_party("alternate"), "Neither a different path nor the current path can be selected after a breach")
-	unchanged(t, result, before, random_before, "Locked preparation queries cannot heal, change foes, reroll or save")
-	var prep = game_at(t, "retry")
-	t.check(prep.load_game() and prep.party_choices().is_empty() and prep.run["party"] == chosen and prep.rng.state == random_before, "Reloading retry preparation cannot reopen route selection or regenerate opponents")
-	prep.start_raid()
-	for slot in range(chosen.size()):
-		t.check(same_actor_pool(prep.battle.enemies[slot], chosen[slot]) and prep.battle.enemies[slot]["hp"] == chosen[slot]["hp"], "Retried combat starts with the same chosen skills, armor and original full enemy HP")
+	t.check(result.party_choices().is_empty() and not result.select_party("standard") and not result.select_party("alternate"), "Neither route can be selected after dungeon destruction")
+	result.continue_after_result()
+	result.start_raid()
+	result.end_turn()
+	t.check(not result.play_card(0, "e0") and not result.finish_feeding(), "A destroyed dungeon rejects combat and feeding requests")
+	unchanged(t, result, before, random_before, "Terminal route actions cannot retry, heal, change foes, reroll or save")
+	var again = game_at(t, "route_destruction")
+	t.check(again.load_game() and again.run["phase"] == "defeat" and again.party_choices().is_empty() and again.run["party"] == chosen and again.rng.state == random_before, "Repeated loading cannot reopen route selection or restart destroyed combat")
 
 func test_advancement(t) -> void:
 	var game = game_at(t, "advance")
@@ -254,7 +254,7 @@ func test_advancement(t) -> void:
 	game.start_raid()
 	victory(game)
 	t.check(skip_and_advance(game) and game.run["raid"] == 2, "Resolving bodies advances the chosen raid normally")
-	t.check(not game.run.has("party") and ROUTE_KEYS.all(func(key): return not game.run.has(key)), "Successful advancement clears the old party, choices, selected path and retry lock")
+	t.check(not game.run.has("party") and ROUTE_KEYS.all(func(key): return not game.run.has(key)), "Successful advancement clears the old party, choices, selected path and combat lock")
 	game.continue_after_result()
 	t.check(game.party_choices().is_empty() and game.selected_party_name() == Data.ENCOUNTERS[2]["name"], "The next F champion remains fixed after an alternate route victory")
 	game.start_raid()
@@ -264,7 +264,7 @@ func test_advancement(t) -> void:
 	game.continue_after_result()
 	t.check(game.run["raid"] == 3 and game.party_choices().size() == 2 and game.run["party_choice"] == "standard" and not game.run["party_locked"], "A future eligible raid gets fresh cached choices with the standard path selected and unlocked")
 	game.new_run(1183)
-	t.check(game.run["raid"] == 0 and game.party_choices().is_empty() and ROUTE_KEYS.all(func(key): return not game.run.has(key)), "New Run cannot inherit a previous run's party options or retry lock")
+	t.check(game.run["raid"] == 0 and game.party_choices().is_empty() and ROUTE_KEYS.all(func(key): return not game.run.has(key)), "New Run cannot inherit a previous run's party options or combat lock")
 
 func test_legacy(t) -> void:
 	for active in [false, true]:
@@ -311,10 +311,10 @@ func test_alternate_campaign(t) -> void:
 		game.new_run(seed_value)
 		var turns_before: int = t.campaign_turns
 		var plays_before: int = t.campaign_plays
-		var breaches := 0
+		var defeats := 0
 		var attempts := 0
 		var alternate_raids := {}
-		while game.run["phase"] == "prep" and attempts < 18:
+		while game.run["phase"] == "prep" and attempts < 6:
 			attempts += 1
 			if not game.party_choices().is_empty():
 				t.check(game.select_party("alternate"), "Real-card campaign selects the alternate through its offered preparation choice")
@@ -328,12 +328,13 @@ func test_alternate_campaign(t) -> void:
 				t.check(game.finish_feeding(), "Real-card alternate victory consumes actual corpses and advances with normal recovery")
 				t.choose_campaign_trait(game)
 			else:
-				t.check(game.run["phase"] in ["result", "defeat"], "Bounded alternate combat reaches an ordinary win or breach outcome")
+				t.check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "A lost alternate encounter immediately ends its campaign without recovery, corpses or retries")
 				if game.run["phase"] == "combat": break
-				breaches += 1
+				defeats += 1
 			if game.run["phase"] == "result": game.continue_after_result()
 		t.check(game.run["phase"] in ["victory", "defeat"], "Alternate campaign terminates within bounded normal raid attempts")
-		print("ALTERNATE CAMPAIGN: ", JSON.stringify({"seed": seed_value, "phase": game.run["phase"], "raids": game.run["raid"], "alternate_raids": alternate_raids.keys(), "attempts": attempts, "turns": t.campaign_turns - turns_before, "plays": t.campaign_plays - plays_before, "breaches": breaches, "traits": game.run["traits"], "forms": game.run["monsters"].map(func(monster): return monster["form"])}))
+		t.check(defeats <= 1 and not game.run.has("core"), "Alternate campaign has at most one terminal loss and no Core HP budget")
+		print("ALTERNATE CAMPAIGN: ", JSON.stringify({"seed": seed_value, "phase": game.run["phase"], "raids": game.run["raid"], "alternate_raids": alternate_raids.keys(), "attempts": attempts, "turns": t.campaign_turns - turns_before, "plays": t.campaign_plays - plays_before, "defeats": defeats, "traits": game.run["traits"], "forms": game.run["monsters"].map(func(monster): return monster["form"])}))
 		if game.run["phase"] == "victory" and alternate_raids.size() == 3:
 			completed = true
 			break

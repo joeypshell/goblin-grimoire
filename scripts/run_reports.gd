@@ -6,7 +6,7 @@ const MAX_EVENTS = 2000
 const MAX_REPORTS = 10
 const MAX_BYTES = 384 * 1024
 const MAX_ATTEMPTS = 100
-const BUILD = "0.11.1"
+const BUILD = "0.12.0"
 var reports: Array = []
 
 static func utc_now() -> String:
@@ -73,9 +73,13 @@ static func roster(actors: Array) -> Array:
 	return result
 
 static func view(run: Dictionary) -> Dictionary:
-	return {"phase": run.get("phase", ""), "raid": run.get("raid", 0), "core": run.get("core", 0),
+	var result := {"phase": run.get("phase", ""), "raid": run.get("raid", 0),
 		"resolved_id": run.get("resolved_id", 0), "recovered_id": run.get("recovered_id", 0),
 		"traits": run.get("traits", []).duplicate(), "monsters": roster(run.get("monsters", [])), "deck": configured_deck(run)}
+	# Historical fixtures and reports can retain the old metric; new runs omit it.
+	if run.has("core"): result["core"] = run["core"]
+	if run.has("loss_rule"): result["loss_rule"] = run["loss_rule"]
+	return result
 
 static func deck_entry(ability: String, owner: String) -> Dictionary:
 	var definition: Dictionary = Data.ABILITIES.get(ability, {})
@@ -131,7 +135,7 @@ func _bound(report: Dictionary) -> void:
 			report["summary"]["attempts"].pop_front()
 			report["dropped_attempts"] += 1
 		else:
-			# Normal game summaries are bounded by six raids and four breaches.
+			# Normal game summaries are bounded by six raids and one terminal wipe.
 			break
 
 func count(run: Dictionary, key: String, amount: int = 1) -> void:
@@ -208,7 +212,7 @@ func resolved(run: Dictionary, battle) -> void:
 		attempt["end"] = after.duplicate(true)
 	count(run, "raids_won" if battle.outcome == "won" else "breaches")
 	record(run, "raid_resolved", {"attempt": attempt.get("id", 0), "resolved_id": run["resolved_id"],
-		"outcome": battle.outcome, "battle": after, "core_before": run["core"]})
+		"outcome": battle.outcome, "battle": after})
 
 func finish(run: Dictionary, abandoned: bool = false) -> void:
 	if not run.get("report") is Dictionary: return

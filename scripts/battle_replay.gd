@@ -19,7 +19,7 @@ func end_turn() -> void:
 	if outcome != "active":
 		var snapshot = to_dict()
 		_record("finish", "", [], snapshot, snapshot,
-			"Raid cleared · next: feed your monsters." if outcome == "won" else "Dungeon breached · recovery applied; next: regroup and retry.")
+			"Raid cleared · next: feed your monsters." if outcome == "won" else "Dungeon lost · all monsters defeated. Run over · next: begin a new run.")
 
 func _record(kind: String, actor_id: String, targets: Array, before: Dictionary, after: Dictionary, message: String, ability_id: String = "") -> void:
 	frames.append({"kind": kind, "actor_id": actor_id, "target_ids": targets.duplicate(),

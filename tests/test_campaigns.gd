@@ -15,10 +15,10 @@ func run(t) -> void:
 			game.new_run(seed_value)
 			var turns_before: int = t.campaign_turns
 			var plays_before: int = t.campaign_plays
-			var breaches := 0
+			var defeats := 0
 			var attempts := 0
 			var bodies := 0
-			while game.run["phase"] == "prep" and attempts < 18:
+			while game.run["phase"] == "prep" and attempts < 6:
 				attempts += 1
 				t.configure_loadout(game)
 				var preview: Array = game.party_preview().duplicate(true)
@@ -31,13 +31,14 @@ func run(t) -> void:
 					t.check(game.finish_feeding(), "Additional campaign resolves real bodies and ordinary recovery")
 					t.choose_campaign_trait(game, ["pack_instinct", "venom_nest", "spiteful_shields"] if spread else ["venom_nest", "spiteful_shields", "pack_instinct"])
 				else:
-					t.check(game.run["phase"] in ["result", "defeat"], "Bounded campaign combat reaches a normal win/breach result")
+					t.check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "Losing an additional campaign immediately destroys the dungeon without recovery, rewards or retries")
 					if game.run["phase"] == "combat": break
-					breaches += 1
+					defeats += 1
 				if game.run["phase"] == "result": game.continue_after_result()
 			t.check(game.run["phase"] in ["victory", "defeat"], "Additional campaign finishes within bounded normal attempts")
 			if game.run["phase"] == "victory": completed += 1
-			print("CAMPAIGN POLICY: ", JSON.stringify({"seed": seed_value, "policy": policy, "phase": game.run["phase"], "raids": game.run["raid"], "turns": t.campaign_turns - turns_before, "plays": t.campaign_plays - plays_before, "breaches": breaches, "bodies": bodies, "traits": game.run["traits"], "forms": game.run["monsters"].map(func(m): return m["form"]), "feeds": game.run["monsters"].map(func(m): return m["feeds"]), "hp": game.run["monsters"].map(func(m): return m["hp"])}))
+			t.check(defeats <= 1 and not game.run.has("core"), "Additional campaign has at most one terminal defeat and no independent Core HP")
+			print("CAMPAIGN POLICY: ", JSON.stringify({"seed": seed_value, "policy": policy, "phase": game.run["phase"], "raids": game.run["raid"], "turns": t.campaign_turns - turns_before, "plays": t.campaign_plays - plays_before, "defeats": defeats, "bodies": bodies, "traits": game.run["traits"], "forms": game.run["monsters"].map(func(m): return m["form"]), "feeds": game.run["monsters"].map(func(m): return m["feeds"]), "hp": game.run["monsters"].map(func(m): return m["hp"])}))
 	t.check(completed > 0, "The revised generic driver demonstrates additional six-raid victories with real costs and random inheritance")
 	# Keep the primary regression campaign's summary independently identifiable.
 	t.campaign_turns = main_turns

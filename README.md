@@ -12,9 +12,15 @@ Cards now have painterly goblin illustrations for attack, guard, and healing cat
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
-## v0.11.1 Core and energy clarity
+## v0.12 dungeon loss
 
-The header now labels dungeon health **CORE HP**. Tap it to see how breaches work: losing all three monsters costs 25 Core HP; a surviving core lets you recover and retry the same raid. At zero, the run ends. Healing cards restore monster HP, while Core damage lasts for the run.
+**If all three monsters are knocked out, your dungeon is destroyed and the run ends immediately.** There is no separate Core HP pool, defeat recovery or raid retry. The defeat screen preserves the fallen team and offers a new run; grimoire discoveries remain.
+
+An individual knockout still removes that monster's cards for the rest of the fight. Win with at least one survivor, then complete feeding to restore 25% of each monster's maximum HP, bringing knocked-out teammates back. Surviving damage carries forward.
+
+Existing living battles, feeding and completed runs remain loadable. Old saves waiting to retry an already lost raid, including its preparation screen, become terminal defeats. Loading an old full-wipe combat also resolves defeat once. Historical playtest reports retain their original data.
+
+## Unspent energy warning
 
 Ending a turn with any unspent energy opens a warning showing how much remains. Choose **Keep playing** or **End turn anyway**. Opening or cancelling the warning preserves your selected card and battle; zero-energy turns proceed immediately. The End Turn button and Space use the same check. Escape cancels; Tab and Enter select an action from the keyboard.
 
@@ -52,7 +58,7 @@ The standard parties introduce Shield Bash on raid 2, Ember Burst at the F champ
 
 ## v0.8 party choices
 
-Before regular raids 2, 4 and 5, **choose which party to lure**. Two comparable parties offer different threats and possible meals. Their real HP, Armor and available affinities help you plan around the dungeon traits and skills you already have. Switch freely during preparation; **Defend the dungeon** locks the selected party through combat, breaches and Continue. The first raid and both champions keep their established parties. Devouring still rolls one random unknown ability with the same rarity weights.
+Before regular raids 2, 4 and 5, **choose which party to lure**. Two comparable parties offer different threats and possible meals. Their real HP, Armor and available affinities help you plan around the dungeon traits and skills you already have. Switch freely during preparation; **Defend the dungeon** locks the selected party through combat and Continue. The first raid and both champions keep their established parties. Devouring still rolls one random unknown ability with the same rarity weights.
 
 The usual party is selected initially, so you can defend immediately. Both candidates are generated once and saved; inspecting or switching cannot reroll them. Existing saves retain an already generated incoming party, then receive choices at future eligible raids.
 
@@ -75,12 +81,13 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 ## Controls and loop
 
 - Click **New Run** or **Continue**. Inspect the incoming party and choose two available skills per monster.
-- On raids 2, 4 and 5, compare two incoming parties and choose who to lure. Your current selection is shown above preparation. Starting combat locks that party, including on a breach retry.
+- On raids 2, 4 and 5, compare two incoming parties and choose who to lure. Your current selection is shown above preparation. Starting combat locks that party.
 - Click **Defend the dungeon**, then select a card and a highlighted legal target. Cards resolve immediately. Owned cards require a living owner.
 - Click **End your turn** (or press Space) to watch the announced invader actions resolve. You have three energy and draw five cards each turn. Friendly monsters only act through cards. Cards pause during the enemy sequence; **Skip animation** finishes its presentation.
 - After victory, choose a body and a recipient, then **Devour & inherit**. One of that adventurer's unknown abilities is rolled randomly, with common abilities more likely. Possible results and their chances are shown before devouring; the saved result appears afterward. You can skip a body. Learned abilities can be selected for the next raid.
 - An **Evolve** action appears only for transformations a monster has earned. You can accept it or return to it during preparation.
 - Finish feeding to recover 25% of each monster's maximum HP. Clear two raids and a champion at F, then E. Defeating the E champion wins and records promotion to D.
+- A knockout removes that monster's owned cards for the rest of the fight. A surviving victory brings teammates back through normal recovery. Losing all three monsters ends the run immediately; there are no raid retries.
 - After raid one and the F champion, choose a run-wide trait before continuing. Traits have no duplicates and combine for the remaining raids. Continue preserves a pending choice. Older runs receive any missed trait choices at the next safe preparation or recovery boundary.
 - **Save & title** and **Continue** preserve the current battle or reward phase. **New Run** preserves permanent discoveries.
 - **Log & rules** shows the combat record and a saved **Reduce motion** preference. The browser's motion preference supplies the initial setting when no choice has been saved.
@@ -89,7 +96,7 @@ No equipment or shops. D through S are data definitions for future campaigns; th
 
 ## Balance and rules
 
-Edit `scripts/game_data.gd`: `BALANCE` contains energy, hand size, core HP, 25-HP breach damage, recovery, and status tuning. `ABILITIES` defines costs, targets, affinities, rarity, and effects; `INHERITANCE_WEIGHTS` uses common 4, uncommon 2, rare 1. Weights are normalized across the actual corpse's abilities that the recipient does not already know. A lone eligible ability has a 100% chance. `FORMS` defines HP, signatures, passives, and portrait colors. `CLASSES` and `ENCOUNTERS` control coherent seeded parties and difficulty, including permanent armor (warrior 1, defender 2, other classes 0). `RECIPES` stores hidden progression; **reading that developer data reveals discoveries**.
+Edit `scripts/game_data.gd`: `BALANCE` contains energy, hand size, victory recovery, and status tuning. `ABILITIES` defines costs, targets, affinities, rarity, and effects; `INHERITANCE_WEIGHTS` uses common 4, uncommon 2, rare 1. Weights are normalized across the actual corpse's abilities that the recipient does not already know. A lone eligible ability has a 100% chance. `FORMS` defines HP, signatures, passives, and portrait colors. `CLASSES` and `ENCOUNTERS` control coherent seeded parties and difficulty, including permanent armor (warrior 1, defender 2, other classes 0). `RECIPES` stores hidden progression; **reading that developer data reveals discoveries**.
 
 `scripts/dungeon_traits.gd` defines trait choices, their two reward milestones and player-facing descriptions. Venom Nest spreads a fresh 2-strength poison application when an already poisoned invader dies, including poison-tick deaths. Spiteful Shields retaliates for 3 direct damage after an announced attack finishes, once per surviving monster whose Block absorbed that attack; Armor, Evasion and status damage alone do not trigger it. Pack Instinct counts three distinct monster card owners, excludes shared cards and grants one bonus energy and card draw per turn. Its progress survives saving mid-turn.
 
@@ -101,7 +108,7 @@ The initial deck has 12 cards: each monster's signature and two selected skills,
 
 Armor reduces each direct hit before temporary Block and is not spent. Block absorbs the remaining damage and expires at the start of its faction's next turn. Poison and burning bypass Armor, Block and Evasion and tick at the end of the affected faction's turn; regeneration heals then. Each application decays by one independently, without a use cap: two Poison 3 applications tick for 6, 4, then 2 (12 total), rather than extending a single strength-6 tail. The same rule applies to burning and regeneration. Status labels show the sum due at the next tick. Mend restores 4 HP and removes all poison and burning; Patch Up restores 6 HP. Heavy Blow costs 2 energy for a single 12-damage hit; Shield Wall costs 2 energy for 8 Block per living ally. The evolved area signatures and Petrifying Gaze also cost 2 energy, making timing and energy choices matter.
 
-Stun does not stack. It skips one announced enemy action or one monster's owned-card turn, then grants visible **Resolve** until that actor completes its next normal action or turn. Resolve prevents another stun, so control decks must also defend against intervening actions. Shared dungeon cards remain available during monster stun. Evasion prevents the next direct damaging hit. Armor is visible during preparation, combat and feeding; devouring transfers only an ability. Prior saved actors with no armor field retain armor 0. Knocked-out actors cannot act or receive healing. Evolution preserves health percentage, rounded to nearest HP (a living monster keeps at least 1 HP). Recovery rounds up and revives knocked-out monsters. A breach ends that raid, deducts core HP once, and grants recovery without rewards; a surviving core permits a retry of the same party.
+Stun does not stack. It skips one announced enemy action or one monster's owned-card turn, then grants visible **Resolve** until that actor completes its next normal action or turn. Resolve prevents another stun, so control decks must also defend against intervening actions. Shared dungeon cards remain available during monster stun. Evasion prevents the next direct damaging hit. Armor is visible during preparation, combat and feeding; devouring transfers only an ability. Prior saved actors with no armor field retain armor 0. Knocked-out actors cannot act or receive healing. Evolution preserves health percentage, rounded to nearest HP (a living monster keeps at least 1 HP). After victory, recovery rounds up and revives knocked-out teammates. A full party wipe immediately ends the run, with no recovery or feeding rewards.
 
 Seeded encounter variations are recorded with the run. Each single-target offensive intention chooses a seeded random living monster and stays locked throughout your turn; support healing still selects the lowest-health ally. If an announced target is knocked out, an enemy redirects to the first living valid target; this rule is shown in combat. Priests always possess Arcane Bolt as well as their healing skills, providing offensive pressure when left alive. Continuing an older active party adds that ability to its priests without changing the already announced action or RNG state. Older aggregate-only poison, burn and regeneration saves retain their existing strength as one application; subsequent applications use independent decay.
 

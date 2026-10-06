@@ -8,17 +8,12 @@ func _init(owner) -> void:
 
 func render(parent: Node) -> void:
 	var options: Array = ui.state.party_choices()
-	if options.is_empty():
-		if ui.state.run.get("party_locked", false) and ui.state.run.get("last_result", "") == "breach":
-			var retry = ui.label("RETRY / This party is locked. Prepare your skills, then face the same invaders again.", 14, ui.EMBER, true)
-			retry.name = "PartyRetryNotice"
-			parent.add_child(retry)
-		return
+	if options.is_empty(): return
 	var compact: bool = ui.is_compact()
 	var heading = ui.label("CHOOSE YOUR INVADERS", 17 if compact else 19, ui.EMBER, true)
 	heading.name = "PartyChoiceHeading"
 	parent.add_child(heading)
-	parent.add_child(ui.label("Pick the threats and possible meals that suit your build. You can switch until you Defend; that party then stays locked for retries. Inherited skills are still random.", 13, ui.MUTED, true))
+	parent.add_child(ui.label("Pick the threats and possible meals that suit your build. You can switch until you Defend; combat then uses that party. Inherited skills are still random.", 13, ui.MUTED, true))
 	var cards = VBoxContainer.new() if compact else HBoxContainer.new()
 	cards.name = "PartyChoices"
 	cards.add_theme_constant_override("separation", 12)

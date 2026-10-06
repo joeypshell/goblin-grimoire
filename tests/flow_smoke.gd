@@ -39,7 +39,7 @@ func _run() -> void:
 	surface.add_child(ui)
 	check(ui.state._prefix.begins_with(profile_root), "Scene startup preserves its explicitly isolated verification profile")
 	await test_end_turn_warning()
-	await test_core_help()
+	await test_monster_only_header()
 	await test_controller()
 	await test_terminal_transitions()
 	await test_visible_sequence(Vector2i(1280, 720))
@@ -201,7 +201,8 @@ func test_replay() -> void:
 		monster["statuses"]["burn"] = 1
 	var loss = verify_replay(breach, "monster DoT breach")
 	check(loss.outcome == "breach" and enemy_frames(loss).is_empty(), "Friendly lethal ending status ends raid before enemy acts")
-	check(loss.frames.back()["after"]["monster_combat"].all(func(m): return m["hp"] == 0), "Breach finish snapshots retain KO before recovery")
+	check(loss.frames.back()["after"]["monster_combat"].all(func(m): return m["hp"] == 0), "Defeat finish snapshots retain all three knocked-out monsters")
+	check(loss.frames.back()["message"].contains("Run over") and not loss.frames.back()["message"].contains("retry") and not loss.frames.back()["message"].contains("recovery"), "Terminal loss replay clearly ends the run without recovery or retry guidance")
 	var regen = fixture([enemy("e0", "guard")])
 	regen.monsters[0]["hp"] = 10
 	regen.monsters[0]["statuses"] = {"poison": 3, "burn": 2, "regen": 4, "stun": 1}
@@ -311,26 +312,13 @@ func test_end_turn_warning() -> void:
 	ui.skip_turn_animation()
 	await settle()
 
-func test_core_help() -> void:
-	set_game("core_help")
-	game.run["core"] = 73
+func test_monster_only_header() -> void:
+	set_game("monster_only_health")
 	ui.card_index = 0
 	ui.refresh()
 	await settle()
-	var before: Dictionary = game.battle.to_dict()
-	var run_before: Dictionary = game.run.duplicate(true)
-	var core = TurnChecks.named(ui, "CoreInfo")
-	check(core is Button and core.text.contains("73") and core.text.contains("100") and core.text.contains("HP"), "Core health is a clearly labelled help action showing current and maximum dungeon HP")
-	if core == null: return
-	core.pressed.emit()
-	var explanation = TurnChecks.named(ui, "DungeonCoreInfo")
-	var text: String = TurnChecks.visible_text(explanation) if explanation != null else ""
-	check(explanation != null and text.contains("Dungeon health: 73 / 100 HP") and text.contains("all three monsters") and text.contains("25 HP") and text.contains("retry this same raid") and text.contains("At 0 Core HP, the run ends") and text.contains("Healing cards restore your monsters"), "Core explanation states breach damage, retry, loss condition and the difference from monster healing")
-	var close = TurnChecks.named(ui, "CloseCoreInfo")
-	check(close is Button, "Dungeon core help has a production return control")
-	if close != null: close.pressed.emit()
-	check(not is_instance_valid(ui.overlay) and equal(before, game.battle.to_dict()) and equal(run_before, game.run) and game.end_calls == 0 and game.save_calls == 0 and ui.card_index == 0, "Core help opens and closes without changing combat, campaign, RNG, saves or selection")
-	await settle()
+	check(TurnChecks.named(ui, "CoreInfo") == null and TurnChecks.named(ui, "DungeonCoreInfo") == null and not TurnChecks.visible_text(ui).contains("CORE HP"), "Combat header has no separate dungeon Core health or help control")
+	check(not game.run.has("core") and ui.card_index == 0, "Monster-only health has no gameplay Core key and preserves selected-card controls")
 
 func key_event(code: int, pressed: bool) -> void:
 	var event := InputEventKey.new()
@@ -436,14 +424,16 @@ func test_terminal_transitions() -> void:
 		monster["statuses"]["poison"] = 1
 	ui.flow.delay_scale = 1.0
 	TurnChecks.request_and_confirm(self, ui)
-	check(game.run["phase"] == "result" and game.run["core"] == 75, "Breach state and core loss commit before terminal playback")
-	check(game.run["monsters"].all(func(m): return m["hp"] == 5), "Authoritative breach recovery occurs exactly once before visual tape")
-	var recovered: Dictionary = game.run.duplicate(true)
+	check(game.run["phase"] == "defeat" and not game.run.has("core"), "A complete monster wipe commits immediate run defeat with no Core health")
+	check(game.run["monsters"].all(func(m): return m["hp"] == 0) and game.run.get("rewards", []).is_empty(), "Run defeat retains the three knocked-out monsters and awards no recovery or bodies")
+	var lost: Dictionary = game.run.duplicate(true)
 	var reload = State.new(profile_root + "breach/")
-	check(reload.load_game() and reload.run["core"] == 75 and reload.run["monsters"].all(func(m): return m["hp"] == 5), "Mid-breach reload retains the once-recovered result")
+	check(reload.load_game() and reload.run["phase"] == "defeat" and not reload.run.has("core") and reload.run["monsters"].all(func(m): return m["hp"] == 0), "Reload during terminal playback retains defeat and zero HP instead of reviving a lost dungeon")
 	ui.skip_turn_animation()
 	await settle()
-	check(equal(recovered, game.run) and game.end_calls == 1, "Skipping breach sequence cannot change recovery or core")
+	check(equal(lost, game.run) and game.end_calls == 1 and game.save_calls == 1, "Skipping loss playback cannot revive monsters, retry or commit another turn")
+	var loss_text: String = TurnChecks.visible_text(ui)
+	check(loss_text.contains("DUNGEON LOST") and loss_text.contains("this run is over") and not loss_text.contains("recovered") and not loss_text.contains("retry") and not loss_text.contains("NEXT REWARD") and named_button(ui, "EndTurn") == null, "Terminal defeat screen ends the dungeon without healing, retry, future rewards or further combat controls")
 	set_game("won", [enemy("e0", "guard", 1)])
 	game.battle.enemies[0]["statuses"]["poison"] = 1
 	TurnChecks.request_and_confirm(self, ui)
@@ -498,7 +488,7 @@ func test_visible_sequence(pixels: Vector2i) -> void:
 	await capture_terminal(pixels, true)
 
 func capture_terminal(pixels: Vector2i, breach: bool) -> void:
-	var label_ := "breach" if breach else "victory"
+	var label_ := "defeat" if breach else "victory"
 	set_game("terminal_%s_%dx%d" % [label_, pixels.x, pixels.y], [enemy("e0", "guard", 1)])
 	if breach:
 		for monster in game.battle.monsters:
@@ -515,7 +505,8 @@ func capture_terminal(pixels: Vector2i, breach: bool) -> void:
 			saw_finish = true
 			check(ui.turn_message.contains("next"), "Terminal beat identifies the next progression action")
 			if breach:
-				check(ui.combat_battle().monsters.all(func(m): return m["hp"] == 0) and game.run["monsters"].all(func(m): return m["hp"] == 5), "Terminal breach displays KO while persisted run is already recovered")
+				check(ui.combat_battle().monsters.all(func(m): return m["hp"] == 0) and game.run["phase"] == "defeat" and game.run["monsters"].all(func(m): return m["hp"] == 0), "Terminal defeat displays the same zero HP stored in the lost run")
+				check(ui.turn_message.contains("Run over") and not ui.turn_message.contains("retry"), "The loss playback announces that this dungeon run is over")
 			await capture("%dx%d_%s_finish" % [pixels.x, pixels.y, label_])
 		await create_timer(0.01).timeout
 	check(saw_finish and not ui.resolving_turn, "Terminal sequence presents completion then reaches its final screen")

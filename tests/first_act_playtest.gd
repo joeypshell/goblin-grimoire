@@ -7,8 +7,8 @@ extends "res://tests/test_runner.gd"
 # forms, actual learned skills, locked intents and the offered party preview.
 const SEEDS: Array = [730204, 101, 730215, 730205]
 const RAID_TURN_BOUND: int = 24
-const POLICY_TURN_BOUND: int = 120
-const POLICY_ATTEMPT_BOUND: int = 12
+const POLICY_TURN_BOUND: int = 72
+const POLICY_ATTEMPT_BOUND: int = 3
 
 var diagnostic_rows: Array = []
 var total_stores: int = 0
@@ -71,7 +71,7 @@ func _configure_protection_loadout(game) -> void:
 func _simulate_policy(seed_value: int, route: String, captain_first: bool = false) -> Dictionary:
 	var game = state_at("seed_%d_%s%s" % [seed_value, route, "_captain_first" if captain_first else ""])
 	game.new_run(seed_value)
-	var row: Dictionary = {"seed": seed_value, "second_raid_route": route, "target_policy": "captain first on raid 2; mechanic consequence exercise" if captain_first else "position score", "attempts": [], "meals": [], "ended_turns": 0, "card_plays": 0, "breaches": 0}
+	var row: Dictionary = {"seed": seed_value, "second_raid_route": route, "target_policy": "captain first on raid 2; mechanic consequence exercise" if captain_first else "position score", "attempts": [], "meals": [], "ended_turns": 0, "card_plays": 0, "defeats": 0}
 	var attempt_count: int = 0
 	while int(game.run["raid"]) < 3 and game.run["phase"] != "defeat" and attempt_count < POLICY_ATTEMPT_BOUND and int(row["ended_turns"]) < POLICY_TURN_BOUND:
 		check(game.run["phase"] == "prep", "First-act attempt begins in normal preparation")
@@ -106,11 +106,12 @@ func _simulate_policy(seed_value: int, route: String, captain_first: bool = fals
 			check(game.finish_feeding(), "First-act feeding completes through normal recovery and raid advancement")
 			choose_campaign_trait(game, ["war_drums", "spiteful_shields", "venom_nest", "pack_instinct"])
 		else:
-			row["breaches"] += 1
+			check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "First-act full wipe immediately destroys the dungeon without recovery, rewards or retries")
+			row["defeats"] += 1
 		if game.run["phase"] == "result" and int(game.run["raid"]) < 3: game.continue_after_result()
 	row["completed"] = int(game.run["raid"]) == 3
 	row["ending_phase"] = game.run["phase"]
-	row["core"] = game.run["core"]
+	check(not game.run.has("core") and int(row["defeats"]) <= 1, "First-act policy has no separate dungeon HP and ends on its first full wipe")
 	row["final_forms"] = game.run["monsters"].map(func(actor): return actor["form"])
 	row["final_traits"] = game.run.get("traits", []).duplicate()
 	if row["completed"]: completed_policies += 1

@@ -29,7 +29,7 @@ func _banner(parent: Node, compact: bool) -> void:
 	var title: String = "YOUR TURN"
 	if ui.resolving_turn:
 		title = {"player_end": "YOUR TURN ENDS", "enemy": "INVADERS' TURN", "enemy_end": "ENEMY TURN ENDS", "draw": "NEW PLAYER TURN"}.get(ui.turn_stage, "INVADERS' TURN")
-		if ui.turn_stage == "finish": title = "RAID CLEARED" if battle.outcome == "won" else "DUNGEON BREACHED"
+		if ui.turn_stage == "finish": title = "RAID CLEARED" if battle.outcome == "won" else "DUNGEON LOST"
 	var phase = ui.label(title, 18 if compact else 28, ui.EMBER if ui.resolving_turn else ui.MOSS)
 	phase.name = "TurnPhase"
 	phase.size_flags_horizontal = Control.SIZE_EXPAND_FILL

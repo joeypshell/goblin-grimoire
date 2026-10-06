@@ -7,6 +7,7 @@ const Traits = preload("res://scripts/dungeon_traits.gd")
 const Routes = preload("res://scripts/raid_routes.gd")
 const Reports = preload("res://scripts/run_reports.gd")
 const SAVE_VERSION = 1
+const LOSS_RULE = "party_wipe_ends_run"
 
 signal changed
 signal report_changed(id: String)
@@ -128,6 +129,9 @@ func load_game() -> bool:
 		return false
 	_load_profile()
 	run = _read_json(_prefix + "run.json")
+	var legacy_loss: bool = run.has("core") and run.get("last_result", "") == "breach" and run.get("phase", "") in ["prep", "result", "trait", "defeat"]
+	run.erase("core")
+	run["loss_rule"] = LOSS_RULE
 	if not run.get("traits") is Array: run["traits"] = []
 	if not run.get("trait_milestones") is Array: run["trait_milestones"] = []
 	Data.ensure_priest_offense(run.get("party", []))
@@ -144,9 +148,22 @@ func load_game() -> bool:
 			return false
 		battle = Combat.new()
 		battle.restore(run["battle"], run["monsters"], rng)
+	var previous_phase: String = run["phase"]
+	if legacy_loss:
+		for monster in run["monsters"]: monster["hp"] = 0
+		run["rewards"] = []
+		run["phase"] = "defeat"
+		run.erase("trait_return")
+	_reports.ensure(run)
+	if legacy_loss:
+		if run["report"].get("status", "active") == "active":
+			_reports.record(run, "rules_changed", {"rule": LOSS_RULE, "from": previous_phase})
+	elif battle != null:
+		# A saved full wipe ends the run without drawing cards or replaying an action.
+		battle._check_outcome()
+		_resolve_battle()
 	# Old runs receive earned choices at a safe preparation/result boundary.
 	if run["phase"] in ["prep", "result"]: _open_trait_reward(run["phase"])
-	_reports.ensure(run)
 	save_game()
 	changed.emit()
 	return true
@@ -159,7 +176,8 @@ func new_run(seed_value: int = 0) -> void:
 	rng.seed = seed_value
 	run = {
 		"seed": seed_value, "monsters": [Data.new_monster("m1", "Grub"), Data.new_monster("m2", "Nix"), Data.new_monster("m3", "Moss")],
-		"core": int(Data.BALANCE["core"]), "raid": 0, "phase": "prep", "rewards": [],
+		"raid": 0, "phase": "prep", "rewards": [],
+		"loss_rule": LOSS_RULE,
 		"resolved_id": 0, "recovered_id": 0, "last_result": "", "promotion": "", "evolution_budget": 0,
 		"traits": [], "trait_milestones": [],
 	}
@@ -266,10 +284,8 @@ func _resolve_battle() -> void:
 			run["rewards"].append({"id": enemy["id"], "name": enemy["name"], "class_name": enemy["class_name"], "form": enemy["form"], "armor": Data.armor(enemy), "abilities": enemy["abilities"].duplicate(), "claimed": false})
 		run["phase"] = "feeding"
 	else:
-		run["core"] = maxi(0, int(run["core"]) - int(Data.BALANCE["breach"]))
 		run["rewards"] = []
-		_recover()
-		run["phase"] = "defeat" if int(run["core"]) == 0 else "result"
+		run["phase"] = "defeat"
 	_reports.record(run, "phase_changed", {"to": run["phase"]})
 
 func get_monster(id: String) -> Dictionary:
@@ -496,7 +512,7 @@ func discoveries() -> Array:
 func status_text() -> String:
 	if run.is_empty():
 		return "A dungeon waiting to awaken."
-	return "%s  ·  Core %d/%d  ·  Seed %d" % [raid_name(), run["core"], Data.BALANCE["core"], run["seed"]]
+	return "%s  ·  Seed %d" % [raid_name(), run["seed"]]
 
 func debug_reset_profile() -> void:
 	# Explicit test/debug API, never exposed in normal gameplay.

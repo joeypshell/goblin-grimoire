@@ -33,7 +33,8 @@ func _run() -> void:
 	test_healing_and_shuffle()
 	test_knockout_and_faction()
 	test_lineage_and_profile()
-	test_breach_and_recovery()
+	test_dungeon_destruction()
+	test_legacy_dungeon_destruction()
 	Edges.new().run(self)
 	Inheritance.new().run(self)
 	Armor.new().run(self)
@@ -231,33 +232,116 @@ func test_lineage_and_profile() -> void:
 	reload.new_run(111)
 	check(reload.run["monsters"][0]["form"] == "goblin" and reload.discoveries().size() == 1, "New Run resets team while preserving permanent discoveries")
 
-func force_breach(game) -> void:
-	if game.run["phase"] == "result":
-		game.continue_after_result()
+func force_dungeon_destruction(game) -> void:
 	game.start_raid()
 	for monster in game.run["monsters"]:
 		monster["hp"] = 0
 	game.end_turn()
 
-func test_breach_and_recovery() -> void:
-	group("breach, one recovery per resolution, save/reload and terminal defeat")
-	var game = state_at("breach")
-	game.new_run(923)
-	force_breach(game)
-	check(game.run["core"] == 75 and game.run["raid"] == 0, "Breach subtracts 25 core once and retries same raid")
-	check(game.run["phase"] == "result" and game.run["rewards"].is_empty(), "Surviving-core breach has no bodies and reaches results")
-	for monster in game.run["monsters"]:
-		check(monster["hp"] == 5, "KO goblin revives through normal ceil 25 percent recovery")
+func assert_terminal_dungeon(game, message: String) -> void:
+	var before: Dictionary = game.run.duplicate(true)
+	var random_before: int = game.rng.state
 	game.end_turn()
-	check(game.run["core"] == 75 and game.run["monsters"][0]["hp"] == 5, "Repeated resolution cannot deduct core or recover again")
+	game.continue_after_result()
+	game.start_raid()
+	check(not game.play_card(0, "e0") and not game.finish_feeding() and not game.claim_body(0, "m1") and not game.skip_body(0), message + ": combat and feeding actions are rejected")
+	check(not game.choose_trait("war_drums") and not game.set_selected("m1", 0, "guard") and not game.evolve("m1", "green_ogre"), message + ": build and reward actions are rejected")
+	check(game.run == before and game.rng.state == random_before and game.run["phase"] == "defeat", message + ": continuation/start/actions cannot resume, heal, award rewards or consume RNG")
+
+func test_dungeon_destruction() -> void:
+	group("all monsters lost: immediate dungeon destruction, no recovery/rewards/retry, persisted knockout")
+	var game = state_at("dungeon_destruction")
+	game.new_run(923)
+	check(not game.run.has("core") and not Data.BALANCE.has("core") and not Data.BALANCE.has("breach"), "New runs and balance data have no independent dungeon HP or breach-damage budget")
+	check(game.run.get("loss_rule", "") == "party_wipe_ends_run", "New game explicitly identifies its immediate full-wipe loss rule")
+	force_dungeon_destruction(game)
+	check(game.run["phase"] == "defeat" and game.run["raid"] == 0 and game.run["rewards"].is_empty(), "Losing the entire starting team immediately ends the run without bodies or raid advancement")
+	for monster in game.run["monsters"]:
+		check(monster["hp"] == 0, "Dungeon destruction retains knocked-out monsters without post-defeat recovery")
+	check(game.run["resolved_id"] == 1 and game.run["recovered_id"] == 0, "Defeat resolves once and never applies victory recovery")
+	assert_terminal_dungeon(game, "Fresh terminal defeat")
 	game.save_game()
-	var reload = state_at("breach")
-	check(reload.load_game(), "Breach result reloads")
-	reload.continue_after_result()
-	check(reload.run["monsters"][0]["hp"] == 5 and reload.run["core"] == 75, "Reload/continue cannot duplicate recovery or breach")
-	for count in range(3):
-		force_breach(reload)
-	check(reload.run["core"] == 0 and reload.run["phase"] == "defeat", "Fourth breach reaches terminal run defeat")
+	var random_before: int = game.rng.state
+	var reload = state_at("dungeon_destruction")
+	check(reload.load_game() and reload.run["phase"] == "defeat" and reload.run["monsters"].all(func(monster): return monster["hp"] == 0), "Reload preserves immediate terminal defeat and every knockout")
+	check(reload.rng.state == random_before and not reload.run.has("core") and not reload._read_json(reload._prefix + "run.json").has("core"), "Terminal save/load removes no gameplay history and introduces no Core HP or RNG changes")
+	assert_terminal_dungeon(reload, "Reloaded terminal defeat")
+
+func test_legacy_dungeon_destruction() -> void:
+	group("legacy recovered wipes and pending full-wipe combat migrate to terminal defeat without RNG")
+	for phase in ["result", "prep", "trait"]:
+		var tag: String = "legacy_destruction_" + str(phase)
+		var old = state_at(tag)
+		old.new_run(923)
+		var saved: Dictionary = old._read_json(old._prefix + "run.json")
+		saved.erase("loss_rule")
+		saved["phase"] = phase
+		if phase == "trait": saved["trait_return"] = "result"
+		saved["last_result"] = "breach"
+		saved["core"] = 75
+		saved["raid"] = 1
+		saved["resolved_id"] = 1
+		saved["recovered_id"] = 1
+		saved["party_locked"] = true
+		saved["rewards"] = [{"id": "invalid_legacy_reward", "claimed": false}]
+		for monster in saved["monsters"]: monster["hp"] = 5
+		var party_before: Array = saved["party"].duplicate(true)
+		var random_before: int = int(saved["rng_state"])
+		check(old._write_json(old._prefix + "run.json", saved), "Legacy recovered-wipe fixture persists at its actual old boundary")
+		var loaded = state_at(tag)
+		check(loaded.load_game() and loaded.run["phase"] == "defeat" and loaded.run["monsters"].all(func(monster): return monster["hp"] == 0), "Legacy %s with a prior full wipe becomes terminal defeat and removes obsolete revival HP" % phase)
+		check(loaded.rng.state == random_before and loaded.run["raid"] == 1 and loaded.run["party"] == party_before, "Legacy wipe migration preserves raid, existing party identity and gameplay RNG")
+		check(loaded.run["rewards"].is_empty() and loaded.run["traits"].is_empty() and loaded.trait_choices().is_empty() and loaded.party_choices().is_empty(), "Legacy destruction awards no bodies, owed traits or retry routes")
+		check(not loaded.run.has("core") and not loaded._read_json(loaded._prefix + "run.json").has("core"), "Obsolete Core HP is removed from loaded and rewritten legacy game state")
+		assert_terminal_dungeon(loaded, "Legacy " + str(phase) + " wipe")
+		var migrated: Dictionary = loaded.run.duplicate(true)
+		check(loaded.load_game() and same_saved_value(loaded.run, migrated) and loaded.rng.state == random_before, "Repeating a migrated legacy-wipe load is idempotent")
+	var active = state_at("legacy_pending_full_wipe")
+	active.new_run(2948)
+	active.start_raid()
+	for monster in active.run["monsters"]: monster["hp"] = 0
+	var pending_snapshot: Dictionary = active.run.duplicate(true)
+	pending_snapshot["battle"] = active.battle.to_dict()
+	pending_snapshot.erase("loss_rule")
+	pending_snapshot["core"] = 100
+	var pending_random: int = active.rng.state
+	check(pending_snapshot["battle"]["outcome"] == "active" and active._write_json(active._prefix + "run.json", pending_snapshot), "Legacy pending-wipe fixture captures combat before its authoritative outcome transition")
+	var pending_loaded = state_at("legacy_pending_full_wipe")
+	check(pending_loaded.load_game() and pending_loaded.run["phase"] == "defeat" and pending_loaded.run["monsters"].all(func(monster): return monster["hp"] == 0), "Loading old combat with every monster KO resolves immediate terminal destruction")
+	check(pending_loaded.rng.state == pending_random and pending_loaded.run["resolved_id"] == 1 and pending_loaded.run["recovered_id"] == 0 and pending_loaded.run["rewards"].is_empty(), "Pending full-wipe load resolves once without recovery, rewards or another RNG-consuming turn")
+	assert_terminal_dungeon(pending_loaded, "Migrated pending full-wipe combat")
+	# Old last_result describes history. It must not kill a living team that had
+	# already resumed combat or subsequently won and reached feeding/victory.
+	for safe_phase in ["combat", "feeding", "victory"]:
+		var safe_tag: String = "legacy_living_" + str(safe_phase)
+		var safe_game = state_at(safe_tag)
+		safe_game.new_run(83720)
+		if safe_phase == "victory":
+			# Explicit phase fixture; the separate campaign tests use real cards.
+			for raid_index in range(6):
+				safe_game.start_raid()
+				for enemy in safe_game.battle.enemies: enemy["hp"] = 0
+				safe_game.end_turn()
+				for body_index in range(safe_game.run["rewards"].size()): safe_game.skip_body(body_index)
+				check(safe_game.finish_feeding(), "Legacy living-victory fixture advances through the actual feeding API")
+				choose_campaign_trait(safe_game)
+				if raid_index < 5: safe_game.continue_after_result()
+		else:
+			safe_game.start_raid()
+			if safe_phase == "feeding":
+				for enemy in safe_game.battle.enemies: enemy["hp"] = 0
+				safe_game.end_turn()
+		var safe_snapshot: Dictionary = safe_game._read_json(safe_game._prefix + "run.json")
+		safe_snapshot.erase("loss_rule")
+		safe_snapshot["core"] = 75
+		safe_snapshot["last_result"] = "breach"
+		var safe_monsters: Array = safe_snapshot["monsters"].duplicate(true)
+		var safe_random: int = int(safe_snapshot["rng_state"])
+		check(safe_monsters.any(func(monster): return monster["hp"] > 0) and safe_game._write_json(safe_game._prefix + "run.json", safe_snapshot), "Legacy living %s fixture carries historical breach metadata" % safe_phase)
+		var safe_loaded = state_at(safe_tag)
+		check(safe_loaded.load_game() and safe_loaded.run["phase"] == safe_phase and same_saved_value(safe_loaded.run["monsters"], safe_monsters), "Legacy living %s is preserved despite an older historical breach" % safe_phase)
+		check(safe_loaded.rng.state == safe_random and not safe_loaded.run.has("core") and safe_loaded.run.get("loss_rule", "") == "party_wipe_ends_run", "Legacy living %s identifies its new loss rule and removes obsolete Core HP without new gameplay RNG" % safe_phase)
+		if safe_phase == "combat": check(same_saved_value(safe_loaded.battle.to_dict(), safe_snapshot["battle"]), "Legacy living combat preserves its exact hand, piles, statuses and locked intentions")
 
 func clone_battle(game):
 	var copy = Combat.new()
@@ -558,4 +642,4 @@ func test_campaign() -> void:
 	check(game.run["traits"].size() == 2 and game.run["trait_milestones"] == [1, 3], "Normal campaign earns two distinct trait milestones")
 	var discovery_count: int = game.discoveries().size()
 	game.new_run(44)
-	check(game.discoveries().size() == discovery_count and game.run["raid"] == 0 and game.run["core"] == 100, "Restart after promotion preserves discovered-only grimoire and resets progression")
+	check(game.discoveries().size() == discovery_count and game.run["raid"] == 0 and not game.run.has("core"), "Restart after promotion preserves discovered-only grimoire and resets progression without Core HP")

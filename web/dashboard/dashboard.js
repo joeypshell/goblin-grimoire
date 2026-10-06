@@ -300,7 +300,9 @@
     const totals = section(content,'Recorded totals');
     const grid = node('dl',undefined,'detail-grid'); content.append(grid);
     totals.append(grid);
-    for (const [name,value] of [['Raids won',summary.raids_won],['Cards played',summary.cards_played],['Turns ended',summary.turns_ended],['Unused energy',summary.unused_energy],['Breaches',summary.breaches],['Current core',current.core],['Energy spent',summary.energy_spent],['Bodies devoured',summary.bodies_claimed],['Evolutions',summary.evolutions]]) stat(grid,name,fmt(value));
+    const recordedTotals = [['Raids won',summary.raids_won],['Cards played',summary.cards_played],['Turns ended',summary.turns_ended],['Unused energy',summary.unused_energy],['Breaches',summary.breaches],['Energy spent',summary.energy_spent],['Bodies devoured',summary.bodies_claimed],['Evolutions',summary.evolutions]];
+    if (Object.prototype.hasOwnProperty.call(current,'core')) recordedTotals.push(['Legacy core HP',current.core]);
+    for (const [name,value] of recordedTotals) stat(grid,name,fmt(value));
     totals.append(node('p','Unused energy is summed when a player ends their turn; it excludes energy left when a raid ends immediately. Partial reports count only observed actions.','small muted'));
     const traits = section(content,'Dungeon traits');
     tags(traits,array(current.traits));

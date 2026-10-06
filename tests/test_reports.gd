@@ -10,6 +10,8 @@ func run(t) -> void:
 	test_actions(t)
 	test_rewards(t)
 	test_outcomes(t)
+	test_historical_core_report(t)
+	test_legacy_terminal_without_report(t)
 	test_partial_and_abandon(t)
 	test_trait_counters(t)
 	test_action_logs(t)
@@ -26,7 +28,9 @@ func test_actions(t) -> void:
 	game.new_run(9223372036854775806)
 	reference.new_run(9223372036854775806)
 	var report: Dictionary = game.current_report()
-	t.check(report["schema"] == 1 and report["build"] == "0.11.1" and report["coverage"] == "full", "New run receives a full versioned report")
+	t.check(report["schema"] == 1 and report["build"] == "0.12.0" and report["coverage"] == "full", "New run receives a full versioned report")
+	t.check(not game.run.has("core") and not report["summary"]["current"].has("core"), "New game and report views have no obsolete separate dungeon HP")
+	t.check(report["summary"]["current"].get("loss_rule", "") == "party_wipe_ends_run", "Current report explicitly records the new immediate full-wipe loss rule")
 	t.check(report["seed"] == "9223372036854775806" and report["seed"] is String, "Report seed preserves all 64 bits as decimal text")
 	t.check(report["id"].length() == 36 and report["id"][14] == "4" and report["id"] != reference.current_report()["id"], "Cryptographic UUIDv4 identifies runs independently")
 	t.check(game.rng.state == reference.rng.state and t.same_saved_value(game.run["party"], reference.run["party"]), "Report IDs and timestamps do not alter seeded party generation")
@@ -112,21 +116,21 @@ func test_rewards(t) -> void:
 func test_outcomes(t) -> void:
 	var defeat = t.state_at("reports_defeat")
 	defeat.new_run(84)
-	for attempt in range(4):
-		if defeat.run["phase"] == "result": defeat.continue_after_result()
-		defeat.start_raid()
-		for monster in defeat.run["monsters"]: monster["hp"] = 0
-		defeat.end_turn()
-		var event: Dictionary = kinds(defeat.current_report(), "raid_resolved").back()["data"]
-		t.check(event["battle"]["monsters"].all(func(actor): return actor["hp"] == 0), "Raid outcome captures KO before breach recovery")
-		t.check(defeat.run["monsters"].all(func(actor): return actor["hp"] == 5), "Report capture does not interfere with normal breach recovery")
+	defeat.start_raid()
+	for monster in defeat.run["monsters"]: monster["hp"] = 0
+	defeat.end_turn()
+	var event: Dictionary = kinds(defeat.current_report(), "raid_resolved").back()["data"]
+	t.check(event["battle"]["monsters"].all(func(actor): return actor["hp"] == 0) and defeat.run["monsters"].all(func(actor): return actor["hp"] == 0), "One full wipe records the actual knockout and ends the run without defeat recovery")
+	t.check(not event.has("core_before") and not defeat.current_report()["summary"]["current"].has("core"), "New defeat reports omit obsolete Core HP fields")
 	var report: Dictionary = defeat.current_report()
-	t.check(report["status"] == "defeat" and report["summary"]["breaches"] == 4 and report["summary"]["attempts_started"] == 4, "Repeated same-raid breaches are distinct attempts and one terminal defeat")
-	t.check(report["summary"]["attempts"].all(func(attempt): return attempt["raid"] == 0), "Attempt IDs do not confuse retries with cleared raids")
+	t.check(report["status"] == "defeat" and report["summary"]["attempts_started"] == 1 and report["summary"]["raids_won"] == 0 and report["summary"]["recoveries"] == 0, "The first lost raid produces one terminal defeat report, no cleared raids and no recovery")
+	t.check(report["summary"]["attempts"].size() == 1 and report["summary"]["attempts"][0]["raid"] == 0 and report["summary"]["attempts"][0]["result"] == "breach", "One attempt retains the internal full-wipe outcome without a retry")
 	var revision: int = report["revision"]
 	defeat.end_turn()
+	defeat.continue_after_result()
+	defeat.start_raid()
 	defeat.save_game()
-	t.check(defeat.current_report()["revision"] == revision and kinds(defeat.current_report(), "run_ended").size() == 1, "Terminal result and repeated end-turn/save do not duplicate completion")
+	t.check(defeat.current_report()["revision"] == revision and kinds(defeat.current_report(), "run_ended").size() == 1 and defeat.run["phase"] == "defeat", "Terminal actions, continuation/start and repeated saves cannot resume or duplicate completion")
 	test_terminal_metadata(t, defeat)
 	var victory = t.state_at("reports_victory")
 	victory.new_run(620)
@@ -139,6 +143,54 @@ func test_outcomes(t) -> void:
 	var id: String = victory.current_report()["id"]
 	victory.new_run(621)
 	t.check(victory.report_list().any(func(item): return item["id"] == id and item["status"] == "victory"), "Restart preserves completed report without relabeling it abandoned")
+
+func test_historical_core_report(t) -> void:
+	var old = t.state_at("reports_historical_core")
+	old.new_run(4491)
+	var saved: Dictionary = old._read_json(old._prefix + "run.json")
+	saved.erase("loss_rule")
+	saved["phase"] = "defeat"
+	saved["last_result"] = "breach"
+	saved["core"] = 0
+	for monster in saved["monsters"]: monster["hp"] = 5
+	saved["report"]["status"] = "defeat"
+	saved["report"]["build"] = "0.11.1"
+	saved["report"]["summary"]["current"].erase("loss_rule")
+	saved["report"]["summary"]["current"]["core"] = 0
+	saved["report"]["summary"]["recoveries"] = 4
+	var historical: String = JSON.stringify(saved["report"])
+	var random_before: int = int(saved["rng_state"])
+	t.check(old._write_json(old._prefix + "run.json", saved), "Historical terminal report fixture retains its original Core HP metadata")
+	var loaded = State.new(old._prefix)
+	t.check(loaded.load_game() and loaded.run["phase"] == "defeat" and loaded.run["monsters"].all(func(monster): return monster["hp"] == 0) and not loaded.run.has("core"), "Old terminal defeat normalizes live knockout state and removes the obsolete game field")
+	t.check(JSON.stringify(loaded.current_report()) == historical and loaded.current_report()["build"] == "0.11.1" and loaded.rng.state == random_before, "Migration preserves the immutable historical report, including old Core HP and recovery metadata")
+	loaded.save_game()
+	t.check(loaded.load_game() and JSON.stringify(loaded.current_report()) == historical, "Repeated save/load cannot rewrite historical terminal report fields")
+
+func test_legacy_terminal_without_report(t) -> void:
+	var old = t.state_at("reports_legacy_terminal_missing")
+	old.new_run(8142)
+	var saved: Dictionary = old._read_json(old._prefix + "run.json")
+	saved.erase("report")
+	saved.erase("loss_rule")
+	saved["phase"] = "defeat"
+	saved["last_result"] = "breach"
+	saved["core"] = 0
+	saved["resolved_id"] = 4
+	saved["recovered_id"] = 4
+	for monster in saved["monsters"]: monster["hp"] = 5
+	var random_before: int = int(saved["rng_state"])
+	t.check(old._write_json(old._prefix + "run.json", saved), "Report-less old terminal defeat fixture preserves its obsolete recovered roster")
+	var loaded = State.new(old._prefix)
+	t.check(loaded.load_game() and loaded.run["phase"] == "defeat" and loaded.run["monsters"].all(func(monster): return monster["hp"] == 0), "Report-less legacy defeat normalizes live knockouts before starting partial observations")
+	var report: Dictionary = loaded.current_report()
+	t.check(report["status"] == "defeat" and report["coverage"] == "partial" and report["summary"]["current"]["monsters"].all(func(monster): return monster["hp"] == 0), "New partial terminal report starts from actual migrated knockout HP instead of obsolete revival HP")
+	var first_observation: Dictionary = kinds(report, "collection_started")[0]["data"]["observed_from"]
+	t.check(first_observation["phase"] == "defeat" and first_observation["monsters"].all(func(monster): return monster["hp"] == 0), "First observed terminal event never records an already-lost team as revived")
+	t.check(report["summary"]["recoveries"] == 0 and report["summary"]["attempts_started"] == 0 and kinds(report, "recovered").is_empty(), "Partial legacy terminal reporting invents no recovery or unobserved prior attempts")
+	var frozen: String = JSON.stringify(report)
+	t.check(loaded.rng.state == random_before and not loaded.run.has("core"), "Creating an accurate partial terminal report neither restores Core HP nor changes gameplay RNG")
+	t.check(loaded.load_game() and JSON.stringify(loaded.current_report()) == frozen and loaded.rng.state == random_before, "Second report-less-terminal reload preserves stable identity, revision, KO observations and RNG")
 
 func test_terminal_metadata(t, game) -> void:
 	var frozen := JSON.stringify(game.current_report())
@@ -181,17 +233,17 @@ func test_partial_and_abandon(t) -> void:
 	for index in range(12): from_title.new_run(800 + index)
 	t.check(from_title.report_list().size() == 10 and from_title._read_json(from_title._prefix + "reports.json")["reports"].size() == 10, "Persistent report outbox retains at most ten recent runs")
 	var recorder = Reports.new()
-	var closed := {"seed": 123, "phase": "prep", "raid": 0, "core": 100, "monsters": [], "traits": []}
+	var closed := {"seed": 123, "phase": "prep", "raid": 0, "monsters": [], "traits": []}
 	recorder.begin(closed)
 	recorder.finish(closed, true)
 	var frozen := JSON.stringify(closed["report"])
-	closed["core"] = 75
+	closed["raid"] = 2
 	recorder.sync_view(closed)
 	t.check(JSON.stringify(closed["report"]) == frozen, "Abandoned report snapshot also remains immutable when later observed metadata differs")
 
 func test_bounds(t) -> void:
 	var recorder = Reports.new()
-	var state := {"seed": 123, "phase": "prep", "raid": 0, "core": 100, "monsters": [], "traits": []}
+	var state := {"seed": 123, "phase": "prep", "raid": 0, "monsters": [], "traits": []}
 	recorder.begin(state)
 	for index in range(2100):
 		recorder.count(state, "cards_played")

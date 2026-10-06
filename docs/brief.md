@@ -6,7 +6,7 @@ Inspect the repository and its instructions first. Preserve an existing engine a
 
 ## 1. Core concept and first-version scope
 
-The player controls a dungeon. Every run starts at dungeon rank F with three named, lowly goblins. Adventurer parties invade to rob the treasure and destroy the dungeon core. Defeated adventurers can be consumed by a chosen monster to inherit an actual ability they possessed. Combinations of absorbed abilities unlock branching evolutions into creatures such as Green Ogres, Red Ogres, and Basilisks. Those creatures can evolve again.
+The player controls a dungeon. Every run starts at dungeon rank F with three named, lowly goblins. Adventurer parties invade to rob the treasure and destroy the dungeon. Defeated adventurers can be consumed by a chosen monster to inherit an actual ability they possessed. Combinations of absorbed abilities unlock branching evolutions into creatures such as Green Ogres, Red Ogres, and Basilisks. Those creatures can evolve again.
 
 The central loop is: inspect an incoming party, select monster abilities, fight using cards, feed defeated adventurers to monsters, discover evolutions, recover some health, and face a stronger raid.
 
@@ -18,7 +18,7 @@ Keep the first version focused:
 - Make rank definitions extensible to F, E, D, C, B, A, and S, without pretending the unimplemented ranks are playable.
 - Include enough content to discover several first evolutions and at least one advanced evolution during this campaign.
 - No equipment inventory, equipping items, selling, shops, crafting economy, or material collection in this version. Focus on absorbed abilities.
-- No permanent monster death.
+- Individual knockouts are temporary if the remaining monsters win. Losing the whole team destroys the dungeon and ends the run immediately.
 - Healing is repeatable. Do not add Exhaust, once-per-raid healing, anti-stall timers, escalating punishment for healing, or diminishing healing returns.
 
 ## 2. Monsters and deck construction
@@ -28,7 +28,6 @@ Start with three distinct named goblin instances. Give each its own health, curr
 Starting balance defaults:
 
 - Three goblins with 20 maximum HP each.
-- Dungeon core with 100 HP.
 - Three energy and a five-card hand each player turn.
 - Twelve-card starting deck: three cards contributed by each monster plus three shared dungeon cards.
 
@@ -54,17 +53,17 @@ Use readable party positions and targeting rules such as frontline, lowest-healt
 
 Healing cards cycle through the normal discard and reshuffle process and can be used repeatedly in the same raid. Regeneration can be reapplied according to its clearly stated stacking/refresh rule. Never impose a hidden usage limit. Let players choose recovery turns rather than automatically attacking.
 
-Win when every adventurer is defeated. If all monsters are knocked out, immediately resolve a breach: subtract 25 core HP once and end the raid. A surviving core permits another attempt at that raid; zero core HP ends the run. Failed raids provide no feeding rewards. Successful raids advance progression. Keep these values configurable.
+Win when every adventurer is defeated. If all monsters are knocked out, immediately end the run in defeat. There is no separate dungeon health pool or retry. Failed raids provide no feeding rewards or recovery. Successful raids advance progression.
 
 ## 4. Health and recovery
 
 Monster health persists between raids. There is no full heal just for starting another battle.
 
-After each raid and its reward/feeding phase, restore ceil(25% of maximum HP) to every monster, capped at maximum HP. A knocked-out monster starts this recovery at zero and returns with that same amount. Retain its form and learned abilities.
+After each successful raid and its reward/feeding phase, restore ceil(25% of maximum HP) to every monster, capped at maximum HP. A knocked-out monster starts this recovery at zero and returns with that same amount. Retain its form and learned abilities. A full party wipe ends the run before feeding or recovery.
 
 Example: a 20-HP goblin finishing at 6 HP recovers to 11; a knocked-out one recovers to 5.
 
-Apply recovery exactly once per resolved raid, including after loading a save. Clear temporary battle statuses before the next raid.
+Apply recovery exactly once per won raid, including after loading a save. Clear temporary battle statuses before the next raid.
 
 When evolution changes maximum HP, preserve current health percentage, rounded consistently; do not fully heal the monster. A knocked-out monster remains at zero until normal post-raid recovery.
 
@@ -79,9 +78,9 @@ Include warrior, defender, rogue, mage, priest, and controller-style adventurers
 After a successful raid, show each defeated adventurer and its transferable abilities. For each body:
 
 - Choose one recipient monster.
-- Choose one of that adventurer’s transferable abilities.
+- Preview the actual unknown transferable abilities and their weighted odds (common 4, uncommon 2, rare 1).
 - Confirm consumption once.
-- Add that ability to the recipient and immediately evaluate evolution eligibility.
+- Roll one unknown ability randomly, add it to the recipient and immediately evaluate evolution eligibility. The player cannot choose the inherited ability.
 
 One body can be consumed once, by one monster, for one ability. The recipient is independent of who landed the killing blow. Allow feeding any roster monster, including one knocked out during the raid. Do not permit duplicate reward claims.
 
@@ -132,7 +131,7 @@ The grimoire starts genuinely empty on a new profile. Show no undiscovered entri
 
 After an evolution is performed, permanently record the discovered form, its appearance, abilities, source form, and actual recipe requirements. It should help the player reproduce a discovery in a later run. Record only known information.
 
-Keep permanent grimoire data separate from current-run data. New Run resets the team to three goblins, rank, core HP, and current progression while preserving discoveries. Provide a clearly separate debug-only reset for testing an empty profile.
+Keep permanent grimoire data separate from current-run data. New Run resets the team to three goblins, rank, and current progression while preserving discoveries. Provide a clearly separate debug-only reset for testing an empty profile.
 
 Support New Run and Continue. Save the seed/RNG state, monster identities and health, learned and selected abilities, evolution state, rank/raid progress, and any partially completed reward phase. Save after feeding/evolution decisions and between raids. Reloading must not reroll rewards, allow reconsuming a body, or duplicate recovery.
 
@@ -149,7 +148,7 @@ Create a coherent, readable game interface:
 - Raid results, promotion, victory, and defeat.
 - Discovered-only grimoire entries.
 
-Use a restrained fantasy dungeon style with distinct silhouettes and colors for each form. Simple original placeholder art is acceptable, but the interface must feel usable and deliberate. Add lightweight feedback for damage, healing, card play, feeding, and transformation. Keep text legible at 1280×720 and avoid overlapping or clipped controls. Basic audio is optional.
+Use a restrained fantasy dungeon style with distinct silhouettes and colors for each form. Simple original placeholder art is acceptable, but the interface must feel usable and deliberate. Add lightweight feedback for damage, healing, card play, feeding, and transformation. Keep text legible at 1280×720 and avoid overlapping or clipped controls. Provide background music with saved volume and mute settings, including mobile gesture-based playback.
 
 ## 9. Implementation and verification
 
@@ -161,12 +160,20 @@ Build in working increments, but finish the integrated loop before stopping. Add
 
 - Legal card targeting, energy, drawing, discard, and reshuffling.
 - Repeatable healing in the same raid.
-- Knockouts, owner-card removal, breach, and exactly-once recovery.
+- Knockouts, owner-card removal, immediate run defeat on a full wipe, and exactly-once victory recovery.
 - Consuming actual generated enemy abilities once.
 - Per-monster evolution eligibility and retention of abilities.
 - Hidden/discovered grimoire behavior.
 - Save/load without duplicate rewards or recovery.
 
-Run the project and fix runtime errors. Verify a normal first raid, feeding, a first evolution, a later evolution, promotion, a breach with surviving core, run defeat, and restarting with retained discoveries. Use a separate test profile or debug seed to exercise rare cases without revealing them to normal players.
+Run the project and fix runtime errors. Verify a normal first raid, feeding, a first evolution, a later evolution, promotion, immediate run defeat, and restarting with retained discoveries. Verify living old saves preserve their exact combat and RNG, while old pending retry saves become defeats. Use a separate test profile or debug seed to exercise rare cases without revealing them to normal players.
+
+## 10. Next design experiment
+
+Use the first three raids as a short build test before adding content. Raid one introduces the team and earns a trait. Raid two offers contrasting threats and actual corpse abilities that can support the player's build. The first champion should test that build with a short, readable danger-and-payoff cycle.
+
+Compare intent-aware plays with random legal plays using the same initial seeds and reward policy. Record first-act completions, turns, card plays and losses; later draws and inheritance can diverge with different decisions, so these are bounded diagnostics rather than human win rates. If random play clears as easily, increase tactical pressure in the existing fights without extending their health budgets.
+
+The next proposed presentation additions are a countdown to the champion's predictable Banner Volley and a short victory receipt showing earned trait/combo activations and remaining team HP. Use only earned forms and known skills; keep undiscovered recipes hidden. The human playtest should compare two earned traits through the first champion and ask whether protection, enemy intentions and possible meals changed decisions. These additions remain design proposals in this pass.
 
 Deliver the runnable project, a concise README with launch instructions and controls, and a short description of balance/data locations and what you actually tested. If the environment cannot launch Godot, complete the available validation and state that limitation accurately.

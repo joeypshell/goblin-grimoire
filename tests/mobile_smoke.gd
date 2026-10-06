@@ -124,7 +124,7 @@ func exercise_size(pixels: Vector2i) -> void:
 		check(game.battle.enemies[0]["hp"] < before_hp and game.battle.energy < before_energy, "Tapping legal target resolves actual damage and cost")
 	await reachable_button("End turn", true)
 	await capture("06_after_card")
-	await test_warning_and_core_layout()
+	await test_warning_layout()
 	fixture_feeding()
 	var reveal_info: Dictionary = await FeedingChecks.new().exercise(self)
 	ui.rewards_screen.reveal(reveal_info)
@@ -156,10 +156,16 @@ func exercise_size(pixels: Vector2i) -> void:
 	ui.refresh()
 	await capture("11_victory")
 	await reachable_button("Begin", true)
-	game.run["phase"] = "defeat"
-	game.run["core"] = 0
+	game.new_run(730211)
+	game.start_raid()
+	for actor in game.battle.monsters: actor["hp"] = 0
+	game.end_turn()
+	ui.card_index = -1
 	ui.refresh()
 	await capture("12_defeat")
+	check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(actor): return actor["hp"] == 0) and game.run.get("rewards", []).is_empty(), "A complete wipe displays genuine defeat with zero HP and no rewards on every logical size")
+	check(TurnChecks.visible_text(ui).contains("this run is over") and not TurnChecks.visible_text(ui).contains("retry") and not TurnChecks.visible_text(ui).contains("recovered") and not TurnChecks.visible_text(ui).contains("NEXT REWARD") and find_button(ui, "Return to preparation") == null, "Defeat explains the lost dungeon and offers no recovery, future reward or retry flow")
+	await reachable_button("Begin another run", true)
 	fixture_evolved_combat()
 	ui.card_index = 0
 	ui.refresh()
@@ -183,7 +189,7 @@ func fixture_feeding() -> void:
 	ui.feed_body = 0
 	ui.feed_monster = game.run["monsters"][0]["id"]
 
-func test_warning_and_core_layout() -> void:
+func test_warning_layout() -> void:
 	ui.card_index = 0
 	ui.refresh()
 	await settle()
@@ -208,21 +214,7 @@ func test_warning_and_core_layout() -> void:
 	keep.pressed.emit()
 	await settle()
 	check(not is_instance_valid(ui.overlay) and JSON.stringify(game.battle.to_dict()) == before and ui.card_index == 0, "Keep playing returns to the same selected card on every logical size")
-	var core = TurnChecks.named(ui, "CoreInfo")
-	check(core is Button and core.text.contains("HP"), "Dungeon core health has a readable help action")
-	if core == null: return
-	await ensure_reachable(core, "Dungeon core health")
-	core.pressed.emit()
-	await settle()
-	check(TurnChecks.named(ui, "DungeonCoreInfo") != null and TurnChecks.visible_text(ui.overlay).contains("25 HP") and TurnChecks.visible_text(ui.overlay).contains("At 0 Core HP, the run ends"), "Core help explains breach damage and the run-ending condition on phones and desktop")
-	var back = TurnChecks.named(ui, "CloseCoreInfo")
-	check(back is Button, "Core help exposes a return action")
-	if back == null: return
-	await ensure_reachable(back, "Return from dungeon core help")
-	await capture("06c_core_help")
-	back.pressed.emit()
-	await settle()
-	check(JSON.stringify(game.battle.to_dict()) == before and JSON.stringify(game.run) == run_before and ui.card_index == 0 and not is_instance_valid(ui.overlay), "Core explanation preserves gameplay and selected card through its full open/close flow")
+	check(TurnChecks.named(ui, "CoreInfo") == null and TurnChecks.named(ui, "DungeonCoreInfo") == null and not TurnChecks.visible_text(ui).contains("CORE HP") and not game.run.has("core"), "The phone combat header and gameplay state contain no separate Core health")
 
 func fixture_evolved_combat() -> void:
 	game.new_run(730205)
@@ -306,7 +298,7 @@ func ensure_reachable(control: Control, label: String) -> void:
 func capture(name: String) -> void:
 	await settle()
 	if ui.state.run.get("phase", "") == "combat": CombatChecks.defenses(self, ui)
-	check(not is_instance_valid(ui.overlay) or name in ["08_reveal", "06b_unspent_energy_warning", "06c_core_help"], "Screen is not obscured by an unintended modal: " + name)
+	check(not is_instance_valid(ui.overlay) or name in ["08_reveal", "06b_unspent_energy_warning"], "Screen is not obscured by an unintended modal: " + name)
 	var destination := "res://tests/artifacts/mobile/%dx%d/" % [current_size.x, current_size.y]
 	DirAccess.make_dir_recursive_absolute(destination)
 	if can_render:
@@ -470,11 +462,11 @@ func exercise_native_touch() -> void:
 	check(game.battle.turn == turn_before + 1, "Native touch ends turn through the visible control")
 	ui.skip_turn_animation()
 	await settle()
-	await native_warning_and_core(Vector2i(375, 667))
-	await native_warning_and_core(Vector2i(844, 320))
+	await native_warning_and_defeat(Vector2i(375, 667))
+	await native_warning_and_defeat(Vector2i(844, 320))
 	ui.free()
 
-func native_warning_and_core(pixels: Vector2i) -> void:
+func native_warning_and_defeat(pixels: Vector2i) -> void:
 	current_size = pixels
 	root.size = pixels
 	game.new_run(730210)
@@ -496,14 +488,7 @@ func native_warning_and_core(pixels: Vector2i) -> void:
 	captured += 1
 	await tap_native(TurnChecks.named(ui, "KeepPlaying"))
 	check(not is_instance_valid(ui.overlay) and ui.card_index == 0 and JSON.stringify(game.battle.to_dict()) == before and JSON.stringify(game.run) == run_before, "Real touch Keep playing preserves selection and every gameplay field")
-	await tap_native(TurnChecks.named(ui, "CoreInfo"))
-	check(TurnChecks.named(ui, "DungeonCoreInfo") != null, "Real touch opens Dungeon core explanation")
-	inspect_controls(ui, "native_core_help")
-	picture = root.get_texture().get_image()
-	check(picture.get_size() == pixels and picture.save_png(destination.replace("native_unspent_energy_warning", "native_core_help")) == OK, "Native touch Core help capture saves its exact logical viewport")
-	captured += 1
-	await tap_native(TurnChecks.named(ui, "CloseCoreInfo"))
-	check(JSON.stringify(game.battle.to_dict()) == before and ui.card_index == 0, "Real touch core help closes without changing battle or card selection")
+	check(TurnChecks.named(ui, "CoreInfo") == null and not game.run.has("core"), "Native battle has no separate dungeon health counter or Core help")
 	await tap_native(TurnChecks.named(ui, "EndTurn"))
 	var confirm = TurnChecks.named(ui, "EndTurnAnyway")
 	check(confirm is Button and game.battle.turn == turn_before, "A second deliberate end-turn request still requires an explicit choice")
@@ -511,6 +496,21 @@ func native_warning_and_core(pixels: Vector2i) -> void:
 	check(game.battle.turn == turn_before + 1 and ui.resolving_turn and not is_instance_valid(ui.overlay), "Real touch End turn anyway commits one turn at both phone orientations")
 	ui.skip_turn_animation()
 	await settle()
+	for actor in game.battle.monsters: actor["hp"] = 0
+	game.end_turn()
+	ui.card_index = -1
+	ui.refresh()
+	await settle()
+	check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(actor): return actor["hp"] == 0) and game.run.get("rewards", []).is_empty(), "Native complete wipe ends the run with no revival or rewards")
+	check(TurnChecks.visible_text(ui).contains("DUNGEON LOST") and not TurnChecks.visible_text(ui).contains("retry") and not TurnChecks.visible_text(ui).contains("NEXT REWARD") and find_button(ui, "Return to preparation") == null, "Native loss screen offers no same-dungeon retry or future rewards")
+	inspect_controls(ui, "native_dungeon_lost")
+	picture = root.get_texture().get_image()
+	check(picture.get_size() == pixels and picture.save_png(destination.replace("native_unspent_energy_warning", "native_dungeon_lost")) == OK, "Native terminal defeat capture saves its exact logical viewport")
+	captured += 1
+	var begin = find_button(ui, "Begin another run")
+	check(begin is Button, "Native terminal loss has a reachable new-run action")
+	if begin != null: await tap_native(begin)
+	check(game.run["phase"] == "prep" and game.run["raid"] == 0 and game.run["monsters"].all(func(actor): return actor["hp"] == actor["max_hp"]), "Real touch starts a fresh dungeon after losing all monsters")
 
 func swipe_hand(sc: ScrollContainer) -> void:
 	var selection_before: int = ui.card_index

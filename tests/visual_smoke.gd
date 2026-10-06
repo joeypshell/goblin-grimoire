@@ -72,8 +72,10 @@ func _run() -> void:
 	game.run["promotion"] = "D"
 	ui.refresh()
 	await capture("10_promotion")
-	game.run["phase"] = "defeat"
-	game.run["core"] = 0
+	game.new_run(730212)
+	game.start_raid()
+	for actor in game.battle.monsters: actor["hp"] = 0
+	game.end_turn()
 	ui.refresh()
 	await capture("11_defeat")
 	game.new_run(730205)
@@ -101,6 +103,9 @@ func _run() -> void:
 	print("VISUAL SMOKE: %d native screenshots at 1280x720; %d layout/content issues" % [captured, errors.size()])
 	for issue in errors:
 		print("VISUAL ISSUE: ", issue)
+	ui.free()
+	# Native Dummy audio needs a complete mix cycle to retire both streamed decks.
+	await create_timer(0.4).timeout
 	quit(0 if errors.is_empty() else 1)
 
 func capture(name: String) -> void:
@@ -117,6 +122,13 @@ func capture(name: String) -> void:
 	print("CAPTURE: ", name)
 	inspect_controls(ui, name)
 	var screen_text := gather_text(ui)
+	if screen_text.contains("CORE HP"):
+		errors.append(name + ": separate dungeon Core health remains visible")
+	if name == "11_defeat":
+		if game.run["phase"] != "defeat" or not game.run["monsters"].all(func(actor): return actor["hp"] == 0) or not game.run.get("rewards", []).is_empty():
+			errors.append("Defeat fixture failed to retain the lost dungeon and three zero-HP monsters")
+		if not screen_text.contains("DUNGEON LOST") or not screen_text.contains("this run is over") or screen_text.contains("retry") or screen_text.contains("recovered") or screen_text.contains("NEXT REWARD") or screen_text.contains("Return to preparation"):
+			errors.append("Defeat screen failed to end the run clearly without recovery or retry")
 	if name in ["01_title", "02_empty_grimoire", "03_preparation", "04_combat", "05_target_selection", "06_feeding"]:
 		for id in Data.FORMS:
 			if id != "goblin" and screen_text.contains(Data.FORMS[id]["name"]):

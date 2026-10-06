@@ -3,7 +3,7 @@ extends RefCounted
 
 # All tuning and transferable effects live here. Targets are relative to the caster.
 const BALANCE = {
-	"recovery": 0.25, "breach": 25, "core": 100, "energy": 3, "hand": 5,
+	"recovery": 0.25, "energy": 3, "hand": 5,
 	"raids": 6, "dot_decay": 1
 }
 const INHERITANCE_WEIGHTS = {"common": 4, "uncommon": 2, "rare": 1}

@@ -162,10 +162,9 @@ func exercise_size() -> void:
 	surface.size = pixels
 	await settle()
 	ui.close_modal()
-	game.run["phase"] = "defeat"
-	game.run["core_hp"] = 0
-	game.battle = null
-	game.save_game()
+	for actor in game.battle.monsters: actor["hp"] = 0
+	game.end_turn()
+	check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(actor): return actor["hp"] == 0), "Terminal report fixture uses a genuine complete monster wipe without a Core health field")
 	ui.menu = "game"
 	ui.refresh()
 	await settle()
