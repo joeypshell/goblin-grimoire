@@ -2,6 +2,7 @@ extends Control
 
 const Data = preload("res://scripts/game_data.gd")
 const Copy = preload("res://scripts/combat_copy.gd")
+const Forms = preload("res://scripts/battle_forms.gd")
 const Creature = preload("res://scripts/battle_creature.gd")
 var ui
 var battle
@@ -10,6 +11,8 @@ var intent_nodes: Dictionary = {}
 var target_nodes: Dictionary = {}
 var _effects: Array = []
 var _effect_layer: Control
+var _columns: Array = []
+var _minimum_pending := false
 
 func setup(owner, combat) -> void:
 	ui = owner
@@ -36,7 +39,24 @@ func setup(owner, combat) -> void:
 	_effect_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_effect_layer.draw.connect(_draw_effects)
 	add_child(_effect_layer)
-	resized.connect(queue_redraw)
+	resized.connect(func():
+		queue_redraw()
+		_queue_minimum_fit())
+	_queue_minimum_fit()
+
+func _queue_minimum_fit() -> void:
+	if _minimum_pending: return
+	_minimum_pending = true
+	call_deferred("_fit_minimum")
+
+func _fit_minimum() -> void:
+	_minimum_pending = false
+	if not is_inside_tree(): return
+	var height: float = 140
+	for column in _columns:
+		# Intrinsic text and the creature's 60 px minimum, never its allocation.
+		height = maxf(height, column.get_combined_minimum_size().y + 20)
+	if not is_equal_approx(custom_minimum_size.y, height): custom_minimum_size.y = height
 
 func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 	var selected: Dictionary = battle.hand[ui.card_index] if ui.card_index >= 0 and ui.card_index < battle.hand.size() else {}
@@ -65,6 +85,7 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 	var column = VBoxContainer.new()
 	column.add_theme_constant_override("separation", 1)
 	inset.add_child(column)
+	_columns.append(column)
 	var role: String = ""
 	if acting: role = "ACTING"
 	elif receiver: role = "TARGET"
@@ -118,6 +139,12 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 	intent.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(intent)
 	intent_nodes[actor["id"]] = intent
+	var form_hint: String = Forms.status(battle, actor) if not enemy else ""
+	if form_hint != "":
+		var combo = ui.label(form_hint, 10, ui.MOSS, true)
+		combo.name = "FormCombo_" + actor["id"]
+		combo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		column.add_child(combo)
 	var statuses: String = Copy.status(actor)
 	if statuses != "":
 		var status = ui.label(statuses, 10, ui.PARCHMENT, true)
@@ -126,6 +153,7 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 	if legal:
 		button.tooltip_text = "Play %s on %s\n%s\n%s" % [Data.ABILITIES[selected["ability"]]["name"], actor["name"], full_preview, text]
 	else: button.tooltip_text = text + ("\n" + statuses if statuses != "" else "")
+	if form_hint != "": button.tooltip_text += "\n" + form_hint
 	_ignore_mouse(inset)
 
 func _short_preview(full: String) -> String:

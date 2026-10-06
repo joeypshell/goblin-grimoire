@@ -6,7 +6,7 @@ const MAX_EVENTS = 2000
 const MAX_REPORTS = 10
 const MAX_BYTES = 384 * 1024
 const MAX_ATTEMPTS = 100
-const BUILD = "0.8.0"
+const BUILD = "0.9.0"
 var reports: Array = []
 
 static func utc_now() -> String:

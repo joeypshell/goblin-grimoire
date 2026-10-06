@@ -1,5 +1,36 @@
 # Verification
 
+## v0.9.0 combat, transformations and reward clarity
+
+The new form suite passes **1,395 focused checks**. It exercises all eight evolved forms through accepted card actions: setup before payoff, wrong-order exclusions, per-owner once-per-turn limits, area damage, lethal targets, Resolve, rejected plays, save/Continue, and exact combined form/trait draw and energy rewards. Sequential previews remove Block before forecasting a hit, include evolved self-Block modifiers, omit impossible post-KO stun/draw, and preserve the complete snapshot and RNG. Actual generated invader kits follow six-round role schedules; legacy unflagged parties retain their prior selection behavior and locked actions. The Marshal's scheduled Breach Order tests Block removal, armor, Evade and stun counterplay.
+
+The v0.8 diagnostic baseline used four seeds and three policies. The tactical driver won all four runs in **37, 43, 46 and 44 player rounds**. Random legal cards and targets with tactical loadouts won two runs, needing **177 and 48 rounds**; one winning run used **484 cards**, with a longest fight of **30 rounds**. Its announced actions were nearly half support and it recovered 742 HP through direct healing. A blind starter-loadout policy won none. These are scripted diagnostics, not human win rates or measures of enjoyment.
+
+The updated driver evaluates actual learned skills and the currently visible form with isolated production-resolution probes. It gives zero-cost and refunded attacks a finite hand-slot value instead of assuming unlimited free-card throughput. It does not inspect hidden recipes when configuring skills. Macro feeding still uses the existing developer campaign policy, so comparisons across releases also reflect changed decisions and RNG; they do not isolate one balance change. Candidate testing exposed another 16-round fight caused by overvaluing Quick Jab as the only selected attack in a defensive form. The final driver corrects that valuation; production still permits players to select a weak or defensive deck. Standard milestone parties now guarantee possession of one introduced skill, while random inheritance remains unchanged.
+
+Fast combat is separate from reduced motion and saved outside run data. The final headless pacing harness passes **1,707 checks across six layouts**, preserving the same committed result through fast/normal playback, Skip and Continue. Native checks passed **1,599 assertions**, including real ScreenTouch, reload of the Normal preference and measured durations around **2.5 seconds Fast / 4.9 seconds Normal** for an ordinary three-invader turn.
+
+Reward/form UI tests pass **2,383 assertions in both headless and native modes**, covering **32 layouts/screenshots** at 1280×720, 375×667, 390×844 and 844×320. Actual Devour and Replace controls equip either slot explicitly without rerolling, auto-equipping, changing feeds or adding deck cards. Latest-meal receipts survive Continue, lower-index newest claims and legacy fallback; recovery clears the pointer. Earned chooser/reveal shows actual HP, signature effects and tactics while unmet forms stay hidden. Discovered Grimoire and preparation descriptions remain correct. Native captures were inspected.
+
+Existing headless turn-flow and trait UI checks pass **2,394 and 2,866 assertions**, respectively, with zero issues. Node ingestion fixtures pass **40 checks**. Profiles and upload bindings remain isolated; reporting backend work remains deferred. Physical iPhone Safari remains untested.
+
+The final integrated gameplay suite passes **7,690 checks across 16 groups**, with zero failures. The primary seed `730204` clears the six raids in **23 ended turns / 75 real card plays**. Four additional concentrated/spread campaigns also reach victory with zero breaches. The focused party-route suite passes **1,171 checks**, including an all-alternate victory with seed `101` in **21 ended turns / 68 plays**. The bounded test also tried seed `730204`, which loses its final raid; it does not establish universal reachability for every strategy and seed.
+
+The final four-seed diagnostic cohort passes **1,844 checks**, with no timeouts. Tactical runs all win without breaches in **29, 27, 41 and 32 battle rounds**, averaging **32.25**, versus the earlier 42.5. Mean End Turn actions fall from 38 to 27.5. The longest tactical fight is ten rounds. Random legal combat with strategic builds wins **0/4** (previously 2/4), with a longest fight of fifteen rounds (previously thirty). Blind default-loadout runs remain 0/4. The sample and changed driver limit these comparisons; neither wins nor duration establishes human enjoyment.
+
+Final rendered regression checks pass **8,474 art assertions / 74 screenshots**, **16,566 mobile assertions / 180 screenshots**, and **3,354 tactical UI assertions in each mode / 32 layouts or screenshots**, with zero issues and clean logs. Native ScreenTouch and ScreenDrag exercise gameplay. Tactical UI checks show actual round-two Marshal counterplay, Resolve, Block-removal/armor forecasts, real target presses, a payable zero-energy card, and available/readied/used form combos at four sizes. Native pixel inspection confirms the cues are readable. The battlefield minimum derives from intrinsic wrapped columns, retains at least 60 pixels for creatures, and remains stable through 1280×720 → 1920×1080 → 1280×720. A root margin allocation fix prevents a tall preparation screen from leaving the short-landscape combat footer outside the viewport. The native touch fixture now assigns its isolated state before scene `_ready` binds the uploader.
+
+Both final browser and Windows exports complete without errors or warnings. Windows file/product metadata is `0.9.0`. CI now includes pacing, reward and tactical UI harnesses alongside the integrated gameplay and existing regression checks.
+
+```sh
+godot --headless --path . --script tests/test_runner.gd
+godot --headless --path . --script tests/pacing_smoke.gd
+godot --headless --path . --script tests/reward_tactics_smoke.gd
+godot --path . --script tests/reward_tactics_smoke.gd
+godot --headless --path . --script tests/tactical_ui_smoke.gd
+godot --path . --script tests/tactical_ui_smoke.gd
+```
+
 ## v0.8.0 party choices
 
 The focused party-choice suite passed **903 assertions with zero failures**. It checks the six released baseline parties against independently captured fixed-seed fixtures, caches deterministic alternatives without consuming gameplay RNG, rejects invalid or locked choices without mutation, and restores the selected party through preparation, combat, breaches and retries. Actual chosen invader abilities become the real corpse pools; inheritance keeps its existing 4:2:1 rarity weights. Legacy saves preserve an already generated party and receive choices at a future eligible raid.

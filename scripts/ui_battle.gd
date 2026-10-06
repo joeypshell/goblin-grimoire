@@ -50,7 +50,7 @@ func _banner(parent: Node, compact: bool) -> void:
 
 func _render_desktop() -> void:
 	var battle = ui.combat_battle()
-	ui.content.add_theme_constant_override("separation", 8)
+	ui.content.add_theme_constant_override("separation", 6)
 	_banner(ui.content, false)
 	_stage(ui.content, battle)
 	_instruction(ui.content, false)
@@ -97,6 +97,8 @@ func _stage(parent: Node, battle) -> void:
 		if not is_instance_valid(stage): return
 		stage.size = Vector2(holder.size.x, minf(holder.size.y, 360))
 		stage.position = Vector2(0, (holder.size.y - stage.size.y) / 2))
+	stage.minimum_size_changed.connect(func():
+		if is_instance_valid(holder): holder.custom_minimum_size.y = stage.get_combined_minimum_size().y)
 	var right = Control.new()
 	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -169,7 +171,7 @@ func _render_compact() -> void:
 			column.add_theme_constant_override("separation", 3)
 			board.add_child(column)
 			column.add_child(ui.label("YOUR MONSTERS" if side == "monsters" else "INVADERS · NEXT ACTIONS", 12, ui.MOSS if side == "monsters" else ui.EMBER))
-			var actors = _actor_scroll(column, 116 if short_landscape else 55)
+			var actors = _actor_scroll(column, 116 if short_landscape else 55, short_landscape)
 			for actor in battle.monsters if side == "monsters" else battle.enemies:
 				parts.actor(actor, actors, side == "enemies", true)
 	_instruction(layout, true)
@@ -195,7 +197,7 @@ func _queue_short_focus(body_scroll) -> void:
 func _focus_short_targets(body_scroll) -> void:
 	if is_instance_valid(body_scroll) and body_scroll.is_inside_tree(): body_scroll.scroll_vertical = 0
 
-func _actor_scroll(parent: Node, minimum_height: float) -> VBoxContainer:
+func _actor_scroll(parent: Node, minimum_height: float, fit_largest: bool = false) -> VBoxContainer:
 	var sc = ScrollContainer.new()
 	sc.custom_minimum_size.y = minimum_height
 	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -206,7 +208,18 @@ func _actor_scroll(parent: Node, minimum_height: float) -> VBoxContainer:
 	actors.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	actors.add_theme_constant_override("separation", 5 if ui.is_compact() else 3)
 	sc.add_child(actors)
+	if fit_largest:
+		actors.minimum_size_changed.connect(func(): call_deferred("_fit_actor_viewport", sc, actors, minimum_height))
 	return actors
+
+func _fit_actor_viewport(sc, actors, minimum_height: float) -> void:
+	if not is_instance_valid(sc) or not is_instance_valid(actors): return
+	var height: float = minimum_height
+	for actor in actors.get_children():
+		if actor is Control: height = maxf(height, actor.get_combined_minimum_size().y)
+	# The outer landscape scroll can reveal a whole target even when its
+	# selected-card forecast is taller than the ordinary inner actor viewport.
+	sc.custom_minimum_size.y = height
 
 func _side_tab(parent: Node, side: String, actors: Array) -> void:
 	var living: int = 0
@@ -231,7 +244,7 @@ func _instruction(parent: Node, compact: bool) -> void:
 	row.add_theme_constant_override("separation", 5)
 	parent.add_child(row)
 	var sc = ScrollContainer.new()
-	sc.custom_minimum_size.y = (88 if ui.resolving_turn or ui.last_action != "" else (72 if ui.card_index >= 0 else 44)) if compact else 64
+	sc.custom_minimum_size.y = (88 if ui.resolving_turn or ui.last_action != "" else (72 if ui.card_index >= 0 else 44)) if compact else 44
 	sc.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	row.add_child(sc)
@@ -320,13 +333,22 @@ func _show_log() -> void:
 	for entry in ui.combat_battle().log: history.add_child(ui.label(entry, 14, ui.PARCHMENT, true))
 	for rule in [
 		"Your monsters act through owned cards. Costs use your shared energy. Unplayed cards discard at turn end. Healing cards cycle normally and can be reused.",
-		"Each round, offensive invader actions choose random living monsters. Their shown actions and targets stay locked until resolution. Surviving invaders act in the shown order; a defeated target redirects to the first valid living target.",
+		"Invaders choose targets using their role's pattern: warriors aim at the monster with the most HP, rogues aim at the least HP, and other single attacks choose a random living monster. The shown actions and targets stay locked until resolution. Surviving invaders act in the shown order; a defeated target redirects to the first valid living target.",
 		"Armor reduces each direct hit before Block and stays for the battle. Block absorbs remaining damage and expires at that faction's next turn. Poison and Burn bypass Armor and Block.",
 		"Poison, Burn and Regeneration keep separate applications. At faction turn end, each application ticks and then loses 1 strength. Two Poison 3 applications deal 6, then 4, then 2 damage. Regeneration follows the same timing for healing.",
 		"Stun causes one skipped invader action or prevents a monster's owned cards for one player turn. Stun does not stack. After skipping, Resolve protects against Stun through the next normal action or player turn, then expires. Other card effects still apply to a protected target.",
 		"Mend restores HP and cleanses every Poison and Burn application on its target. It does not remove other statuses."
 	]: history.add_child(ui.label(rule, 13, ui.MUTED, true))
 	history.add_child(ui.label("Captain Torren's Banner Volley is announced every third round: 5 damage and 1 Burn to all monsters. Stun skips the volley unless Resolve prevents Stun. Defeating the captain cancels his pending action and future volleys.", 13, ui.MUTED, true))
+	history.add_child(ui.label("The Iron Marshal announces Breach Order on rounds 2, 5, 8…: remove all monster Block, then deal 6 damage to every monster. Armor still reduces each hit. Stun skips the order unless Resolve prevents Stun; defeating the Marshal cancels it, and Evade can dodge the hit. Removed Block cannot trigger Spiteful Shields.", 13, ui.MUTED, true))
+	var pacing = CheckButton.new()
+	pacing.name = "FastCombat"
+	pacing.text = "Fast combat"
+	pacing.custom_minimum_size.y = 44
+	pacing.button_pressed = ui.fast_combat
+	pacing.toggled.connect(func(value): ui.set_fast_combat(value, true))
+	box.add_child(pacing)
+	box.add_child(ui.label("Shorter pauses between invader actions. Turn this off for normal speed.", 12, ui.MUTED, true))
 	var motion = CheckButton.new()
 	motion.name = "ReduceMotion"
 	motion.text = "Reduce motion"

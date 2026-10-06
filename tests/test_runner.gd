@@ -11,6 +11,7 @@ const Campaigns = preload("res://tests/test_campaigns.gd")
 const Traits = preload("res://tests/test_traits.gd")
 const Reports = preload("res://tests/test_reports.gd")
 const PartyRoutes = preload("res://tests/test_party_routes.gd")
+const FormTactics = preload("res://tests/test_form_tactics.gd")
 
 var checks := 0
 var failures: Array = []
@@ -37,6 +38,7 @@ func _run() -> void:
 	Balance.new().run(self)
 	Traits.new().run(self)
 	Reports.new().run(self)
+	FormTactics.new().run(self)
 	PartyRoutes.new().run(self)
 	test_campaign()
 	Campaigns.new().run(self)
@@ -324,7 +326,8 @@ func win_raid(game, bound: int = 180) -> bool:
 					var copy = clone_battle(game)
 					if not copy.play_card(index, str(target)):
 						continue
-					var gain := (position_value(copy) - baseline) / float(Data.ABILITIES[value["ability"]]["cost"])
+					# Every card consumes a hand slot, including free cards.
+					var gain := (position_value(copy) - baseline) / maxf(1.0, float(Data.ABILITIES[value["ability"]]["cost"]))
 					if copy.outcome == "won":
 						gain += 1000.0
 					if gain > best_gain:
@@ -388,36 +391,109 @@ func feed_campaign(game, test_partial: bool, spread: bool = false) -> bool:
 	return partial_done
 
 func configure_loadout(game) -> void:
+	var incoming: Array = game.party_preview().duplicate(true)
 	for monster in game.run["monsters"]:
 		var first := "strike"
-		var best := ability_value(first)
+		var best := ability_value(first, monster, incoming)
 		for ability in monster["learned"]:
-			var value := ability_value(ability)
+			var value := ability_value(ability, monster, incoming)
 			if value > best:
 				first = ability
 				best = value
-		check(game.set_selected(monster["id"], 0, first), "Preparation selects learned combat ability")
 		var heal := "patch_up"
 		# Keep one repeatable support card; incoming poison/burn makes cleansing useful.
 		var ailments := false
-		for invader in game.party_preview():
+		for invader in incoming:
 			for ability in invader["abilities"]:
 				for effect in Data.ABILITIES[ability]["effects"]:
 					if effect.get("status", "") in ["poison", "burn"]: ailments = true
 		if monster["learned"].has("mend") and ailments: heal = "mend"
 		elif monster["learned"].has("regrowth"): heal = "regrowth"
-		check(game.set_selected(monster["id"], 1, heal), "Preparation retains repeatable healing")
+		# Build around the currently visible form with actually learned skills.
+		# No unmet recipe or unearned skill is inspected by the driver.
+		match monster["form"]:
+			"green_ogre", "ancient_ogre": heal = "guard"
+			"basilisk", "ember_basilisk":
+				if monster["learned"].has("poisoned_blade") and monster["learned"].has("snare"):
+					first = "poisoned_blade"
+					heal = "snare"
+			"red_ogre", "oni":
+				if monster["learned"].has("firebolt") and first != "firebolt": heal = "firebolt"
+			"shadow_stalker", "nightstalker":
+				for id in ["poisoned_blade", "firebolt", "snare"]:
+					if monster["learned"].has(id) and first != id:
+						heal = id
+						break
+		# Setters reject duplicate slots. Move the old second card aside first.
+		if monster["selected"][1] == first:
+			for spare in monster["learned"]:
+				if spare != first and spare != monster["selected"][0]:
+					check(game.set_selected(monster["id"], 1, spare), "Preparation makes a legal slot change without a duplicate card")
+					break
+		check(game.set_selected(monster["id"], 0, first), "Preparation selects an actually learned form-aware combat ability")
+		check(game.set_selected(monster["id"], 1, heal), "Preparation selects an actually learned support or form-combo ability")
 
-func ability_value(id: String) -> float:
+func ability_value(id: String, monster: Dictionary = {}, incoming: Array = []) -> float:
 	var definition: Dictionary = Data.ABILITIES[id]
 	if definition["target"] not in ["enemy", "all_enemies"]: return -1.0
+	if not monster.is_empty() and not incoming.is_empty():
+		return known_form_ability_value(id, monster, incoming)
 	var score := 0.0
 	for effect in definition["effects"]:
 		var amount: int = effect["amount"]
 		if effect["kind"] == "damage": score += amount
 		if effect.get("status", "") in ["poison", "burn"]: score += amount * (amount + 1) * 0.375
 		if effect.get("status", "") == "stun": score += 3.0
-	return score / float(definition["cost"])
+	return score / maxf(1.0, float(definition["cost"]))
+
+func known_form_ability_value(id: String, monster: Dictionary, incoming: Array) -> float:
+	# Resolution probes never use the run's objects, RNG, saves or report journal.
+	var random := RandomNumberGenerator.new()
+	random.seed = 28718
+	var owner: Dictionary = monster.duplicate(true)
+	owner["hp"] = owner["max_hp"]
+	var foes: Array = incoming.duplicate(true)
+	for foe in foes:
+		# Rank reusable effects rather than incidental overkill on a tiny preview.
+		foe["hp"] = 500
+		foe["max_hp"] = 500
+	var probe = Combat.new()
+	probe.setup([owner, Data.new_monster("probe_a", "Probe A"), Data.new_monster("probe_b", "Probe B")], foes, random)
+	probe.energy = 99
+	var setup_skill := ""
+	var setup_target: String = foes[0]["id"]
+	match owner["form"]:
+		"green_ogre", "ancient_ogre":
+			setup_skill = "guard"
+			setup_target = "probe_a"
+		"red_ogre", "oni": setup_skill = Data.FORMS[owner["form"]]["signature"]
+		"basilisk", "ember_basilisk", "shadow_stalker", "nightstalker":
+			for learned in owner["learned"]:
+				if Data.ABILITIES[learned]["effects"].any(func(effect): return effect.get("status", "") in ["poison", "burn", "stun"]):
+					setup_skill = learned
+					break
+	if setup_skill != "":
+		probe.hand = [card(setup_skill, owner["id"], "score_setup")]
+		probe.play_card(0, setup_target)
+	var before := probe_value(probe)
+	var energy_before: int = probe.energy
+	probe.hand = [card(id, owner["id"], "score_candidate")]
+	if not probe.play_card(0, foes[0]["id"]): return -1.0
+	var gain := probe_value(probe) - before
+	gain += float(probe.hand.size()) * 2.0
+	# Energy returns remain useful without making a fixed deck slot worth four cards.
+	return gain / maxf(1.0, float(energy_before - probe.energy))
+
+func probe_value(battle) -> float:
+	var score := 0.0
+	for foe in battle.enemies:
+		score -= float(foe["hp"])
+		score += (status_potential(foe, "poison") + status_potential(foe, "burn")) * 0.375
+		score += float(foe.get("statuses", {}).get("stun", 0)) * 3.0
+	for ally in battle.monsters:
+		score += float(ally.get("block", 0)) * 0.25
+		score += float(ally.get("statuses", {}).get("evasion", 0)) * 2.0
+	return score
 
 func choose_campaign_trait(game, preferred: Array = ["venom_nest", "spiteful_shields", "pack_instinct"]) -> void:
 	while game.run["phase"] == "trait":

@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
+const InvaderTactics = preload("res://scripts/invader_tactics.gd")
 var ui
 
 func _init(owner) -> void:
@@ -116,6 +117,11 @@ func preparation() -> void:
 		var names: Array = []
 		for ability in enemy["abilities"]: names.append(ui.ability_name(ability))
 		info.add_child(ui.label(" / ".join(names), 13, ui.MUTED, true))
+		var tactic: String = InvaderTactics.description(enemy)
+		if tactic != "":
+			var role = ui.label(tactic, 13, ui.EMBER, true)
+			role.name = "IncomingTactic_" + enemy["id"]
+			info.add_child(role)
 	page.add_child(ui.label("Run seed " + str(ui.state.run["seed"]) + "  ·  Enemy abilities shown here are the abilities they can use and transfer.", 12, ui.MUTED, true))
 
 func _roster_card(monster: Dictionary, parent: Node) -> void:
@@ -135,6 +141,7 @@ func _roster_card(monster: Dictionary, parent: Node) -> void:
 	box.add_child(ui.label("Signature  ·  %s · %d energy" % [ui.ability_name(signature), Data.ABILITIES[signature]["cost"]], 15, ui.EMBER, true))
 	if ui.is_compact(): box.add_child(ui.label(Data.ABILITIES.get(definition.get("signature", "stab"), {}).get("description", ""), 13, ui.PARCHMENT, true))
 	box.add_child(ui.label(definition.get("passive", ""), 13, ui.MUTED, true))
+	form_tactic(monster["form"], box, "FormTacticPreparation_" + monster["id"])
 	var gap = Control.new()
 	gap.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	if ui.is_compact(): gap.free()
@@ -183,6 +190,13 @@ func consumed_affinities(monster: Dictionary, parent: Node) -> void:
 	known.name = "ConsumedAffinities_" + str(monster["id"])
 	parent.add_child(known)
 
+func form_tactic(form: String, parent: Node, node_name: String) -> void:
+	var tactic: String = Data.FORMS.get(form, {}).get("tactic", "")
+	if tactic == "": return
+	var advice = ui.label("PLAYSTYLE / " + tactic, 13, ui.EMBER, true)
+	advice.name = node_name
+	parent.add_child(advice)
+
 func evolution_choices(monster: Dictionary) -> void:
 	var box = ui.open_modal()
 	box.add_child(ui.label("Something stirs within " + monster["name"] + "…", 22 if ui.is_compact() else 24, ui.EMBER, true))
@@ -195,10 +209,21 @@ func evolution_choices(monster: Dictionary) -> void:
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(text)
 		text.add_child(ui.label(ui.form_name(recipe["result"]), 19 if ui.is_compact() else 21, ui.MOSS, true))
-		text.add_child(ui.label(Data.FORMS[recipe["result"]]["passive"], 14, ui.MUTED, true))
-		text.add_child(ui.primary("Evolve", func():
+		var definition: Dictionary = Data.FORMS[recipe["result"]]
+		var health = ui.label("Maximum HP: %d" % definition["max_hp"], 14, ui.MOSS, true)
+		health.name = "FormChoiceHealth_" + recipe["result"]
+		text.add_child(health)
+		text.add_child(ui.label(definition["passive"], 14, ui.MUTED, true))
+		form_tactic(recipe["result"], text, "FormTacticChoice_" + recipe["result"])
+		var signature: String = definition["signature"]
+		var effect = ui.label("Signature: %s · %d energy\n%s" % [ui.ability_name(signature), Data.ABILITIES[signature]["cost"], Data.ABILITIES[signature]["description"]], 13, ui.PARCHMENT, true)
+		effect.name = "FormChoiceSignature_" + recipe["result"]
+		text.add_child(effect)
+		var evolve = ui.primary("Evolve", func():
 			ui.close_modal()
-			ui.act(func(): ui.state.evolve(monster["id"], recipe["id"]), monster["name"] + " has transformed.")))
+			ui.act(func(): ui.state.evolve(monster["id"], recipe["id"]), monster["name"] + " has transformed."))
+		evolve.name = "EvolveForm_" + recipe["result"]
+		text.add_child(evolve)
 	box.add_child(ui.button("Decide later", ui.close_modal))
 
 func grimoire() -> void:
@@ -242,6 +267,7 @@ func grimoire() -> void:
 			info.add_child(ui.label("From " + ui.form_name(recipe["source"]) + "  ·  " + " + ".join(recipe["affinities"]) + "  ·  " + str(recipe["feeds"]) + " total meals", 16, ui.EMBER, true))
 		var definition = Data.FORMS.get(form, {})
 		info.add_child(ui.label(definition.get("passive", ""), 16, ui.PARCHMENT, true))
+		form_tactic(form, info, "FormTacticGrimoire_" + form)
 		var sig = definition.get("signature", "stab")
 		info.add_child(ui.label("Signature: " + ui.ability_name(sig) + " / " + Data.ABILITIES.get(sig, {}).get("description", ""), 15, ui.MUTED, true))
 		info.add_child(ui.label(str(definition.get("max_hp", 20)) + " base HP  ·  Learned skills are retained.", 14, ui.MUTED, compact))

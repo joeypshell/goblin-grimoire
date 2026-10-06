@@ -92,6 +92,8 @@ func test_stage_layout_stability() -> void:
 	surface.size = pixels
 	reset_game("deferred_layout")
 	var before: Dictionary = game.battle.to_dict()
+	var original_minimum := Vector2.ZERO
+	var original_geometry := Rect2()
 	for size_ in [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1280, 720)]:
 		pixels = size_
 		surface.size = pixels
@@ -101,7 +103,13 @@ func test_stage_layout_stability() -> void:
 		if holder == null or not is_instance_valid(ui.battlefield): return
 		var minimum: Vector2 = holder.get_combined_minimum_size()
 		var geometry: Rect2 = ui.battlefield.get_global_rect()
-		check(is_equal_approx(holder.custom_minimum_size.y, 140) and is_equal_approx(minimum.y, 140), "Battlefield parent keeps its fixed 140-pixel minimum after card layout")
+		check(minimum.y >= 140 and is_equal_approx(minimum.y, ui.battlefield.get_combined_minimum_size().y), "Battlefield parent reserves its intrinsic actor minimum after card layout")
+		if pixels == Vector2i(1280, 720):
+			if original_minimum == Vector2.ZERO:
+				original_minimum = minimum
+				original_geometry = geometry
+			else:
+				check(minimum.is_equal_approx(original_minimum) and geometry.is_equal_approx(original_geometry), "Returning from a larger viewport restores the original minimum and geometry without allocation feedback")
 		check(holder.get_global_rect().grow(1).encloses(geometry) and geometry.size.y <= 360.1, "Stage fits allocated space and respects its large-screen height cap")
 		for index in range(game.battle.hand.size()):
 			var face = named(ui, "Card_%d" % index)

@@ -356,9 +356,10 @@ func exercise_native_touch() -> void:
 	root.content_scale_size = Vector2i.ZERO
 	root.size = current_size
 	ui = MainScene.instantiate()
-	root.add_child(ui)
 	game = State.new(profile_root + "native_touch/")
 	ui.state = game
+	root.add_child(ui)
+	check(ui.state._prefix.begins_with(profile_root) and ui.report_uploader.state._prefix.begins_with(profile_root), "Native touch startup keeps state and uploader isolated from the player profile")
 	ui.refresh()
 	await settle()
 	var new_run_button = find_button(ui, "New run")

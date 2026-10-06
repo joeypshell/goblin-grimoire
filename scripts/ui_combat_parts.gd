@@ -2,6 +2,7 @@ extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
 const Copy = preload("res://scripts/combat_copy.gd")
+const Forms = preload("res://scripts/battle_forms.gd")
 var ui
 
 func _init(owner, _combat_screen) -> void:
@@ -70,6 +71,8 @@ func actor(actor: Dictionary, parent: Node, enemy: bool, compact: bool) -> void:
 		var excluded: Array = ui.acted_actor_ids.duplicate()
 		if ui.resolving_turn and ui.turn_kind == "stun": excluded.append(ui.acting_actor_id)
 		lines.append("Your " + ui.form_name(actor["form"]) + " · " + Copy.threats(battle, actor["id"], excluded))
+		var form_hint: String = Forms.status(battle, actor)
+		if form_hint != "": lines.append(form_hint)
 	var statuses: String = Copy.status(actor)
 	if statuses != "": lines.append(statuses)
 	if legal: lines.append("PLAY HERE: " + Copy.preview(battle, selected, actor))

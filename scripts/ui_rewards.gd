@@ -100,6 +100,7 @@ func render() -> void:
 		row.add_child(info)
 		info.add_child(ui.label(monster["name"] + "  ·  " + ui.form_name(monster["form"]), 15, ui.PARCHMENT, compact))
 		info.add_child(ui.label(str(monster["feeds"]) + " meals  ·  " + str(monster["hp"]) + " / " + str(monster["max_hp"]) + " HP", 12, ui.MUTED))
+		ui.screens.form_tactic(monster["form"], group, "FormTacticFeeding_" + monster["id"])
 		ui.screens.consumed_affinities(monster, group)
 		var picks = VBoxContainer.new() if compact else HBoxContainer.new()
 		group.add_child(picks)
@@ -139,6 +140,54 @@ func _meal_results(rewards: Array, parent: Node) -> void:
 	result.name = "InheritedResult"
 	receipt.add_child(result)
 	receipt.add_child(ui.label("New skills are available in this team's deck selectors below. Armor is not inherited.", 12, ui.MUTED, true))
+	var received: Dictionary = _received_skill(rewards)
+	if received.is_empty(): return
+	var monster: Dictionary = received["monster"]
+	var id: String = received["ability"]
+	var ability: Dictionary = Data.ABILITIES[id]
+	var skill = ui.label("%s's new skill / %s · %d energy\n%s" % [monster["name"], ability["name"], ability["cost"], ability["description"]], 14, ui.PARCHMENT, true)
+	skill.name = "InheritedSkillDetail"
+	receipt.add_child(skill)
+	var equipped: int = monster["selected"].find(id)
+	var status = ui.label("EQUIPPED / %s will play %s in skill slot %d next raid." % [monster["name"], ability["name"], equipped + 1] if equipped >= 0 else "Not in the next deck yet. Choose which skill to replace below.", 13, ui.MOSS if equipped >= 0 else ui.EMBER, true)
+	status.name = "InheritedEquipStatus"
+	receipt.add_child(status)
+	if equipped >= 0: return
+	var actions = VBoxContainer.new() if ui.is_compact() else HBoxContainer.new()
+	actions.add_theme_constant_override("separation", 6)
+	receipt.add_child(actions)
+	for slot in range(2):
+		var replace = ui.button("Replace " + ui.ability_name(monster["selected"][slot]), func(): _equip_received(monster["id"], slot, id))
+		replace.name = "EquipInherited_%d" % slot
+		replace.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		replace.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		actions.add_child(replace)
+
+func _received_skill(rewards: Array) -> Dictionary:
+	var latest = ui.state.run.get("last_meal", {})
+	var order: Array = []
+	if latest is Dictionary:
+		var selected_body: int = int(latest.get("body", -1))
+		if selected_body >= 0 and selected_body < rewards.size(): order.append(selected_body)
+	# Older saves have the persistent corpse receipts but no last-meal index.
+	# Keep those skills usable without inventing an inheritance result.
+	for index in range(rewards.size() - 1, -1, -1):
+		if not order.has(index): order.append(index)
+	for index in order:
+		var body: Dictionary = rewards[index]
+		var id: String = str(body.get("taken", ""))
+		if not body.get("claimed", false) or not Data.ABILITIES.has(id): continue
+		var monster: Dictionary = ui.state.get_monster(str(body.get("recipient", "")))
+		if monster.is_empty() or not monster["learned"].has(id): continue
+		return {"monster": monster, "ability": id}
+	return {}
+
+func _equip_received(monster_id: String, slot: int, ability_id: String) -> void:
+	if not ui.state.set_selected(monster_id, slot, ability_id): return
+	ui.card_index = -1
+	ui.refresh()
+	ui.toast.text = "%s equipped %s. The next raid's deck is updated." % [ui.state.get_monster(monster_id)["name"], ui.ability_name(ability_id)]
+	call_deferred("_focus_receipt")
 
 func _body_choices(body_index: int, body: Dictionary, box: VBoxContainer) -> void:
 	var compact = ui.is_compact()
@@ -217,9 +266,16 @@ func reveal(info: Dictionary) -> void:
 	var art = ui.portrait({"form": info["to"]}, 124 if compact else 220)
 	box.add_child(art)
 	box.add_child(ui.label(ui.form_name(info["to"]), 26 if compact else 33, ui.MOSS, true))
+	var health = ui.label("New health: %d / %d HP" % [monster["hp"], monster["max_hp"]], 16, ui.MOSS, true)
+	health.name = "FormRevealHealth"
+	box.add_child(health)
 	box.add_child(ui.label(Data.FORMS[info["to"]]["passive"], 17, ui.PARCHMENT, true))
+	ui.screens.form_tactic(info["to"], box, "FormTacticReveal_" + info["to"])
 	var signature: String = Data.FORMS[info["to"]]["signature"]
 	box.add_child(ui.label("New signature: %s · %d energy" % [ui.ability_name(signature), Data.ABILITIES[signature]["cost"]], 15 if compact else 16, ui.EMBER, true))
+	var effect = ui.label(Data.ABILITIES[signature]["description"], 14, ui.PARCHMENT, true)
+	effect.name = "FormRevealSignatureEffect"
+	box.add_child(effect)
 	box.add_child(ui.label("Identity and learned skills preserved. Health keeps its current percentage. This discovery is yours forever.", 14, ui.MUTED, true))
 	var accept = ui.primary("Welcome the transformation", ui.close_modal)
 	accept.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

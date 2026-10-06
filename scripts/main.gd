@@ -49,6 +49,7 @@ var flow
 var last_action := ""
 var battlefield: Control
 var reduced_motion := false
+var fast_combat := true
 var report_uploader
 var report_ui
 var resolving_turn: bool:
@@ -76,6 +77,7 @@ func _ready() -> void:
 	add_child(report_uploader)
 	report_ui = ReportUI.new(self)
 	reduced_motion = Preferences.read_motion(state._prefix)
+	fast_combat = Preferences.read_fast_combat(state._prefix)
 	flow = TurnPresentation.new(self)
 	screens = Screens.new(self)
 	combat_screen = CombatScreen.new(self)
@@ -90,6 +92,7 @@ func _ready() -> void:
 	margin = MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(margin)
+	margin.minimum_size_changed.connect(_queue_root_fit)
 	root_box = VBoxContainer.new()
 	root_box.add_theme_constant_override("separation", 14)
 	margin.add_child(root_box)
@@ -116,6 +119,11 @@ func set_reduced_motion(value: bool, persist: bool = false) -> void:
 	if persist: Preferences.save_motion(state._prefix, value)
 	refresh()
 
+func set_fast_combat(value: bool, persist: bool = false) -> void:
+	fast_combat = value
+	if persist: Preferences.save_fast_combat(state._prefix, value)
+	refresh()
+
 func _update_density() -> void:
 	# Web canvases contain device pixels; controls retain CSS-sized touch targets.
 	if OS.has_feature("web"):
@@ -134,6 +142,15 @@ func _reflow() -> void:
 	_layout_size = viewport_size
 	refresh()
 	_size_modal()
+
+func _queue_root_fit() -> void:
+	call_deferred("_fit_root_bounds")
+
+func _fit_root_bounds() -> void:
+	if not is_instance_valid(margin): return
+	# A previous screen's minimum can grow this container past its anchors.
+	# Reapply the viewport allocation once that screen's children are gone.
+	margin.size = get_viewport_rect().size
 
 func _scroll_nodes(node: Node) -> Array:
 	var result: Array = []
@@ -232,6 +249,7 @@ func refresh() -> void:
 	toast = label("A dungeon lives through the choices of its keeper.", 12 if is_compact() else 13, MUTED, true)
 	root_box.add_child(toast)
 	toast.visible = not (is_compact() and menu == "game" and phase == "combat")
+	_queue_root_fit()
 	if not offsets.is_empty(): call_deferred("_restore_scroll", offsets)
 
 func _header() -> void:

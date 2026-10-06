@@ -78,7 +78,7 @@ func configure(ui, battle, card: Dictionary, compact: bool, portrait: bool, sele
 	effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var needs_two_lines: bool = false
 	for item in ability["effects"]:
-		if item["kind"] == "cleanse" or item.get("to", "target") == "self": needs_two_lines = true
+		if item["kind"] in ["cleanse", "break_block"] or item.get("to", "target") == "self": needs_two_lines = true
 	effect_label.max_lines_visible = 2 if portrait or not compact or needs_two_lines else 1
 	effect_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(effect_label)

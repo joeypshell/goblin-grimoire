@@ -8,13 +8,18 @@ const BALANCE = {
 }
 const INHERITANCE_WEIGHTS = {"common": 4, "uncommon": 2, "rare": 1}
 const ABILITIES = {
+	"shield_bash": {"name": "Shield Bash", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Guard", "description": "Deal 5 damage and give the owner 4 Block.", "effects": [{"kind": "damage", "amount": 5}, {"kind": "block", "amount": 4, "to": "self"}]},
+	"ember_burst": {"name": "Ember Burst", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Flame", "description": "Deal 3 damage and add 1 Burn to every living foe.", "effects": [{"kind": "damage", "amount": 3}, {"kind": "status", "status": "burn", "amount": 1}]},
+	"quick_jab": {"name": "Quick Jab", "rarity": "common", "cost": 0, "target": "enemy", "affinity": "Trickery", "description": "Deal 3 damage. Costs no energy; uses a card from your hand.", "effects": [{"kind": "damage", "amount": 3}]},
+	"shatter_guard": {"name": "Shatter Guard", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Might", "description": "Remove the target's Block, then deal 7 damage. Armor and Evade still apply.", "effects": [{"kind": "break_block", "amount": 0}, {"kind": "damage", "amount": 7}]},
+	"breach_order": {"name": "Breach Order", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Guard", "description": "Remove all foes' Block, then deal 6 damage to each. Marshal Vera announces this on rounds 2, 5, 8...; stun or defeat her to cancel it.", "effects": [{"kind": "break_block", "amount": 0}, {"kind": "damage", "amount": 6}]},
 	"strike": {"name": "Strike", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Neutral", "description": "Deal 6 damage.", "effects": [{"kind": "damage", "amount": 6}]},
 	"guard": {"name": "Guard", "rarity": "common", "cost": 1, "target": "ally", "affinity": "Neutral", "description": "Give an ally 7 block until their next turn.", "effects": [{"kind": "block", "amount": 7}]},
 	"patch_up": {"name": "Patch Up", "rarity": "common", "cost": 1, "target": "ally", "affinity": "Neutral", "description": "Restore 6 HP to a living ally. Cycles normally and can be reused.", "effects": [{"kind": "heal", "amount": 6}]},
 	"mend": {"name": "Mend", "rarity": "common", "cost": 1, "target": "ally", "affinity": "Vitality", "description": "Restore 4 HP and remove all poison and burning from a living ally. Repeatable.", "effects": [{"kind": "heal", "amount": 4}, {"kind": "cleanse", "statuses": ["poison", "burn"]}]},
 	"stab": {"name": "Goblin Stab", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Neutral", "description": "Deal 5 damage.", "effects": [{"kind": "damage", "amount": 5}]},
 	"rally": {"name": "Dungeon Rally", "rarity": "common", "cost": 1, "target": "all_allies", "affinity": "Neutral", "description": "Give every living monster 5 block.", "effects": [{"kind": "block", "amount": 5}]},
-	"core_pulse": {"name": "Core Pulse", "rarity": "common", "cost": 1, "target": "all_allies", "affinity": "Neutral", "description": "Restore 4 HP to every living monster. Repeatable.", "effects": [{"kind": "heal", "amount": 4}]},
+	"core_pulse": {"name": "Core Pulse", "rarity": "common", "cost": 2, "target": "all_allies", "affinity": "Neutral", "description": "Restore 4 HP to every living monster. Repeatable.", "effects": [{"kind": "heal", "amount": 4}]},
 	"snare_dungeon": {"name": "Dungeon Snare", "rarity": "common", "cost": 1, "target": "enemy", "affinity": "Neutral", "description": "Deal 2 damage and stun one action. After skipping, the target gains Resolve until it acts; further stun fails during Resolve.", "effects": [{"kind": "damage", "amount": 2}, {"kind": "status", "status": "stun", "amount": 1}]},
 	"heavy_blow": {"name": "Heavy Blow", "rarity": "common", "cost": 2, "target": "enemy", "affinity": "Might", "description": "Deal 12 damage in one hit. Costs 2 energy; good against armor and for finishing a foe.", "effects": [{"kind": "damage", "amount": 12}]},
 	"shield_wall": {"name": "Shield Wall", "rarity": "uncommon", "cost": 2, "target": "all_allies", "affinity": "Guard", "description": "Give all living allies 8 block. Costs 2 energy; protects several announced targets.", "effects": [{"kind": "block", "amount": 8}]},
@@ -36,14 +41,14 @@ const ABILITIES = {
 }
 const FORMS = {
 	"goblin": {"name": "Goblin", "max_hp": 20, "signature": "stab", "passive": "Scrappy beginnings. Learn from the invaders you consume.", "color": "80b66d"},
-	"green_ogre": {"name": "Green Ogre", "max_hp": 36, "signature": "ogre_aegis", "passive": "Bulwark: your block cards grant 2 additional block to each target.", "color": "68ac71"},
-	"red_ogre": {"name": "Red Ogre", "max_hp": 32, "signature": "burning_cleave", "passive": "Kindling: each of your damage cards adds 1 burning to its victims.", "color": "db7961"},
-	"basilisk": {"name": "Basilisk", "max_hp": 28, "signature": "petrifying_gaze", "passive": "Venom gland: your poison applications gain 1 strength.", "color": "a2be63"},
-	"shadow_stalker": {"name": "Shadow Stalker", "max_hp": 26, "signature": "ambush", "passive": "Opportunist: deal 2 extra damage to foes with poison, burning, or stun.", "color": "a399d1"},
-	"oni": {"name": "Oni", "max_hp": 44, "signature": "spirit_flame", "passive": "Spirit mastery: your Mystic and Flame damage cards deal 2 extra damage.", "color": "e4a174"},
-	"ember_basilisk": {"name": "Ember Basilisk", "max_hp": 40, "signature": "ember_venom", "passive": "Volatile venom: your poison applications also add 2 burning.", "color": "dfb464"},
-	"ancient_ogre": {"name": "Ancient Ogre", "max_hp": 46, "signature": "renewing_aegis", "passive": "Ancient bulwark: your block cards grant 3 additional block to each target.", "color": "9fbd77"},
-	"nightstalker": {"name": "Nightstalker", "max_hp": 38, "signature": "nightfall", "passive": "Predator: deal 3 extra damage to foes with poison, burning or stun.", "color": "bbb0e4"}
+	"green_ogre": {"name": "Green Ogre", "max_hp": 28, "signature": "ogre_aegis", "passive": "Bulwark: your block cards grant 2 additional block to each target.", "tactic": "Bulwark chain: once per turn, protect another ally with an owned block card, then your next owned attack gains 6 damage.", "color": "68ac71"},
+	"red_ogre": {"name": "Red Ogre", "max_hp": 26, "signature": "burning_cleave", "passive": "Kindling: each of your damage cards adds 1 burning to its victims.", "tactic": "Fire chain: once per turn, attack an already-burning foe to spread 2 Burn to every other living invader.", "color": "db7961"},
+	"basilisk": {"name": "Basilisk", "max_hp": 24, "signature": "petrifying_gaze", "passive": "Venom gland: your poison applications gain 1 strength.", "tactic": "Venom trap: once per turn, successfully stun an already-poisoned foe to draw 1 card.", "color": "a2be63"},
+	"shadow_stalker": {"name": "Shadow Stalker", "max_hp": 22, "signature": "ambush", "passive": "Opportunist: deal 2 extra damage to foes with poison, burning, or stun.", "tactic": "Ambush chain: once per turn, attack a foe already affected by Poison, Burn or Stun to return 1 energy.", "color": "a399d1"},
+	"oni": {"name": "Oni", "max_hp": 34, "signature": "spirit_flame", "passive": "Spirit mastery: your Mystic and Flame damage cards deal 2 extra damage.", "tactic": "Spirit chain: once per turn, attack an already-burning foe to spread 2 Burn to the other invaders and return 1 energy.", "color": "e4a174"},
+	"ember_basilisk": {"name": "Ember Basilisk", "max_hp": 32, "signature": "ember_venom", "passive": "Volatile venom: your poison applications also add 2 burning.", "tactic": "Venom trap: once per turn, successfully stun an already-poisoned foe to draw 2 cards.", "color": "dfb464"},
+	"ancient_ogre": {"name": "Ancient Ogre", "max_hp": 36, "signature": "renewing_aegis", "passive": "Ancient bulwark: your block cards grant 3 additional block to each target.", "tactic": "Bulwark chain: once per turn, protect another ally with an owned block card, then your next owned attack gains 8 damage.", "color": "9fbd77"},
+	"nightstalker": {"name": "Nightstalker", "max_hp": 30, "signature": "nightfall", "passive": "Predator: deal 3 extra damage to foes with poison, burning or stun.", "tactic": "Ambush chain: once per turn, attack a foe already affected by Poison, Burn or Stun to return 1 energy and draw 1 card.", "color": "bbb0e4"}
 }
 const RECIPES = [
 	{"id": "green_ogre", "source": "goblin", "result": "green_ogre", "affinities": ["Might", "Guard"], "feeds": 2},
@@ -56,12 +61,12 @@ const RECIPES = [
 	{"id": "nightstalker", "source": "shadow_stalker", "result": "nightstalker", "affinities": ["Venom"], "feeds": 4}
 ]
 const CLASSES = {
-	"warrior": {"name": "Warrior", "pool": ["heavy_blow", "strike", "guard"], "base_hp": 15, "armor": 1, "names": ["Bran", "Torren", "Edric"]},
-	"defender": {"name": "Defender", "pool": ["shield_wall", "heavy_blow", "guard"], "base_hp": 18, "armor": 2, "names": ["Vera", "Oswin", "Mara"]},
-	"rogue": {"name": "Rogue", "pool": ["poisoned_blade", "smoke_step", "strike"], "base_hp": 13, "armor": 0, "names": ["Kestrel", "Dax", "Silas"]},
-	"mage": {"name": "Mage", "pool": ["firebolt", "arcane_bolt"], "base_hp": 12, "armor": 0, "names": ["Iris", "Caldus", "Senna"]},
-	"priest": {"name": "Priest", "pool": ["mend", "regrowth", "arcane_bolt"], "base_hp": 14, "armor": 0, "names": ["Sister Edda", "Brother Sol", "Aster"]},
-	"controller": {"name": "Controller", "pool": ["snare", "arcane_bolt", "smoke_step"], "base_hp": 13, "armor": 0, "names": ["Wren", "Vale", "Orrin"]}
+	"warrior": {"name": "Warrior", "pool": ["heavy_blow", "strike", "shatter_guard"], "base_hp": 13, "armor": 1, "names": ["Bran", "Torren", "Edric"]},
+	"defender": {"name": "Defender", "pool": ["shield_wall", "shield_bash", "shatter_guard"], "base_hp": 16, "armor": 2, "names": ["Vera", "Oswin", "Mara"]},
+	"rogue": {"name": "Rogue", "pool": ["poisoned_blade", "smoke_step", "quick_jab"], "base_hp": 11, "armor": 0, "names": ["Kestrel", "Dax", "Silas"]},
+	"mage": {"name": "Mage", "pool": ["firebolt", "arcane_bolt", "ember_burst"], "base_hp": 10, "armor": 0, "names": ["Iris", "Caldus", "Senna"]},
+	"priest": {"name": "Priest", "pool": ["mend", "regrowth", "arcane_bolt"], "base_hp": 12, "armor": 0, "names": ["Sister Edda", "Brother Sol", "Aster"]},
+	"controller": {"name": "Controller", "pool": ["snare", "arcane_bolt", "smoke_step"], "base_hp": 11, "armor": 0, "names": ["Wren", "Vale", "Orrin"]}
 }
 const RANKS = {
 	"F": {"name": "F", "playable": true, "raids": 3}, "E": {"name": "E", "playable": true, "raids": 3},
@@ -71,17 +76,17 @@ const RANKS = {
 }
 const ENCOUNTERS = [
 	{"name": "Torchlight Scouts", "classes": ["warrior", "mage", "rogue"], "forced": [["heavy_blow"], ["firebolt", "arcane_bolt"], ["smoke_step", "poisoned_blade"]], "hp_bonus": 0},
-	{"name": "The Iron Company", "classes": ["defender", "controller", "rogue"], "forced": [["shield_wall", "heavy_blow"], ["snare"], ["poisoned_blade"]], "hp_bonus": 3},
-	{"name": "F Champion · The Cinder Banner", "classes": ["warrior", "mage", "priest"], "forced": [["heavy_blow"], ["firebolt", "arcane_bolt"], ["regrowth", "mend"]], "hp_bonus": 7},
-	{"name": "Ashen Expedition", "classes": ["mage", "defender", "controller"], "forced": [["firebolt", "arcane_bolt"], ["shield_wall", "heavy_blow"], ["snare", "smoke_step"]], "hp_bonus": 9},
-	{"name": "Sanctum Hunters", "classes": ["rogue", "priest", "warrior"], "forced": [["poisoned_blade", "smoke_step"], ["regrowth", "mend"], ["heavy_blow"]], "hp_bonus": 12},
-	{"name": "E Champion · The Corebreakers", "classes": ["defender", "mage", "controller"], "forced": [["shield_wall", "heavy_blow"], ["firebolt", "arcane_bolt"], ["snare", "arcane_bolt"]], "hp_bonus": 17}
+	{"name": "The Iron Company", "classes": ["defender", "controller", "rogue"], "forced": [["shield_wall", "heavy_blow", "shield_bash"], ["snare"], ["poisoned_blade"]], "hp_bonus": 1},
+	{"name": "F Champion · The Cinder Banner", "classes": ["warrior", "mage", "priest"], "forced": [["heavy_blow"], ["firebolt", "arcane_bolt", "ember_burst"], ["regrowth", "mend"]], "hp_bonus": 3},
+	{"name": "Ashen Expedition", "classes": ["mage", "defender", "controller"], "forced": [["firebolt", "arcane_bolt"], ["shield_wall", "heavy_blow", "shatter_guard"], ["snare", "smoke_step"]], "hp_bonus": 4},
+	{"name": "Sanctum Hunters", "classes": ["rogue", "priest", "warrior"], "forced": [["poisoned_blade", "smoke_step", "quick_jab"], ["regrowth", "mend"], ["heavy_blow"]], "hp_bonus": 6},
+	{"name": "E Champion · The Corebreakers", "classes": ["defender", "mage", "controller"], "forced": [["shield_wall", "heavy_blow"], ["firebolt", "arcane_bolt"], ["snare", "arcane_bolt"]], "hp_bonus": 8}
 ]
 
 static func new_monster(id: String, monster_name: String) -> Dictionary:
 	var health: int = int(FORMS["goblin"]["max_hp"])
 	return {"id": id, "name": monster_name, "form": "goblin", "hp": health, "max_hp": health,
-		"learned": ["strike", "guard", "patch_up"], "selected": ["strike", "patch_up"], "consumed": [], "feeds": 0,
+		"learned": ["strike", "guard", "patch_up"], "selected": ["strike", "guard"], "consumed": [], "feeds": 0,
 		"armor": 0, "block": 0, "statuses": {}}
 
 static func armor(actor: Dictionary) -> int:
@@ -136,6 +141,11 @@ static func generate_party(raid_index: int, rng: RandomNumberGenerator, encounte
 		var template: Dictionary = CLASSES[class_id]
 		var skills: Array = encounter["forced"][slot].duplicate()
 		var extras: Array = template["pool"].duplicate()
+		if index == 0:
+			for new_skill in ["shatter_guard", "shield_bash", "ember_burst", "quick_jab"]: extras.erase(new_skill)
+		if class_id == "warrior":
+			for attack in ["strike", "heavy_blow"]:
+				if not skills.has(attack): skills.append(attack)
 		var extra = extras[rng.randi_range(0, extras.size() - 1)]
 		if not skills.has(extra):
 			skills.append(extra)
@@ -147,7 +157,7 @@ static func generate_party(raid_index: int, rng: RandomNumberGenerator, encounte
 			actor_name = "Marshal Vera"
 		party.append({"id": "raid_%d_foe_%d" % [index, slot], "name": actor_name,
 			"class_name": class_id, "form": class_id, "hp": hp, "max_hp": hp,
-			"abilities": skills, "armor": maxi(0, int(template.get("armor", 0))), "block": 0, "statuses": {}})
+			"abilities": skills, "tactics": true, "armor": maxi(0, int(template.get("armor", 0))), "block": 0, "statuses": {}})
 	ensure_priest_offense(party)
 	ensure_champion_mechanics(party)
 	return party
@@ -155,6 +165,9 @@ static func generate_party(raid_index: int, rng: RandomNumberGenerator, encounte
 static func ensure_champion_mechanics(party: Array) -> void:
 	# Idempotent migration preserves HP, defenses and already locked intentions.
 	for actor in party:
+		if actor.get("id", "") == "raid_5_foe_0" and actor.get("tactics", false):
+			actor["champion"] = "iron_marshal"
+			if not actor.get("abilities", []).has("breach_order"): actor["abilities"].append("breach_order")
 		if actor.get("id", "") != "raid_2_foe_0": continue
 		actor["champion"] = "cinder_banner"
 		if not actor.get("abilities", []).has("banner_volley"):

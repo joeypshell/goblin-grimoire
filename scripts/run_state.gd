@@ -322,6 +322,7 @@ func claim_body(body_index: int, monster_id: String) -> bool:
 	body["claimed"] = true
 	body["recipient"] = monster_id
 	body["taken"] = ability_id
+	run["last_meal"] = {"body": body_index, "recipient": monster_id, "ability": ability_id}
 	monster["learned"].append(ability_id)
 	monster["consumed"].append(ability_id)
 	monster["feeds"] = int(monster["feeds"]) + 1
@@ -400,6 +401,7 @@ func finish_feeding() -> bool:
 	var previous_rank = rank_name()
 	run["raid"] = int(run["raid"]) + 1
 	run.erase("party")
+	run.erase("last_meal")
 	for key in ["party_options", "party_options_raid", "party_choice", "party_locked"]: run.erase(key)
 	run["evolution_budget"] = 0
 	if rank_name() != previous_rank:

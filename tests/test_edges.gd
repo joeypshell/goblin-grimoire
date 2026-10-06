@@ -102,7 +102,7 @@ func test_knocked_out_feeding(t) -> void:
 	for index in range(game.run["rewards"].size()):
 		game.skip_body(index)
 	t.check(game.finish_feeding(), "KO feeding completion resolves once")
-	t.check(monster["hp"] == 8 and game.run["monsters"][1]["hp"] == 11, "Recovery uses evolved maximum HP and heals six-HP goblin to eleven")
+	t.check(monster["hp"] == ceili(float(Data.FORMS["red_ogre"]["max_hp"]) * float(Data.BALANCE["recovery"])) and game.run["monsters"][1]["hp"] == 11, "Recovery uses evolved maximum HP and heals six-HP goblin to eleven")
 	var recovered: Array = game.run["monsters"].map(func(m): return m["hp"])
 	game.save_game()
 	var reload = t.state_at("knocked_out_feeding")
@@ -116,4 +116,4 @@ func test_knocked_out_feeding(t) -> void:
 	for value in t.all_cards(reload.battle):
 		if value["owner"] == monster["id"]:
 			restored_cards += 1
-	t.check(restored_cards == 3 and reload.run["monsters"][0]["hp"] == 8, "Recovered KO owner's three configured cards return next raid without an automatic full heal")
+	t.check(restored_cards == 3 and reload.run["monsters"][0]["hp"] == recovered[0], "Recovered KO owner's three configured cards return next raid without an automatic full heal")

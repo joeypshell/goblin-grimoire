@@ -125,6 +125,11 @@ func compatibility(id: String) -> String:
 
 func champion_warning(party: Array, parent: Node) -> void:
 	for actor in party:
+		if actor.get("champion", "") == "iron_marshal":
+			var warning = ui.label("MARSHAL'S BREACH ORDER: On rounds 2, 5, 8... she removes ALL monster Block, then deals 6 damage to each. Stun or defeat her to cancel it; Resolve can prevent Stun. Evade still protects against the hit.", 14, ui.RED, true)
+			warning.name = "MarshalWarning"
+			parent.add_child(warning)
+			return
 		if actor.get("champion", "") != "cinder_banner": continue
 		var warning = ui.label("CAPTAIN'S BANNER: Every third round, Banner Volley deals 5 damage and adds 1 Burn to ALL monsters. Stun cancels the announced volley unless Resolve protects him; defeat the captain to stop future volleys.", 14, ui.RED, true)
 		warning.name = "BannerWarning"

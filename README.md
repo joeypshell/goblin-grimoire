@@ -16,6 +16,18 @@ Defend one chamber with Grub, Nix, and Moss. Read the invading party's intention
 
 After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, or coordinate all three monsters for extra energy and a draw with **Pack Instinct**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
 
+## v0.9 combat and transformation pass
+
+Regular fights use smaller health budgets and deliberate role patterns. Warriors alternate heavy and light attacks, rogues pursue wounded monsters, and priests mostly attack with a heal opportunity every third round. Their actual next action and target remain locked and visible. The final champion announces **Breach Order** on rounds 2, 5, 8...: it removes Block before hitting the pack, so interrupting her or using Evade matters.
+
+Transformations add a **once-per-turn combo** to their existing signature and passive. Green and Ancient Ogres protect another ally to ready a stronger attack. Red Ogres and Oni attack an already-burning foe to spread fire. Basilisks stun an already-poisoned foe to draw cards. Stalkers exploit an already-afflicted foe to recover energy. Later forms improve these payoffs. Combat shows whether the combo is available, readied or used, and target previews include the payoff. Only earned forms reveal their tactics.
+
+Devoured skills show their cost and effect with explicit **Replace** buttons for the two equipped slots. New abilities include **Shield Bash**, **Quick Jab**, **Ember Burst**, **Shatter Guard** and the final champion's **Breach Order**, inherited only from bodies that possess them. New runs start with Strike and Guard equipped; Patch Up remains available. Core Pulse costs 2 energy and retains its repeatable team healing. Transformation health gains are smaller to put more emphasis on using the combo.
+
+The standard parties introduce Shield Bash on raid 2, Ember Burst at the F champion, Shatter Guard on raid 4 and Quick Jab on raid 5. Those skills are actual possessions in the corpse pool; the recipient still inherits one random unknown skill. Optional alternate parties retain their different meal pools.
+
+**Fast combat** is enabled by default and can be changed in **Log & rules** independently of Reduce motion. It shortens routine presentation while retaining each announced action and result. Existing generated parties and active locked intentions survive Continue; future parties use the new tuning. Start a new run to experience the full pass.
+
 ## v0.8 party choices
 
 Before regular raids 2, 4 and 5, **choose which party to lure**. Two comparable parties offer different threats and possible meals. Their real HP, Armor and available affinities help you plan around the dungeon traits and skills you already have. Switch freely during preparation; **Defend the dungeon** locks the selected party through combat, breaches and Continue. The first raid and both champions keep their established parties. Devouring still rolls one random unknown ability with the same rarity weights.

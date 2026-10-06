@@ -22,6 +22,13 @@ var _generation := 0
 func _init(owner) -> void:
 	ui = owner
 
+func pause_lengths(beat: String) -> Vector2:
+	# Fast keeps a readable announcement and result for every invader, while
+	# shortening the routine discard/status/draw transitions between actions.
+	if ui.fast_combat:
+		return Vector2(0.2, 0.4) if beat == "enemy" else Vector2(0.1, 0.1)
+	return Vector2(0.45, 0.55) if beat == "enemy" else Vector2(0.3, 0.3)
+
 func _show(snapshot: Dictionary) -> void:
 	view = BattleModel.new()
 	view.restore(snapshot, snapshot["monster_combat"].duplicate(true), RandomNumberGenerator.new())
@@ -46,9 +53,10 @@ func end_turn() -> void:
 		target_ids = frame["target_ids"].duplicate()
 		message = frame["message"]
 		detail = ""
+		var pauses := pause_lengths(stage)
 		_show(frame["before"])
 		ui.refresh()
-		await ui.get_tree().create_timer((0.45 if stage == "enemy" else 0.3) * delay_scale).timeout
+		await ui.get_tree().create_timer(pauses.x * delay_scale).timeout
 		if not active or generation != _generation or not is_instance_valid(ui): return
 		_show(frame["after"])
 		detail = Feedback.describe(frame["before"], frame["after"])
@@ -59,7 +67,7 @@ func end_turn() -> void:
 		Feedback.flash(ui, frame["before"], frame["after"])
 		if is_instance_valid(ui.battlefield):
 			ui.battlefield.present_action(actor_id, target_ids, frame.get("ability_id", ""), frame["before"], frame["after"])
-		await ui.get_tree().create_timer((0.55 if stage == "enemy" else 0.3) * delay_scale).timeout
+		await ui.get_tree().create_timer(pauses.y * delay_scale).timeout
 		if not active or generation != _generation or not is_instance_valid(ui): return
 		if actor_id != "": acted_ids.append(actor_id)
 	_finish()

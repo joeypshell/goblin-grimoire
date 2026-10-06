@@ -3,6 +3,7 @@ extends RefCounted
 # Presentation-only queries. These never draw cards, resolve effects or use RNG.
 const Data = preload("res://scripts/game_data.gd")
 const BattleTraits = preload("res://scripts/battle_traits.gd")
+const Forms = preload("res://scripts/battle_forms.gd")
 
 static func owner_name(battle, card: Dictionary) -> String:
 	if card["owner"] == "": return "Dungeon shared"
@@ -29,11 +30,14 @@ static func guidance(battle, selected: int, resolving: bool, turn_message: Strin
 		var actor: String = battle.get_actor(card["owner"]).get("name", "Dungeon")
 		var tap: String = {"enemy": "Tap a highlighted invader to play.", "ally": "Tap a highlighted monster to play.", "self": "Tap its highlighted owner to play.", "all_enemies": "Tap any invader · hits ALL invaders.", "all_allies": "Tap any monster · affects ALL monsters."}[ability["target"]]
 		var bonus: String = pack_bonus(battle, card)
+		var form_hint: String = Forms.status(battle, battle.get_actor(card["owner"]))
+		if form_hint != "": bonus += ("\n" if bonus != "" else "") + form_hint
 		return "%s uses %s · %d energy\n%s\n%s%s" % [actor, ability["name"], ability["cost"], tap, card_effect(battle, card), "\n" + bonus if bonus != "" else ""]
-	if battle.energy <= 0: return "No energy left. End your turn to let invaders act, then draw 5 new cards."
 	var playable: bool = false
 	for card in battle.hand:
 		if unavailable(battle, card) == "": playable = true
+	if battle.energy <= 0:
+		return "No energy left. A card costing 0 can still be played." if playable else "No energy left. End your turn to let invaders act, then draw 5 new cards."
 	if not playable: return "No playable cards remain. End your turn for fresh cards and energy."
 	return "1 · Choose a card, then its target. Monsters act through their own cards."
 
@@ -76,6 +80,9 @@ static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target
 		if hp <= 0: break
 		var amount: int = battle._amount(effect, ability, caster, target) if effect.has("amount") else 0
 		match effect["kind"]:
+			"break_block":
+				parts.append("Remove %d Block" % block if detailed else "Remove Block")
+				block = 0
 			"damage":
 				var prevented: Dictionary = battle.damage_breakdown({"hp": hp, "block": block, "armor": Data.armor(target)}, amount)
 				var lost: int = int(prevented["hp"])
@@ -135,12 +142,14 @@ static func preview(battle, card: Dictionary, actor: Dictionary) -> String:
 	var text: String = _effect_text(battle, ability, caster, actor, true)
 	for effect in ability["effects"]:
 		if effect.get("to", "target") == "self" and actor.get("id", "") != caster.get("id", ""):
-			text += " · owner +%d %s" % [effect["amount"], _status_name(effect.get("status", "block"))]
+			text += " · owner +%d %s" % [battle._amount(effect, ability, caster, caster), _status_name(effect.get("status", "block"))]
 	if battle.traits.has("spiteful_shields") and battle._is_monster(actor.get("id", "")):
 		for effect in ability["effects"]:
 			if effect["kind"] == "block":
 				text += " · Spiteful Shields: blocking a hit retaliates 3"
 				break
+	var form_hint: String = Forms.preview(battle, card, actor.get("id", ""))
+	if form_hint != "": text += " · " + form_hint
 	return text
 
 static func intent(battle, actor: Dictionary) -> Dictionary:
@@ -173,14 +182,23 @@ static func intent(battle, actor: Dictionary) -> Dictionary:
 		for receiver in targets: ids.append(receiver["id"])
 		var line: String = "%s · %s to %s" % [ability["name"], effects, destination]
 		var retaliation: int = 0
-		for receiver in targets:
-			if BattleTraits.retaliation_preview(battle, receiver, actor, damage) != "": retaliation += 1
+		var breaks_block: bool = false
+		for effect in ability["effects"]:
+			if effect["kind"] == "break_block": breaks_block = true
+		if not breaks_block:
+			for receiver in targets:
+				if BattleTraits.retaliation_preview(battle, receiver, actor, damage) != "": retaliation += 1
 		if retaliation > 0: line += "\nBlock forecast: %d retaliation%s of 3 damage" % [retaliation, "s" if retaliation != 1 else ""]
 		if locked["ability"] == "banner_volley":
 			line += "\nResolve prevents Stun: defeat the captain or protect all monsters." if int(actor.get("statuses", {}).get("resolve", 0)) > 0 else "\nCOUNTERPLAY: Stun or defeat the captain."
 		elif actor.get("champion", "") == "cinder_banner":
 			var rounds: int = 3 - battle.turn % 3
 			line += "\nBanner Volley in %d round%s" % [rounds, "s" if rounds != 1 else ""]
+		if locked["ability"] == "breach_order":
+			line += "\nCOUNTERPLAY: Stun or defeat the marshal; Block is removed before the hit."
+		elif actor.get("champion", "") == "iron_marshal":
+			var rounds: int = (2 - battle.turn % 3 + 3) % 3
+			line += "\nBreach Order in %d round%s" % [rounds, "s" if rounds != 1 else ""]
 		return {"line": line, "targets": ids, "damage": damage}
 	return {"line": "No pending action", "targets": [], "damage": 0}
 
@@ -198,6 +216,14 @@ static func threats(battle, actor_id: String, acted_ids: Array = []) -> String:
 static func banner_guidance(battle) -> String:
 	if battle.outcome != "active": return ""
 	for captain in battle.enemies:
+		if captain.get("champion", "") == "iron_marshal" and int(captain["hp"]) > 0:
+			for locked in battle.intents:
+				if locked["enemy_id"] != captain["id"] or locked["ability"] != "breach_order": continue
+				if int(captain.get("statuses", {}).get("stun", 0)) > 0: return "Marshal: Breach Order cancelled"
+				if int(captain.get("statuses", {}).get("resolve", 0)) > 0: return "Breach Order: Resolve blocks Stun; defeat the marshal or use Evade. Block will be removed"
+				return "COUNTERPLAY: Stun or defeat the marshal to cancel Breach Order. Block will be removed"
+			var rounds: int = (2 - battle.turn % 3 + 3) % 3
+			return "Marshal: Breach Order in %d round%s / removes Block before hitting the pack" % [rounds, "s" if rounds != 1 else ""]
 		if captain.get("champion", "") != "cinder_banner" or int(captain["hp"]) <= 0: continue
 		for locked in battle.intents:
 			if locked["enemy_id"] != captain["id"] or locked["ability"] != "banner_volley": continue

@@ -4,15 +4,15 @@ const Data = preload("res://scripts/game_data.gd")
 const CountingState = preload("res://tests/flow_state_fixture.gd")
 const ROUTE_KEYS = ["party_options", "party_options_raid", "party_choice", "party_locked"]
 
-# Captured from the released generator before routes were added (seed 640297).
-# These fixtures catch changes to the original parties, including champion skills.
+# Fixed v0.9 tuning fixtures (seed 640297): deliberate HP/kit changes are explicit.
+# These still guard actor identity, class armor, champion skills and RNG stability.
 const ORIGINAL_PARTIES = [
-	[["Bran", "warrior", 17, 1, ["heavy_blow", "guard"]], ["Caldus", "mage", 13, 0, ["firebolt", "arcane_bolt"]], ["Silas", "rogue", 14, 0, ["smoke_step", "poisoned_blade"]]],
-	[["Vera", "defender", 23, 2, ["shield_wall", "heavy_blow", "guard"]], ["Vale", "controller", 17, 0, ["snare"]], ["Silas", "rogue", 17, 0, ["poisoned_blade"]]],
-	[["Captain Torren", "warrior", 24, 1, ["heavy_blow", "guard", "banner_volley"]], ["Caldus", "mage", 20, 0, ["firebolt", "arcane_bolt"]], ["Aster", "priest", 22, 0, ["regrowth", "mend", "arcane_bolt"]]],
-	[["Iris", "mage", 23, 0, ["firebolt", "arcane_bolt"]], ["Oswin", "defender", 28, 2, ["shield_wall", "heavy_blow"]], ["Orrin", "controller", 23, 0, ["snare", "smoke_step"]]],
-	[["Kestrel", "rogue", 27, 0, ["poisoned_blade", "smoke_step", "strike"]], ["Brother Sol", "priest", 27, 0, ["regrowth", "mend", "arcane_bolt"]], ["Edric", "warrior", 28, 1, ["heavy_blow"]]],
-	[["Marshal Vera", "defender", 37, 2, ["shield_wall", "heavy_blow", "guard"]], ["Caldus", "mage", 30, 0, ["firebolt", "arcane_bolt"]], ["Orrin", "controller", 31, 0, ["snare", "arcane_bolt"]]]
+	[["Bran", "warrior", 15, 1, ["heavy_blow", "strike"]], ["Caldus", "mage", 11, 0, ["firebolt", "arcane_bolt"]], ["Silas", "rogue", 12, 0, ["smoke_step", "poisoned_blade"]]],
+	[["Vera", "defender", 19, 2, ["shield_wall", "heavy_blow", "shield_bash", "shatter_guard"]], ["Vale", "controller", 13, 0, ["snare"]], ["Silas", "rogue", 13, 0, ["poisoned_blade"]]],
+	[["Captain Torren", "warrior", 18, 1, ["heavy_blow", "strike", "shatter_guard", "banner_volley"]], ["Caldus", "mage", 14, 0, ["firebolt", "arcane_bolt", "ember_burst"]], ["Aster", "priest", 16, 0, ["regrowth", "mend", "arcane_bolt"]]],
+	[["Iris", "mage", 16, 0, ["firebolt", "arcane_bolt", "ember_burst"]], ["Oswin", "defender", 21, 2, ["shield_wall", "heavy_blow", "shatter_guard"]], ["Orrin", "controller", 16, 0, ["snare", "smoke_step"]]],
+	[["Kestrel", "rogue", 19, 0, ["poisoned_blade", "smoke_step", "quick_jab"]], ["Brother Sol", "priest", 19, 0, ["regrowth", "mend", "arcane_bolt"]], ["Edric", "warrior", 20, 1, ["heavy_blow", "strike"]]],
+	[["Marshal Vera", "defender", 26, 2, ["shield_wall", "heavy_blow", "shatter_guard", "breach_order"]], ["Caldus", "mage", 19, 0, ["firebolt", "arcane_bolt"]], ["Orrin", "controller", 20, 0, ["snare", "arcane_bolt"]]]
 ]
 
 func run(t) -> void:
@@ -74,7 +74,7 @@ func test_original_parties(t) -> void:
 		var random := RandomNumberGenerator.new()
 		random.seed = 640297
 		var party := Data.generate_party(raid, random)
-		t.check(brief(party) == ORIGINAL_PARTIES[raid] and random.state == -1082805750736773630, "Raid %d default generation preserves released names, HP, armor, skills and RNG" % raid)
+		t.check(brief(party) == ORIGINAL_PARTIES[raid] and random.state == -1082805750736773630, "Raid %d generation matches intentional v0.9 HP/kit fixtures with stable identity, armor and RNG" % raid)
 		for slot in range(party.size()):
 			t.check(party[slot]["id"] == "raid_%d_foe_%d" % [raid, slot] and party[slot]["hp"] == party[slot]["max_hp"], "Released party identifiers and initial health remain unchanged")
 	for raid in [0, 2, 5]:

@@ -2,6 +2,7 @@ extends RefCounted
 
 # Read-only combat descriptions; no effect resolution or RNG.
 const Data = preload("res://scripts/game_data.gd")
+const Forms = preload("res://scripts/battle_forms.gd")
 
 static func describe(battle, card: Dictionary, target_id: String) -> String:
 	if not Data.ABILITIES.has(card.get("ability", "")):
@@ -18,17 +19,25 @@ static func describe(battle, card: Dictionary, target_id: String) -> String:
 	var lines: Array = []
 	for actor in targets:
 		var parts: Array = []
+		var simulated: Dictionary = actor.duplicate(true)
 		for effect in ability["effects"]:
+			if int(simulated["hp"]) <= 0: break
 			if effect.get("to", "target") == "self" and actor != owner:
 				continue
 			var amount: int = battle._amount(effect, ability, owner, actor)
 			match effect["kind"]:
+				"break_block":
+					parts.append("remove %d Block" % int(simulated.get("block", 0)))
+					simulated["block"] = 0
 				"damage":
-					var prevented: Dictionary = battle.damage_breakdown(actor, amount)
-					if int(actor.get("statuses", {}).get("evasion", 0)) > 0:
+					var prevented: Dictionary = battle.damage_breakdown(simulated, amount)
+					if int(simulated.get("statuses", {}).get("evasion", 0)) > 0:
 						parts.append("evades %d damage" % amount)
+						simulated["statuses"]["evasion"] = int(simulated["statuses"]["evasion"]) - 1
 					else:
 						parts.append("%d damage (%d HP, %d armor, %d blocked)" % [amount, prevented["hp"], prevented["armor"], prevented["block"]])
+						simulated["block"] = int(simulated.get("block", 0)) - int(prevented["block"])
+						simulated["hp"] = int(simulated["hp"]) - int(prevented["hp"])
 						if battle.traits.has("venom_nest") and int(prevented["hp"]) >= int(actor["hp"]) and int(actor.get("statuses", {}).get("poison", 0)) > 0:
 							parts.append("poisoned KO spreads 2 Poison to other living invaders")
 				"block": parts.append("+%d block" % amount)
@@ -49,7 +58,7 @@ static func describe(battle, card: Dictionary, target_id: String) -> String:
 		lines.append("%s: %s" % [actor["name"], ", ".join(parts)])
 	for effect in ability["effects"]:
 		if effect.get("to", "target") == "self" and not owner.is_empty() and not targets.has(owner):
-			lines.append("%s: +%d %s" % [owner["name"], int(effect["amount"]), battle._status_name(effect.get("status", "block"))])
+			lines.append("%s: +%d %s" % [owner["name"], battle._amount(effect, ability, owner, owner), battle._status_name(effect.get("status", "block"))])
 	if not owner.is_empty() and owner.get("form", "") == "red_ogre":
 		for effect in ability["effects"]:
 			if effect["kind"] == "damage":
@@ -64,4 +73,6 @@ static func describe(battle, card: Dictionary, target_id: String) -> String:
 		var owners: Array = battle.trait_state.get("owners", [])
 		if owners.size() == 2 and not owners.has(owner["id"]):
 			lines.append("Pack Instinct: this third monster grants 1 energy and draws 1 card.")
+	var form_hint: String = Forms.preview(battle, card, target_id)
+	if form_hint != "": lines.append(form_hint)
 	return "\n".join(lines)

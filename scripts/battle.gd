@@ -4,6 +4,8 @@ extends RefCounted
 const Data = preload("res://scripts/game_data.gd")
 const Preview = preload("res://scripts/battle_preview.gd")
 const Traits = preload("res://scripts/battle_traits.gd")
+const Forms = preload("res://scripts/battle_forms.gd")
+const Tactics = preload("res://scripts/invader_tactics.gd")
 const LAYERED_STATUSES = ["poison", "burn", "regen"]
 signal changed
 signal finished(outcome: String)
@@ -22,6 +24,7 @@ var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var intents: Array = []
 var traits: Array = []
 var trait_state: Dictionary = {}
+var form_state: Dictionary = {}
 var _ticking_statuses: bool = false
 var _venom_queue: Array = []
 
@@ -31,6 +34,7 @@ func setup(roster: Array, party: Array, random: RandomNumberGenerator, active_tr
 	rng = random
 	traits = active_traits.duplicate()
 	trait_state = Traits.fresh_state()
+	form_state.clear()
 	_ticking_statuses = false
 	_venom_queue.clear()
 	hand.clear()
@@ -105,8 +109,10 @@ func play_card(index: int, target_id: String) -> bool:
 	hand.remove_at(index)
 	discard.append(card)
 	var owner: Dictionary = get_actor(card["owner"])
+	var before: Dictionary = Forms.prepare(self, card, target_id)
 	_add_log("%s plays %s." % [owner.get("name", "Dungeon"), ability["name"]])
 	_resolve(ability, owner, target_id)
+	Forms.played(self, card, before)
 	_remove_ko_cards()
 	Traits.played(self, card)
 	_check_outcome()
@@ -155,6 +161,7 @@ func end_turn() -> void:
 func _begin_turn() -> void:
 	turn += 1
 	Traits.begin_turn(self)
+	Forms.begin_turn(self)
 	energy = int(Data.BALANCE["energy"])
 	for monster in monsters:
 		monster["block"] = 0
@@ -166,7 +173,9 @@ func _begin_turn() -> void:
 			continue
 		var choices: Array = enemy["abilities"].duplicate()
 		var banner_captain: bool = enemy.get("champion", "") == "cinder_banner"
+		var iron_marshal: bool = enemy.get("champion", "") == "iron_marshal"
 		if banner_captain: choices.erase("banner_volley")
+		if iron_marshal: choices.erase("breach_order")
 		# Avoid pure healing choices when all adventurers are already healthy.
 		var wounded: bool = false
 		for ally in enemies:
@@ -178,16 +187,20 @@ func _begin_turn() -> void:
 		if choices.is_empty():
 			choices = enemy["abilities"].duplicate()
 			if banner_captain: choices.erase("banner_volley")
+			if iron_marshal: choices.erase("breach_order")
 		var ability_id: String = "banner_volley" if banner_captain and turn % 3 == 0 else ""
+		if iron_marshal and turn % 3 == 2: ability_id = "breach_order"
 		if ability_id == "":
 			if choices.is_empty(): continue
-			ability_id = choices[rng.randi_range(0, choices.size() - 1)]
+			ability_id = Tactics.choose_ability(self, enemy, choices) if enemy.get("tactics", false) else str(choices[rng.randi_range(0, choices.size() - 1)])
 		var ability: Dictionary = Data.ABILITIES[ability_id]
 		var candidates: Array = _targets(ability["target"], enemy, "")
 		if candidates.is_empty():
 			continue
 		var target: Dictionary = candidates[0]
-		if ability["target"] == "enemy":
+		if enemy.get("tactics", false):
+			target = Tactics.choose_target(self, enemy, ability, candidates)
+		elif ability["target"] == "enemy":
 			target = candidates[rng.randi_range(0, candidates.size() - 1)]
 		elif ability["target"] == "ally":
 			for candidate in candidates:
@@ -226,6 +239,9 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 				continue
 			var amount: int = _amount(effect, ability, caster, actor)
 			match effect["kind"]:
+				"break_block":
+					_add_log("%s loses %d Block." % [actor["name"], int(actor.get("block", 0))])
+					actor["block"] = 0
 				"damage":
 					var blocked: int = _damage(actor, amount)
 					Traits.collect_retaliation(self, caster, actor, blocked, retaliators)
@@ -262,6 +278,7 @@ func _amount(effect: Dictionary, ability: Dictionary, caster: Dictionary, target
 	if effect.get("status", "") == "poison" and form == "basilisk":
 		amount += 1
 	if effect["kind"] == "damage":
+		amount += Forms.damage_bonus(self, caster)
 		if form == "oni" and ability["affinity"] in ["Mystic", "Flame"]:
 			amount += 2
 		if form in ["shadow_stalker", "nightstalker"]:
@@ -449,13 +466,14 @@ func to_dict() -> Dictionary:
 	return {"enemies": enemies.duplicate(true), "monster_combat": monsters.duplicate(true), "hand": hand.duplicate(true),
 		"draw_pile": draw_pile.duplicate(true), "discard": discard.duplicate(true), "energy": energy,
 		"turn": turn, "outcome": outcome, "log": log.duplicate(), "intents": intents.duplicate(true), "rng_state": str(rng.state),
-		"traits": traits.duplicate(), "trait_state": trait_state.duplicate(true)}
+		"traits": traits.duplicate(), "trait_state": trait_state.duplicate(true), "form_state": form_state.duplicate(true)}
 
 func restore(saved: Dictionary, roster: Array, random: RandomNumberGenerator) -> void:
 	monsters = roster
 	rng = random
 	traits = saved.get("traits", []).duplicate()
 	trait_state = saved.get("trait_state", {}).duplicate(true)
+	form_state = saved.get("form_state", {}).duplicate(true)
 	Traits.ensure_state(self)
 	_ticking_statuses = false
 	_venom_queue.clear()

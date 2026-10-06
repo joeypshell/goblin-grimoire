@@ -35,6 +35,12 @@ jobs:
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/trait_smoke.gd
       - name: Verify party choices and phone preparation
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/party_routes_smoke.gd
+      - name: Verify fast combat and saved playback preference
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/pacing_smoke.gd
+      - name: Verify skill receipts and transformation rewards
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/reward_tactics_smoke.gd
+      - name: Verify Marshal counterplay and form combo layouts
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/tactical_ui_smoke.gd
       - name: Verify automatic report uploads and retries
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/report_upload_smoke.gd
       - name: Verify phone report controls
