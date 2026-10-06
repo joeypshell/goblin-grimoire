@@ -41,12 +41,17 @@ func _banner(parent: Node, compact: bool) -> void:
 	if build != "":
 		context = ("Cards paused" if ui.resolving_turn else "ROUND %d · Draw %d · Discard %d" % [battle.turn, battle.draw_pile.size(), battle.discard.size()]) + " · " + build
 	var uses_field: bool = not compact or (not ui.is_portrait() and ui.get_viewport_rect().size.x >= 900 and ui.get_viewport_rect().size.y >= 560)
+	var milestone: String = "" if ui.resolving_turn else Copy.champion_milestone(battle)
 	if uses_field and not ui.resolving_turn:
 		var captain: String = Copy.banner_guidance(battle)
-		if captain != "": context += " · " + captain
+		if captain != "" and milestone == "": context += " · " + captain
 	var counter = ui.label(context, 11 if compact else 13, ui.MUTED, true)
 	counter.name = "DeckCounter"
 	box.add_child(counter)
+	if milestone != "":
+		var countdown = ui.label(milestone, 12 if compact else 14, ui.EMBER, true)
+		countdown.name = "ChampionMilestone"
+		box.add_child(countdown)
 
 func _render_desktop() -> void:
 	var battle = ui.combat_battle()

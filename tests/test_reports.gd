@@ -28,7 +28,7 @@ func test_actions(t) -> void:
 	game.new_run(9223372036854775806)
 	reference.new_run(9223372036854775806)
 	var report: Dictionary = game.current_report()
-	t.check(report["schema"] == 1 and report["build"] == "0.12.0" and report["coverage"] == "full", "New run receives a full versioned report")
+	t.check(report["schema"] == 1 and report["build"] == "0.13.0" and report["coverage"] == "full", "New run receives a full versioned report")
 	t.check(not game.run.has("core") and not report["summary"]["current"].has("core"), "New game and report views have no obsolete separate dungeon HP")
 	t.check(report["summary"]["current"].get("loss_rule", "") == "party_wipe_ends_run", "Current report explicitly records the new immediate full-wipe loss rule")
 	t.check(report["seed"] == "9223372036854775806" and report["seed"] is String, "Report seed preserves all 64 bits as decimal text")

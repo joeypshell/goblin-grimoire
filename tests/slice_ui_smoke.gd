@@ -190,4 +190,4 @@ func test_stored_protection() -> void:
 	await capture("slice_09_saved_attack_next_turn")
 	before = game.battle.to_dict()
 	await play_target(victim["id"])
-	check(Forms.damage_bonus(game.battle, owner) == 0 and Feedback.describe(before, game.battle.to_dict()).contains("unleashed Bulwark"), "Actual later attack spends the stored charge and reports the payoff")
+	check(Forms.damage_bonus(game.battle, owner) == 0 and Feedback.describe(before, game.battle.to_dict()).contains("BULWARK +10 attack bonus per hit"), "Actual later attack spends the stored charge and reports its numeric attack bonus")

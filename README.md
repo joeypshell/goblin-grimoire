@@ -12,7 +12,15 @@ Cards now have painterly goblin illustrations for attack, guard, and healing cat
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
-## v0.12 dungeon loss
+## v0.13 build feedback
+
+The combat banner counts down to Captain Torren's next **Banner Volley** on phones and desktop. When the Volley is announced, it explains the team threat and how to cancel or defend against it. A stunned captain shows a cancelled Volley; a defeated captain removes the warning.
+
+Charged Ogre attacks lead their action receipt with **Bulwark +10 / +14 attack bonus per hit**, followed by the actual HP and Block changes. The bonus is applied before Armor, Block and Evade, so a spent charge does not necessarily cost the target HP.
+
+Each victory shows a short raid recap: rounds, survivors and team HP before recovery, plus earned Bulwark charges spent and dungeon trait activations. The recap survives feeding, recovery and Continue. Older battles with incomplete counters label their observed payoffs rather than inventing earlier totals.
+
+## Dungeon loss
 
 **If all three monsters are knocked out, your dungeon is destroyed and the run ends immediately.** There is no separate Core HP pool, defeat recovery or raid retry. The defeat screen preserves the fallen team and offers a new run; grimoire discoveries remain.
 

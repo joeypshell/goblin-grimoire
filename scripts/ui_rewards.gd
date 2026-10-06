@@ -25,6 +25,7 @@ func render() -> void:
 				ui.feed_body = i
 				break
 	page.add_child(ui.label("3 / Feed the fallen", 25 if compact else 27, ui.PARCHMENT, compact))
+	ui.screens.raid_recap(page)
 	var next_step = "NEXT: Recover & continue to complete the campaign." if final_raid else "NEXT: Recover & continue. Then prepare the next raid."
 	if trait_reward: next_step = "NEXT: Recover & continue, then choose a dungeon trait that lasts for this run."
 	if remaining > 0:

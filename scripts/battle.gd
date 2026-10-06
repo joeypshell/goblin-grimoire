@@ -7,6 +7,7 @@ const Traits = preload("res://scripts/battle_traits.gd")
 const Forms = preload("res://scripts/battle_forms.gd")
 const Tactics = preload("res://scripts/invader_tactics.gd")
 const EncounterRules = preload("res://scripts/encounter_rules.gd")
+const Recap = preload("res://scripts/battle_recap.gd")
 const LAYERED_STATUSES = ["poison", "burn", "regen"]
 signal changed
 signal finished(outcome: String)
@@ -26,6 +27,7 @@ var intents: Array = []
 var traits: Array = []
 var trait_state: Dictionary = {}
 var form_state: Dictionary = {}
+var recap_state: Dictionary = Recap.fresh_state(false)
 var _ticking_statuses: bool = false
 var _venom_queue: Array = []
 
@@ -36,6 +38,7 @@ func setup(roster: Array, party: Array, random: RandomNumberGenerator, active_tr
 	traits = active_traits.duplicate()
 	trait_state = Traits.fresh_state()
 	form_state.clear()
+	recap_state = Recap.fresh_state()
 	_ticking_statuses = false
 	_venom_queue.clear()
 	hand.clear()
@@ -113,6 +116,7 @@ func play_card(index: int, target_id: String) -> bool:
 	var before: Dictionary = Forms.prepare(self, card, target_id)
 	_add_log("%s plays %s." % [owner.get("name", "Dungeon"), ability["name"]])
 	_resolve(ability, owner, target_id)
+	Recap.card_played(self)
 	Forms.played(self, card, before)
 	_remove_ko_cards()
 	Traits.played(self, card, before)
@@ -481,7 +485,7 @@ func to_dict() -> Dictionary:
 	return {"enemies": enemies.duplicate(true), "monster_combat": monsters.duplicate(true), "hand": hand.duplicate(true),
 		"draw_pile": draw_pile.duplicate(true), "discard": discard.duplicate(true), "energy": energy,
 		"turn": turn, "outcome": outcome, "log": log.duplicate(), "intents": intents.duplicate(true), "rng_state": str(rng.state),
-		"traits": traits.duplicate(), "trait_state": trait_state.duplicate(true), "form_state": form_state.duplicate(true)}
+		"traits": traits.duplicate(), "trait_state": trait_state.duplicate(true), "form_state": form_state.duplicate(true), "recap_state": recap_state.duplicate(true)}
 
 func restore(saved: Dictionary, roster: Array, random: RandomNumberGenerator) -> void:
 	monsters = roster
@@ -489,6 +493,7 @@ func restore(saved: Dictionary, roster: Array, random: RandomNumberGenerator) ->
 	traits = saved.get("traits", []).duplicate()
 	trait_state = saved.get("trait_state", {}).duplicate(true)
 	form_state = saved.get("form_state", {}).duplicate(true)
+	recap_state = Recap.restore_state(saved.get("recap_state"))
 	Traits.ensure_state(self)
 	_ticking_statuses = false
 	_venom_queue.clear()

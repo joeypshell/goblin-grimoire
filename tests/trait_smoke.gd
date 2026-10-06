@@ -163,8 +163,8 @@ func exercise_size() -> void:
 	await capture("05_announced_volley")
 	var captain: Dictionary = game.battle.enemies[0]
 	check(Copy.intent(game.battle, captain)["line"].contains("COUNTERPLAY"), "Third-round champion intent names an actionable counter")
-	var shown_intent: String = named(ui, "Intent_" + captain["id"]).text + "\n" + named(ui, "DeckCounter").text
-	check(shown_intent.contains("COUNTERPLAY") and shown_intent.contains("ALL monsters") and shown_intent.contains("5 damage"), "Visible champion labels retain numeric area damage and counterplay guidance")
+	var shown_intent: String = named(ui, "Intent_" + captain["id"]).text + "\n" + named(ui, "ChampionMilestone").text
+	check(shown_intent.contains("Stun or defeat") and shown_intent.contains("ALL monsters") and shown_intent.contains("5 damage"), "Visible champion labels retain numeric area damage and counterplay guidance")
 	game.battle.hand = [card("snare_dungeon", "", "counterplay")]
 	ui.card_index = -1
 	ui.refresh()

@@ -37,6 +37,10 @@ static func changes(before: Dictionary, after: Dictionary) -> Dictionary:
 
 static func describe(before: Dictionary, after: Dictionary) -> String:
 	var lines: Array = []
+	# The stored charge is an attack bonus, before Armor, Block and Evade.
+	# Lead with its payoff so compact action receipts keep the build visible.
+	for payoff in bulwark_payoffs(before, after):
+		lines.append("%s: BULWARK +%d attack bonus per hit" % [payoff["name"], payoff["bonus"]])
 	var delta = changes(before, after)
 	for id in delta: lines.append("%s: %s" % [delta[id]["name"], delta[id]["text"]])
 	var old_counts: Dictionary = before.get("trait_state", {}).get("trigger_counts", {})
@@ -54,9 +58,18 @@ static func describe(before: Dictionary, after: Dictionary) -> String:
 		var now_ready: bool = new_forms[id].get("ready", false)
 		if now_ready and not was_ready:
 			lines.append("%s protected an ally: Bulwark stored, next attack +%d damage" % [actor.get("name", "Your ogre"), 14 if actor["form"] == "ancient_ogre" else 10])
-		elif was_ready and not now_ready and new_forms[id].get("used", false):
-			lines.append(actor.get("name", "Your ogre") + " unleashed Bulwark")
 	return " · ".join(lines) if not lines.is_empty() else "No HP, block or status changed."
+
+static func bulwark_payoffs(before: Dictionary, after: Dictionary) -> Array:
+	var result: Array = []
+	var old_counts: Dictionary = before.get("recap_state", {}).get("bulwark", {})
+	var new_counts: Dictionary = after.get("recap_state", {}).get("bulwark", {})
+	for id in new_counts:
+		var count: int = int(new_counts[id].get("activations", 0)) - int(old_counts.get(id, {}).get("activations", 0))
+		if count <= 0: continue
+		var bonus: int = int(new_counts[id].get("bonus_total", 0)) - int(old_counts.get(id, {}).get("bonus_total", 0))
+		result.append({"owner": id, "name": new_counts[id].get("name", "Your ogre"), "bonus": int(float(bonus) / float(count))})
+	return result
 
 static func clear(ui) -> void:
 	for child in ui.get_children():

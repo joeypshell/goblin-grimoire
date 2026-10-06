@@ -1,5 +1,15 @@
 # Verification
 
+## v0.13.0 champion countdown and build receipts
+
+The recap/feedback checks exercise accepted and rejected cards, stored charges carried across turns, one activation for a complete area card, Armor/Block/Evade/overkill, and the winning card. Snapshots and replay retain exact counters without advancing RNG. Missing legacy counters start explicitly partial; later observed actions cannot fabricate prior history. Victory captures pre-recovery HP and real trait triggers, persists through feeding, trait choice, recovery and Continue, and clears on the next raid, a new run or defeat. The focused model/feedback suite passes **254 checks**.
+
+The tactical UI checks pass in headless and native modes at **1280×720, 375×667, 390×844 and 844×320**, with **6,750 assertions / 76 layouts/screenshots** in each run. They cover Volley countdowns across rounds 1–6, locked intentions, Stun, Resolve, knockout, rotation and playback; charged attack receipts including an entirely blocked hit; and the real feeding/recovery/save flow for full, partial and health-only recaps. Rendering and repeated recap queries preserve gameplay/RNG. Native screenshots were inspected in narrow portrait and short landscape; combat actions remain reachable and the fixed End turn control remains visible. Native ScreenTouch regression checks pass **385 assertions / four screenshots**; the existing mobile suite passes **17,623 assertions / 189 layouts**.
+
+The full gameplay suite passes **8,279 checks across 21 groups**, with zero failures. Existing mobile, turn-flow, first-act UI, trait, pacing, art and audio checks pass. The bounded first-act diagnostic passes **1,185 checks**, with all nine developer policies completing the first three raids. These policies are regression evidence, not human enjoyment or win-rate estimates. Ingestion fixtures pass **40 checks** without contacting the deferred backend. All final Godot logs are free of script/engine errors and warnings.
+
+Windows and Web release exports succeed; Windows file/product metadata is **0.13.0**, and its ZIP contains the executable, launch instructions and music credits. Tests use isolated profiles. Native logical phone sizes and touch checks do not establish physical iPhone Safari playback or performance, which remains untested.
+
 ## v0.12.0 full party wipe ends the run
 
 Losing all monsters now resolves one terminal defeat, with zero HP retained and no defeat recovery, feeding rewards, Core budget or retry. New runs omit Core entirely. Victory recovery still revives individually knocked-out teammates; real six-raid campaigns remain reachable. The broad gameplay run passed **8,018 checks / 19 groups**. The final load-order change received **100 focused checks**, including report-less old defeats, stable repeat loading, unchanged RNG and immutable historical reports. The first-act diagnostic passes **1,185 checks** with all nine developer policies completing the first three raids.

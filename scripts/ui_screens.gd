@@ -2,6 +2,7 @@ extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
 const InvaderTactics = preload("res://scripts/invader_tactics.gd")
+const Traits = preload("res://scripts/dungeon_traits.gd")
 var ui
 
 func _init(owner) -> void:
@@ -290,6 +291,45 @@ func _known_recipe(id: String) -> Dictionary:
 		if recipe["id"] == id: return recipe
 	return {}
 
+func raid_recap(parent: Node) -> void:
+	var run: Dictionary = ui.state.run
+	if run.get("phase", "") not in ["feeding", "result", "victory"]: return
+	var recap: Dictionary = run.get("raid_recap", {})
+	if recap.is_empty(): return
+	var box = VBoxContainer.new()
+	box.name = "RaidRecap"
+	box.add_theme_constant_override("separation", 2)
+	parent.add_child(box)
+	var complete: bool = recap.get("complete", false)
+	var rounds: int = int(recap.get("rounds", 0))
+	var pace: String = "%d round%s" % [rounds, "s" if rounds != 1 else ""]
+	if complete:
+		var cards: int = int(recap.get("cards_played", 0))
+		pace += " · %d card%s played" % [cards, "s" if cards != 1 else ""]
+	var heading = ui.label("RAID %d CLEARED · %s" % [int(recap.get("raid", 1)), pace], 13, ui.MOSS, true)
+	heading.name = "RaidRecapPace"
+	box.add_child(heading)
+	var health = ui.label("%d/%d survived · %d/%d HP at victory" % [int(recap.get("survivors", 0)), int(recap.get("party_size", 3)), int(recap.get("hp_remaining", 0)), int(recap.get("max_hp", 0))], 13, ui.PARCHMENT, true)
+	health.name = "RaidRecapHealth"
+	box.add_child(health)
+	var payoffs: Array = []
+	for earned in recap.get("bulwark", []):
+		var activations: int = int(earned.get("activations", 0))
+		var bonus: int = int(earned.get("bonus_total", 0))
+		if activations <= 0 or bonus <= 0: continue
+		payoffs.append("%s: %d Bulwark attack%s (+%d attack bonus/hit)" % [earned.get("name", "Monster"), activations, "s" if activations != 1 else "", roundi(float(bonus) / float(activations))])
+	var trait_payoffs: Array = []
+	for earned in recap.get("traits", []):
+		var count: int = int(earned.get("count", 0))
+		var id: String = str(earned.get("id", ""))
+		if count <= 0 or not Traits.DEFINITIONS.has(id): continue
+		trait_payoffs.append("%s triggered %d×" % [Traits.DEFINITIONS[id]["name"], count])
+	if not trait_payoffs.is_empty(): payoffs.append(" · ".join(trait_payoffs))
+	if not payoffs.is_empty():
+		var earned = ui.label(("BUILD PAYOFFS" if complete else "RECORDED PAYOFFS") + "\n" + "\n".join(payoffs), 13, ui.EMBER, true)
+		earned.name = "RaidRecapPayoffs"
+		box.add_child(earned)
+
 func results() -> void:
 	var compact = ui.is_compact()
 	var page = _page()
@@ -321,6 +361,7 @@ func results() -> void:
 	box.add_child(ui.label(heading, 16, ui.RED if defeat else ui.EMBER, compact))
 	box.add_child(ui.label(title, 27 if compact else 34, ui.PARCHMENT, compact))
 	box.add_child(ui.label(message, 17, ui.MUTED, true))
+	raid_recap(box)
 	ui.traits_screen.summary(box, not defeat)
 	var row = _flow(compact)
 	row.add_theme_constant_override("separation", 16)

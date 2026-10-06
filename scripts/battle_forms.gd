@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Data = preload("res://scripts/game_data.gd")
+const Recap = preload("res://scripts/battle_recap.gd")
 
 # Each transformation changes the order and targets of its owner's ordinary cards.
 # Bulwark stores one charge across turns; other combos refresh each turn.
@@ -34,6 +35,7 @@ static func prepare(battle, card: Dictionary, target_id: String) -> Dictionary:
 	if legal.is_empty() or (not legal.has(target_id) and not (target_id == "" and ability["target"] in ["self", "all_allies", "all_enemies"])): return {}
 	var targets: Array = battle._targets(ability["target"], owner, target_id)
 	var result: Dictionary = {"attack": _has(ability, "damage"), "protect": false, "burned": "", "afflicted": false, "poisoned": []}
+	result["bulwark_bonus"] = damage_bonus(battle, owner) if result["attack"] else 0
 	for actor in targets:
 		if actor["id"] != owner["id"] and battle._is_monster(actor["id"]) and int(actor.get("hp", 0)) > 0:
 			for effect in ability["effects"]:
@@ -51,7 +53,11 @@ static func damage_bonus(battle, owner: Dictionary) -> int:
 
 static func played(battle, card: Dictionary, before: Dictionary) -> void:
 	var owner: Dictionary = battle.get_actor(card.get("owner", ""))
-	if before.is_empty() or owner.is_empty() or int(owner["hp"]) <= 0: return
+	if before.is_empty() or owner.is_empty(): return
+	# The accepted attack used its prepared bonus even if its owner then died.
+	# Observe that spend before the existing living-owner mechanic guard.
+	if before.get("attack", false): Recap.bulwark_spent(battle, owner, int(before.get("bulwark_bonus", 0)))
+	if int(owner["hp"]) <= 0: return
 	var state: Dictionary = _state(battle, owner).duplicate()
 	var form: String = owner.get("form", "")
 	if form in ["green_ogre", "ancient_ogre"]:

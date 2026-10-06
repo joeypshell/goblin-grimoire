@@ -38,12 +38,14 @@ func _run() -> void:
 		await test_marshal()
 		await test_break_and_zero_cost()
 		await test_combo_cues()
+		await test_volley_milestone()
+		await test_raid_recap()
 	print("TACTICAL UI SMOKE: %d assertions; %d %s; %d issues" % [checks, captures, "screenshots" if can_render else "layouts", failures.size()])
 	for failure in failures: print("TACTICAL UI ISSUE: ", failure)
 	ui.free()
 	surface.free()
 	# AudioServer retires stopped music playback references on its next mix callback.
-	await create_timer(0.15).timeout
+	await create_timer(0.4).timeout
 	quit(0 if failures.is_empty() else 1)
 
 func check(condition: bool, message: String) -> void:
@@ -231,6 +233,7 @@ func test_combo_cues() -> void:
 	check(forecast.contains("15 HP lost") and forecast.contains("includes +10 damage"), "Selected stored attack forecasts its actual bonus before Armor")
 	await play_target(victim["id"])
 	check_combo(owner, "BULWARK SPENT")
+	check(ui.last_action.contains("BULWARK +10 attack bonus per hit"), "Phone and desktop receipt lead with the numeric Bulwark attack bonus actually spent")
 	check(Forms.damage_bonus(game.battle, owner) == 0, "Used cue corresponds to the bonus being consumed exactly once")
 	await capture("08_form_combo_used")
 
@@ -244,6 +247,177 @@ func check_combo(owner: Dictionary, expected: String) -> void:
 	if ui.battlefield != null:
 		var creature = named(ui, "Creature_" + owner["id"])
 		check(creature is Control and creature.size.y >= 59.9, "Desktop evolved combo hint preserves the mandatory sixty-pixel creature space")
+
+func test_volley_milestone() -> void:
+	reset_game("volley_countdown", 2)
+	game.start_raid()
+	var captain: Dictionary = game.battle.enemies[0]
+	check(captain.get("champion", "") == "cinder_banner", "Countdown uses the actual generated F-rank champion")
+	for round_number in [1, 2, 3]:
+		if round_number > 1: game.end_turn()
+		var before: Dictionary = game.battle.to_dict()
+		var rng_before = game.rng.state
+		ui.refresh()
+		await settle()
+		var milestone = named(ui, "ChampionMilestone")
+		check(milestone is Label, "Captain countdown has its own visible banner label on every layout")
+		if milestone == null: return
+		if round_number == 1:
+			check(milestone.text.contains("round 3") and milestone.text.contains("2 rounds away"), "First round previews the absolute Volley milestone without calling the current action a Volley")
+		elif round_number == 2:
+			check(milestone.text.contains("round 3") and milestone.text.contains("next round"), "Second round makes the upcoming Volley one round away")
+		else:
+			check(milestone.text.contains("THIS ENEMY TURN") and milestone.text.contains("5 damage +1 Burn") and milestone.text.contains("Stun or defeat"), "Locked Volley clearly names imminent harm and its actual counter")
+		check(equal(before, game.battle.to_dict()) and game.rng.state == rng_before, "Rendering and inspecting the champion milestone preserves battle state and RNG")
+		check(Rect2(Vector2.ZERO, Vector2(pixels)).grow(1).encloses(milestone.get_global_rect()), "Champion milestone starts inside the visible combat banner even on a short phone")
+		await reachable(named(ui, "EndTurn"))
+		await capture("09_volley_round_%d" % round_number)
+	# Exercise the actual target selection with a long receipt on the smallest phone.
+	game.battle.hand = [card("snare_dungeon", "", "cancel_volley")]
+	ui.refresh()
+	await settle()
+	await choose_card(0)
+	await play_target(captain["id"])
+	check(named(ui, "ChampionMilestone").text.contains("cancelled") and ui.last_action != "", "A real Snare receipt accompanies the cancelled Volley milestone")
+	await capture("10_volley_cancelled_with_receipt")
+	captain["statuses"].erase("stun")
+	captain["statuses"]["resolve"] = 1
+	ui.refresh()
+	await settle()
+	check(named(ui, "ChampionMilestone").text.contains("Resolve blocks Stun") and not named(ui, "ChampionMilestone").text.contains("Stun or defeat"), "Protected Volley stops recommending unavailable Stun counterplay")
+	await capture("11_volley_resolve_with_receipt")
+	var snapshot: Dictionary = game.battle.to_dict()
+	ui.flow.active = true
+	ui.flow.view = game.battle
+	ui.flow.stage = "enemy"
+	ui.flow.actor_id = captain["id"]
+	ui.flow.acted_ids = [captain["id"]]
+	ui.refresh()
+	await settle()
+	check(named(ui, "ChampionMilestone") == null, "Resolving playback never presents an already acted Volley as pending")
+	check(equal(snapshot, game.battle.to_dict()), "Hiding countdown during presentation cannot resolve or alter an action")
+	ui.flow.skip()
+	captain["hp"] = 0
+	ui.refresh()
+	await settle()
+	check(Copy.champion_milestone(game.battle) == "" and named(ui, "ChampionMilestone") == null, "Defeating the captain removes future Volley promises immediately")
+	await capture("12_volley_captain_defeated")
+
+func text_button(node: Node, text: String):
+	if node.is_queued_for_deletion(): return null
+	if node is Button and node.is_visible_in_tree() and node.text == text: return node
+	for child in node.get_children():
+		var found = text_button(child, text)
+		if found != null: return found
+	return null
+
+func test_raid_recap() -> void:
+	reset_game("earned_recap", 1, "green_ogre")
+	game.run["traits"] = ["war_drums"]
+	game.run["trait_milestones"] = [1]
+	game.run["monsters"][0]["hp"] = 13
+	game.run["monsters"][1]["hp"] = 11
+	game.run["monsters"][2]["hp"] = 0
+	game.start_raid()
+	var owner: Dictionary = game.battle.monsters[0]
+	var victim: Dictionary = game.battle.enemies[0]
+	for enemy in game.battle.enemies:
+		if enemy != victim: enemy["hp"] = 0
+	victim["hp"] = 2
+	victim["armor"] = 0
+	victim["block"] = 100
+	game.battle.hand = [card("guard", owner["id"], "recap_guard"), card("strike", owner["id"], "recap_charge")]
+	ui.refresh()
+	await settle()
+	await choose_card(0)
+	await play_target(game.battle.monsters[1]["id"])
+	await choose_card(0)
+	await play_target(victim["id"])
+	check(victim["hp"] == 2 and ui.last_action.contains("BULWARK +10 attack bonus per hit"), "A fully blocked charged attack earns an attack-bonus receipt without pretending HP was lost")
+	victim["block"] = 0
+	game.battle.hand = [card("quick_jab", owner["id"], "recap_finish")]
+	ui.refresh()
+	await settle()
+	await choose_card(0)
+	await play_target(victim["id"])
+	check(game.run["phase"] == "feeding" and game.battle.outcome == "won", "Actual winning target press reaches feeding through the production run transition")
+	var recap: Dictionary = game.run.get("raid_recap", {}).duplicate(true)
+	check(not recap.is_empty(), "Production victory captures a raid recap before feeding or recovery")
+	if recap.is_empty(): return
+	check(recap.get("complete", false) and int(recap.get("cards_played", -1)) == 3, "Fresh raid recap includes all accepted cards, including its winning card")
+	check(int(recap.get("survivors", 0)) == 2 and int(recap.get("hp_remaining", 0)) == 24 and int(recap.get("max_hp", 0)) == 300, "Victory recap captures knocked-out allies and raw 24/300 HP before recovery")
+	var before: Dictionary = game.run.duplicate(true)
+	var battle_before: Dictionary = game.battle.to_dict()
+	ui.refresh()
+	await settle()
+	check_recap(true)
+	check(equal(before, game.run) and equal(battle_before, game.battle.to_dict()), "Reading earned recap labels changes neither saved run, battle nor RNG")
+	await capture("13_earned_feeding_recap")
+	for index in range(game.run["rewards"].size()):
+		var skip = text_button(ui, "Skip body")
+		check(skip is Button and not skip.disabled, "Feeding still exposes a real body-skip choice after the recap")
+		if skip == null: return
+		await reachable(skip)
+		skip.pressed.emit()
+		await settle()
+	var recover = text_button(ui, "Recover & continue")
+	check(recover is Button and not recover.disabled, "Resolving all bodies enables the production recovery action")
+	if recover == null: return
+	await reachable(recover)
+	recover.pressed.emit()
+	await settle()
+	check(game.run["phase"] == "result" and equal(recap, game.run.get("raid_recap", {})), "Recovery keeps the completed raid's recap unchanged through its result")
+	check(game.run["monsters"][2]["hp"] > 0, "Winning recovery still revives the ally; recap preserves the earlier knockout")
+	check_recap(true)
+	await capture("14_recovered_result_recap")
+	var restored = State.new(game._prefix)
+	check(restored.load_game() and equal(recap, restored.run.get("raid_recap", {})), "Reloading the result retains the exact earned recap and pre-recovery health")
+	game = restored
+	ui.state = game
+	ui.refresh()
+	await settle()
+	check_recap(true)
+	# Partial legacy tracking must never be advertised as a full card total.
+	game.run["raid_recap"]["complete"] = false
+	game.run["raid_recap"]["cards_played"] = 9999
+	game.run["raid_recap"]["bulwark"].append({"name": "Unearned Monster", "activations": 0, "bonus_total": 0})
+	game.run["raid_recap"]["traits"].append({"id": "venom_nest", "count": 0})
+	game.run["raid_recap"]["traits"].append({"id": "unknown_hidden_trait", "count": 9})
+	ui.refresh()
+	await settle()
+	check_recap(false)
+	var partial = named(ui, "RaidRecapPayoffs")
+	if partial == null: return
+	var text: String = partial.text
+	check(not text.contains("Unearned") and not text.contains("Venom Nest") and not text.contains("unknown_hidden"), "Recap reveals only positive earned known payoffs, with no zero-count build suggestions")
+	await capture("15_partial_saved_recap")
+	game.run["raid_recap"]["bulwark"] = []
+	game.run["raid_recap"]["traits"] = []
+	ui.refresh()
+	await settle()
+	check(named(ui, "RaidRecapPayoffs") == null and named(ui, "RaidRecapHealth") != null, "A zero-payoff raid retains its honest health snapshot without unearned accomplishment copy")
+	await capture("16_health_only_saved_recap")
+	reset_game("defeat_has_no_recap")
+	game.start_raid()
+	for monster in game.battle.monsters: monster["hp"] = 0
+	game.end_turn()
+	game.run["raid_recap"] = recap
+	ui.refresh()
+	await settle()
+	check(game.run["phase"] == "defeat" and named(ui, "RaidRecap") == null, "A terminal loss never shows a stale victory recap")
+	await capture("17_defeat_hides_victory_recap")
+
+func check_recap(complete: bool) -> void:
+	var pace = named(ui, "RaidRecapPace")
+	var health = named(ui, "RaidRecapHealth")
+	var earned = named(ui, "RaidRecapPayoffs")
+	check(pace is Label and pace.text.contains("RAID 2 CLEARED") and pace.text.contains("1 round"), "Feeding and result identify the raid that actually ended, with its round count")
+	check(health is Label and health.text.contains("2/3 survived") and health.text.contains("24/300 HP at victory"), "Recap health stays explicitly at victory after recovery and reload")
+	check(earned is Label and earned.text.contains("1 Bulwark attack") and earned.text.contains("+10 attack bonus/hit") and earned.text.contains("War Drums triggered 1×"), "Only actual earned charge and trait payoffs appear, accurately labeled as attack bonus per hit")
+	if pace == null or earned == null: return
+	check(pace.text.contains("3 cards played") if complete else not pace.text.contains("cards played"), "Complete tracking shows the card count; incomplete tracking omits any partial total")
+	check(earned.text.begins_with("BUILD PAYOFFS" if complete else "RECORDED PAYOFFS"), "Incomplete save data explicitly labels its available payoffs as recorded")
+	check(not earned.text.contains("damage dealt") and not earned.text.contains("HP damage") and not earned.text.contains("Basilisk"), "Recap never claims charge size as damage dealt or reveals unearned forms")
 
 func capture(tag: String) -> void:
 	await settle()

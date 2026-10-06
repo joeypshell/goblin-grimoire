@@ -6,6 +6,7 @@ const Combat = preload("res://scripts/battle.gd")
 const Traits = preload("res://scripts/dungeon_traits.gd")
 const Routes = preload("res://scripts/raid_routes.gd")
 const Reports = preload("res://scripts/run_reports.gd")
+const Recap = preload("res://scripts/battle_recap.gd")
 const SAVE_VERSION = 1
 const LOSS_RULE = "party_wipe_ends_run"
 
@@ -154,6 +155,7 @@ func load_game() -> bool:
 		run["rewards"] = []
 		run["phase"] = "defeat"
 		run.erase("trait_return")
+	if run["phase"] == "defeat": run.erase("raid_recap")
 	_reports.ensure(run)
 	if legacy_loss:
 		if run["report"].get("status", "active") == "active":
@@ -230,6 +232,7 @@ func selected_party_name() -> String:
 func start_raid() -> void:
 	if run.get("phase", "") != "prep":
 		return
+	run.erase("raid_recap")
 	var party := party_preview()
 	run["party_locked"] = true
 	battle = Combat.new()
@@ -279,11 +282,13 @@ func _resolve_battle() -> void:
 	run["last_result"] = battle.outcome
 	_reports.resolved(run, battle)
 	if battle.outcome == "won":
+		run["raid_recap"] = Recap.capture(battle, int(run["raid"]))
 		run["rewards"] = []
 		for enemy in battle.enemies:
 			run["rewards"].append({"id": enemy["id"], "name": enemy["name"], "class_name": enemy["class_name"], "form": enemy["form"], "armor": Data.armor(enemy), "abilities": enemy["abilities"].duplicate(), "claimed": false})
 		run["phase"] = "feeding"
 	else:
+		run.erase("raid_recap")
 		run["rewards"] = []
 		run["phase"] = "defeat"
 	_reports.record(run, "phase_changed", {"to": run["phase"]})

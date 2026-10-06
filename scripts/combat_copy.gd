@@ -242,6 +242,24 @@ static func threats(battle, actor_id: String, acted_ids: Array = []) -> String:
 			damage += int(action["damage"])
 	return "%d announced damage · %s" % [damage, ", ".join(names)] if damage > 0 else "No direct attack aimed here"
 
+static func champion_milestone(battle) -> String:
+	# Read the shown battle, including its locked actions. Playback callers hide
+	# this line because after-snapshots retain actions that already happened.
+	if battle.outcome != "active": return ""
+	for captain in battle.enemies:
+		if captain.get("champion", "") != "cinder_banner" or int(captain.get("hp", 0)) <= 0: continue
+		for locked in battle.intents:
+			if locked["enemy_id"] != captain["id"]: continue
+			if locked["ability"] == "banner_volley":
+				if int(captain.get("statuses", {}).get("stun", 0)) > 0:
+					return "BANNER VOLLEY · cancelled this enemy turn\nCaptain stunned · no Volley damage or Burn"
+				var counter: String = "Stun or defeat captain"
+				if int(captain.get("statuses", {}).get("resolve", 0)) > 0: counter = "Resolve blocks Stun · defeat captain or protect all"
+				return "BANNER VOLLEY · THIS ENEMY TURN\n5 damage +1 Burn to ALL monsters · " + counter
+			var away: int = 3 - battle.turn % 3
+			return "BANNER VOLLEY · round %d · %s" % [battle.turn + away, "next round" if away == 1 else "%d rounds away" % away]
+	return ""
+
 static func banner_guidance(battle) -> String:
 	if battle.outcome != "active": return ""
 	for captain in battle.enemies:
