@@ -47,6 +47,7 @@ var _resize_pending := false
 var _screen_key := ""
 var _modal_scroll: ScrollContainer
 var _modal_shell: PanelContainer
+var _modal_height := 600.0
 var flow
 var last_action := ""
 var battlefield: Control
@@ -285,7 +286,7 @@ func _header() -> void:
 	bar.add_child(spacer)
 	if menu == "game" and not state.run.is_empty():
 		bar.add_child(label("RANK " + state.rank_name() + "  ·  RAID " + str(min(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + " / " + str(Data.BALANCE["raids"]), 15, MOSS))
-		bar.add_child(label("CORE  " + str(state.run["core"]) + " / " + str(Data.BALANCE["core"]), 17, EMBER))
+		bar.add_child(_core_info_button(false))
 	if menu != "grimoire":
 		var book = button("Grimoire", open_grimoire)
 		book.disabled = resolving_turn
@@ -318,7 +319,7 @@ func _compact_header() -> void:
 		root_box.add_child(stats)
 	if in_game:
 		stats.add_child(label("RANK " + state.rank_name() + " · RAID " + str(mini(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + "/" + str(Data.BALANCE["raids"]), 12, MOSS))
-		stats.add_child(label("CORE " + str(state.run["core"]) + "/" + str(Data.BALANCE["core"]), 13, EMBER))
+		stats.add_child(_core_info_button(true))
 	if menu != "grimoire":
 		var book = button("Grimoire", open_grimoire)
 		book.disabled = resolving_turn
@@ -337,6 +338,34 @@ func _compact_header() -> void:
 		home.add_theme_font_size_override("font_size", 13)
 		home.disabled = resolving_turn
 		stats.add_child(home)
+
+func _core_info_button(compact: bool) -> Button:
+	var info = button("CORE HP %d/%d" % [state.run["core"], Data.BALANCE["core"]], show_core_info)
+	info.name = "CoreInfo"
+	info.add_theme_font_size_override("font_size", 12 if compact else 17)
+	info.add_theme_color_override("font_color", EMBER)
+	if compact:
+		for kind in ["normal", "hover", "pressed", "disabled", "focus"]:
+			var slim: StyleBoxFlat = info.get_theme_stylebox(kind).duplicate()
+			slim.content_margin_left = 4
+			slim.content_margin_right = 4
+			info.add_theme_stylebox_override(kind, slim)
+	info.tooltip_text = "Your dungeon's health. Tap for breach and recovery rules."
+	info.disabled = resolving_turn
+	return info
+
+func show_core_info() -> void:
+	if resolving_turn or menu != "game" or state.run.is_empty() or is_instance_valid(overlay): return
+	var box = open_modal()
+	box.name = "DungeonCoreInfo"
+	box.add_child(label("Dungeon core", 23 if is_compact() else 27, EMBER, true))
+	box.add_child(label("Dungeon health: %d / %d HP" % [state.run["core"], Data.BALANCE["core"]], 18, MOSS, true))
+	box.add_child(label("If all three monsters are knocked out, invaders breach your dungeon. The core loses %d HP." % Data.BALANCE["breach"], 16, PARCHMENT, true))
+	box.add_child(label("If the core survives, your monsters recover and you retry this same raid. At 0 Core HP, the run ends.", 16, PARCHMENT, true))
+	box.add_child(label("Healing cards restore your monsters' HP. Core damage lasts for the rest of this run.", 14, MUTED, true))
+	var back = primary("Return to game", close_modal)
+	back.name = "CloseCoreInfo"
+	box.add_child(back)
 
 func label(value: String, size: int = 16, color: Color = PARCHMENT, wrap: bool = false) -> Label:
 	var node = Label.new()
@@ -447,8 +476,9 @@ func open_grimoire() -> void:
 	menu = "grimoire"
 	refresh()
 
-func open_modal() -> VBoxContainer:
+func open_modal(minimum_height: float = 600.0) -> VBoxContainer:
 	flow.clear_feedback()
+	_modal_height = minimum_height
 	if is_instance_valid(overlay):
 		overlay.queue_free()
 	overlay = Control.new()
@@ -477,11 +507,13 @@ func _size_modal() -> void:
 	if not is_instance_valid(_modal_scroll) or not is_instance_valid(overlay): return
 	var viewport_size = get_viewport_rect().size
 	_modal_shell.custom_minimum_size = Vector2(minf(598, viewport_size.x - 24), 0)
-	_modal_scroll.custom_minimum_size = Vector2(0, minf(600, viewport_size.y - 56))
+	_modal_scroll.custom_minimum_size = Vector2(0, minf(_modal_height, viewport_size.y - 56))
 
 func close_modal() -> void:
 	if is_instance_valid(overlay):
+		overlay.hide()
 		overlay.queue_free()
+	overlay = null
 
 func _input(event: InputEvent) -> void:
 	# Observe the actual gesture before GUI controls consume it; leave gameplay input alone.
@@ -505,7 +537,35 @@ func combat_battle():
 	return flow.view if resolving_turn and flow.view != null else state.battle
 
 func end_player_turn() -> void:
-	flow.end_turn()
+	if resolving_turn or menu != "game" or state.run.get("phase", "") != "combat" or is_instance_valid(overlay): return
+	var battle = state.battle
+	if battle == null or battle.outcome != "active": return
+	var remaining: int = battle.energy
+	if remaining <= 0:
+		flow.end_turn()
+		return
+	var turn: int = battle.turn
+	var box = open_modal(280)
+	box.name = "EndTurnWarning"
+	var warning_id: int = overlay.get_instance_id()
+	box.add_child(label("You have %d energy left" % remaining, 23 if is_compact() else 27, EMBER, true))
+	box.add_child(label("Ending your turn discards your remaining cards and lets the invaders act. Unused energy does not carry over.", 16, PARCHMENT, true))
+	var keep = primary("Keep playing", func():
+		if is_instance_valid(overlay) and overlay.get_instance_id() == warning_id: close_modal())
+	keep.name = "KeepPlaying"
+	keep.focus_mode = Control.FOCUS_ALL
+	box.add_child(keep)
+	var confirm = button("End turn anyway", func():
+		# Old or repeated callbacks cannot confirm a different turn or modal.
+		if not is_instance_valid(overlay) or overlay.get_instance_id() != warning_id: return
+		if resolving_turn or menu != "game" or state.run.get("phase", "") != "combat": return
+		if state.battle != battle or battle.outcome != "active" or battle.turn != turn or battle.energy != remaining: return
+		close_modal()
+		flow.end_turn())
+	confirm.name = "EndTurnAnyway"
+	confirm.focus_mode = Control.FOCUS_ALL
+	box.add_child(confirm)
+	keep.grab_focus()
 
 func skip_turn_animation() -> void:
 	flow.skip()

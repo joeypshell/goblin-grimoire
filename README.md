@@ -12,6 +12,12 @@ Cards now have painterly goblin illustrations for attack, guard, and healing cat
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
+## v0.11.1 Core and energy clarity
+
+The header now labels dungeon health **CORE HP**. Tap it to see how breaches work: losing all three monsters costs 25 Core HP; a surviving core lets you recover and retry the same raid. At zero, the run ends. Healing cards restore monster HP, while Core damage lasts for the run.
+
+Ending a turn with any unspent energy opens a warning showing how much remains. Choose **Keep playing** or **End turn anyway**. Opening or cancelling the warning preserves your selected card and battle; zero-energy turns proceed immediately. The End Turn button and Space use the same check. Escape cancels; Tab and Enter select an action from the keyboard.
+
 ## v0.11 music pass
 
 The dungeon now has a continuous instrumental soundtrack. **Darkest Child** accompanies the title, preparation and feeding; its faster **var A** plays during raids. Both are by [Kevin MacLeod](https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100784), used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Tracks are edited for looping, normalized to matching background levels and fade between contexts. Playing a card, ending a turn or opening a modal keeps the current music position.

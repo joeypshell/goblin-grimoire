@@ -5,6 +5,7 @@ const State = preload("res://scripts/run_state.gd")
 const Data = preload("res://scripts/game_data.gd")
 const CombatChecks = preload("res://tests/ui_combat_checks.gd")
 const FeedingChecks = preload("res://tests/feeding_ui_checks.gd")
+const TurnChecks = preload("res://tests/turn_ui_checks.gd")
 const SIZES = [Vector2i(375, 667), Vector2i(390, 844), Vector2i(430, 932), Vector2i(844, 390), Vector2i(844, 320), Vector2i(756, 330), Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1920, 900)]
 
 var ui
@@ -123,6 +124,7 @@ func exercise_size(pixels: Vector2i) -> void:
 		check(game.battle.enemies[0]["hp"] < before_hp and game.battle.energy < before_energy, "Tapping legal target resolves actual damage and cost")
 	await reachable_button("End turn", true)
 	await capture("06_after_card")
+	await test_warning_and_core_layout()
 	fixture_feeding()
 	var reveal_info: Dictionary = await FeedingChecks.new().exercise(self)
 	ui.rewards_screen.reveal(reveal_info)
@@ -180,6 +182,47 @@ func fixture_feeding() -> void:
 	ui.card_index = -1
 	ui.feed_body = 0
 	ui.feed_monster = game.run["monsters"][0]["id"]
+
+func test_warning_and_core_layout() -> void:
+	ui.card_index = 0
+	ui.refresh()
+	await settle()
+	var before: String = JSON.stringify(game.battle.to_dict())
+	var run_before: String = JSON.stringify(game.run)
+	var rng_before: int = game.rng.state
+	var end = TurnChecks.named(ui, "EndTurn")
+	check(end is Button and game.battle.energy > 0, "Mobile fixture can deliberately end a turn with unspent energy")
+	if end == null: return
+	await ensure_reachable(end, "End turn with unspent energy")
+	end.pressed.emit()
+	await settle()
+	var warning = TurnChecks.named(ui, "EndTurnWarning")
+	var keep = TurnChecks.named(ui, "KeepPlaying")
+	var confirm = TurnChecks.named(ui, "EndTurnAnyway")
+	check(warning != null and keep is Button and confirm is Button, "Unspent energy warning offers separate playable and confirmed-end actions")
+	if keep == null or confirm == null: return
+	await ensure_reachable(keep, "Keep playing")
+	await ensure_reachable(confirm, "End turn anyway")
+	await capture("06b_unspent_energy_warning")
+	check(JSON.stringify(game.battle.to_dict()) == before and JSON.stringify(game.run) == run_before and game.rng.state == rng_before and ui.card_index == 0 and not ui.resolving_turn, "Phone warning preserves selected card, hand, energy, campaign and all gameplay RNG")
+	keep.pressed.emit()
+	await settle()
+	check(not is_instance_valid(ui.overlay) and JSON.stringify(game.battle.to_dict()) == before and ui.card_index == 0, "Keep playing returns to the same selected card on every logical size")
+	var core = TurnChecks.named(ui, "CoreInfo")
+	check(core is Button and core.text.contains("HP"), "Dungeon core health has a readable help action")
+	if core == null: return
+	await ensure_reachable(core, "Dungeon core health")
+	core.pressed.emit()
+	await settle()
+	check(TurnChecks.named(ui, "DungeonCoreInfo") != null and TurnChecks.visible_text(ui.overlay).contains("25 HP") and TurnChecks.visible_text(ui.overlay).contains("At 0 Core HP, the run ends"), "Core help explains breach damage and the run-ending condition on phones and desktop")
+	var back = TurnChecks.named(ui, "CloseCoreInfo")
+	check(back is Button, "Core help exposes a return action")
+	if back == null: return
+	await ensure_reachable(back, "Return from dungeon core help")
+	await capture("06c_core_help")
+	back.pressed.emit()
+	await settle()
+	check(JSON.stringify(game.battle.to_dict()) == before and JSON.stringify(game.run) == run_before and ui.card_index == 0 and not is_instance_valid(ui.overlay), "Core explanation preserves gameplay and selected card through its full open/close flow")
 
 func fixture_evolved_combat() -> void:
 	game.new_run(730205)
@@ -263,7 +306,7 @@ func ensure_reachable(control: Control, label: String) -> void:
 func capture(name: String) -> void:
 	await settle()
 	if ui.state.run.get("phase", "") == "combat": CombatChecks.defenses(self, ui)
-	check(not is_instance_valid(ui.overlay) or name == "08_reveal", "Screen is not obscured by an unintended modal: " + name)
+	check(not is_instance_valid(ui.overlay) or name in ["08_reveal", "06b_unspent_energy_warning", "06c_core_help"], "Screen is not obscured by an unintended modal: " + name)
 	var destination := "res://tests/artifacts/mobile/%dx%d/" % [current_size.x, current_size.y]
 	DirAccess.make_dir_recursive_absolute(destination)
 	if can_render:
@@ -416,13 +459,58 @@ func exercise_native_touch() -> void:
 	if hand_scroll != null:
 		await swipe_hand(hand_scroll)
 	var turn_before: int = game.battle.turn
+	var unspent: int = game.battle.energy
 	var end = find_button(ui, "End turn")
 	if end != null:
 		await tap_native(end)
+	if unspent > 0:
+		var confirm = TurnChecks.named(ui, "EndTurnAnyway")
+		check(confirm is Button and game.battle.turn == turn_before and not ui.resolving_turn, "Native End turn with energy pauses for an explicit warning confirmation")
+		if confirm != null: await tap_native(confirm)
 	check(game.battle.turn == turn_before + 1, "Native touch ends turn through the visible control")
 	ui.skip_turn_animation()
 	await settle()
+	await native_warning_and_core(Vector2i(375, 667))
+	await native_warning_and_core(Vector2i(844, 320))
 	ui.free()
+
+func native_warning_and_core(pixels: Vector2i) -> void:
+	current_size = pixels
+	root.size = pixels
+	game.new_run(730210)
+	game.start_raid()
+	ui.menu = "game"
+	ui.card_index = 0
+	ui.refresh()
+	await settle()
+	var before: String = JSON.stringify(game.battle.to_dict())
+	var run_before: String = JSON.stringify(game.run)
+	var turn_before: int = game.battle.turn
+	await tap_native(TurnChecks.named(ui, "EndTurn"))
+	check(TurnChecks.named(ui, "EndTurnWarning") != null and not ui.resolving_turn, "Real touch opens the unspent-energy warning at both portrait and short-landscape sizes")
+	inspect_controls(ui, "native_unspent_energy_warning")
+	var picture = root.get_texture().get_image()
+	var destination: String = "res://tests/artifacts/mobile/%dx%d/native_unspent_energy_warning.png" % [pixels.x, pixels.y]
+	DirAccess.make_dir_recursive_absolute(destination.get_base_dir())
+	check(picture.get_size() == pixels and picture.save_png(destination) == OK, "Native touch warning capture saves its exact logical viewport")
+	captured += 1
+	await tap_native(TurnChecks.named(ui, "KeepPlaying"))
+	check(not is_instance_valid(ui.overlay) and ui.card_index == 0 and JSON.stringify(game.battle.to_dict()) == before and JSON.stringify(game.run) == run_before, "Real touch Keep playing preserves selection and every gameplay field")
+	await tap_native(TurnChecks.named(ui, "CoreInfo"))
+	check(TurnChecks.named(ui, "DungeonCoreInfo") != null, "Real touch opens Dungeon core explanation")
+	inspect_controls(ui, "native_core_help")
+	picture = root.get_texture().get_image()
+	check(picture.get_size() == pixels and picture.save_png(destination.replace("native_unspent_energy_warning", "native_core_help")) == OK, "Native touch Core help capture saves its exact logical viewport")
+	captured += 1
+	await tap_native(TurnChecks.named(ui, "CloseCoreInfo"))
+	check(JSON.stringify(game.battle.to_dict()) == before and ui.card_index == 0, "Real touch core help closes without changing battle or card selection")
+	await tap_native(TurnChecks.named(ui, "EndTurn"))
+	var confirm = TurnChecks.named(ui, "EndTurnAnyway")
+	check(confirm is Button and game.battle.turn == turn_before, "A second deliberate end-turn request still requires an explicit choice")
+	if confirm != null: await tap_native(confirm)
+	check(game.battle.turn == turn_before + 1 and ui.resolving_turn and not is_instance_valid(ui.overlay), "Real touch End turn anyway commits one turn at both phone orientations")
+	ui.skip_turn_animation()
+	await settle()
 
 func swipe_hand(sc: ScrollContainer) -> void:
 	var selection_before: int = ui.card_index

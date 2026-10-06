@@ -7,6 +7,7 @@ const Combat = preload("res://scripts/battle.gd")
 const Copy = preload("res://scripts/combat_copy.gd")
 const Replay = preload("res://scripts/battle_replay.gd")
 const Traits = preload("res://scripts/dungeon_traits.gd")
+const TurnChecks = preload("res://tests/turn_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(390, 844), Vector2i(375, 667), Vector2i(844, 320)]
 
 var ui
@@ -233,7 +234,7 @@ func exercise_combo() -> void:
 	var expected = Replay.make(game.battle)
 	ui.flow.delay_scale = 1.0
 	ui.refresh()
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	var saw_combo := false
 	for step in range(1000):
 		if not ui.resolving_turn: break

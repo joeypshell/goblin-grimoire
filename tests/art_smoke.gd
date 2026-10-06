@@ -10,6 +10,7 @@ const Copy = preload("res://scripts/combat_copy.gd")
 const Preferences = preload("res://scripts/ui_preferences.gd")
 const CombatChecks = preload("res://tests/ui_combat_checks.gd")
 const BalanceChecks = preload("res://tests/balance_ui_checks.gd")
+const TurnChecks = preload("res://tests/turn_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1920, 900), Vector2i(1024, 768), Vector2i(1050, 640), Vector2i(390, 844), Vector2i(375, 667), Vector2i(844, 320)]
 
 var ui
@@ -310,7 +311,7 @@ func test_motion_and_save() -> void:
 		check(equal(before, game.battle.to_dict()), "Actual enabled movement remains cosmetic")
 		await create_timer(0.35).timeout
 	ui.flow.delay_scale = 1.0
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	var committed: Dictionary = game.battle.to_dict()
 	var reload = State.new(profile_root + "motion/")
 	check(reload.load_game() and equal(committed, reload.battle.to_dict()), "Reload during illustrated enemy presentation restores committed state")

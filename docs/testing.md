@@ -1,5 +1,13 @@
 # Verification
 
+## v0.11.1 dungeon health and unspent energy
+
+The **CORE HP** header opens a read-only explanation of dungeon health, the 25-HP breach when all three monsters fall, retry after recovery, and defeat at zero. End Turn and Space both warn whenever positive energy remains. Opening and cancelling preserve the entire battle, run, hand, selected card, RNG and save counters; zero-energy turns proceed directly. Explicit confirmation is compared with the ordinary production turn, including once-only saving and replay. Duplicate, stale and changed-energy confirmations cannot commit another turn. Confirmation retains a numeric modal identity instead of a freed node reference.
+
+Focused turn-flow checks pass **2,437 headless assertions** with no issues or engine diagnostics. Actual `Input.parse_input_event` press/release checks verify that opening Space leaves the warning open, Keep playing receives initial focus, Escape cancels, and Tab followed by Enter explicitly confirms. Existing pacing checks pass **1,709 assertions / six layouts**. Mobile checks pass **19,555 assertions / 198 headless layouts**; native ScreenTouch passes **591 assertions / four screenshots** at **375×667** and **844×320**, covering Core help and both warning actions. The warning uses a compact centered panel, with touch controls at least 44 logical pixels tall.
+
+The full gameplay suite passes **7,995 checks / 18 groups / zero failures**. Existing audio settings pass **1,806 assertions / 24 layouts**; party routes **8,680 / 52**, tactical UI **3,354 / 32**, first-act UI **3,278 / 36**, art **8,476 / 74**, and traits **2,985 / 56**. Logs are checked for errors and warnings independently of exit status. Windows and Web exports succeed. Tests use isolated verification profiles; physical iPhone Safari remains unavailable.
+
 ## v0.11.0 continuous music and sound controls
 
 The soundtrack uses credited, licensed **Darkest Child** and its faster **var A** by Kevin MacLeod. Creator pages and CC BY 4.0 terms are linked in the game and recorded in `assets/audio/LICENSE.txt`. The OGG loops last **233.03 and 192.64 seconds**, total **5,592,921 bytes**, and are normalized to **−23.0 LUFS**. Measured encoded true peaks are **−10.38 and −10.01 dB**, leaving headroom for equal-power context fades and the champion gain. Source/asset hashes, modifications and measurements are in `assets/audio/track-info.json`; `tools/prepare_music.py` reproduces the preparation from the creator MP3s using numpy, soundfile and imageio-ffmpeg.

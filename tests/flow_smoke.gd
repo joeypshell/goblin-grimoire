@@ -9,6 +9,7 @@ const State = preload("res://scripts/run_state.gd")
 const CountingState = preload("res://tests/flow_state_fixture.gd")
 const MainScene = preload("res://scenes/main.tscn")
 const CombatChecks = preload("res://tests/ui_combat_checks.gd")
+const TurnChecks = preload("res://tests/turn_ui_checks.gd")
 
 var checks := 0
 var errors: Array = []
@@ -37,12 +38,18 @@ func _run() -> void:
 	ui.state = State.new(profile_root + "bootstrap/")
 	surface.add_child(ui)
 	check(ui.state._prefix.begins_with(profile_root), "Scene startup preserves its explicitly isolated verification profile")
+	await test_end_turn_warning()
+	await test_core_help()
 	await test_controller()
 	await test_terminal_transitions()
 	await test_visible_sequence(Vector2i(1280, 720))
 	await test_visible_sequence(Vector2i(390, 844))
+	await test_actual_keyboard_warning()
 	print("FLOW SMOKE: %d assertions; %d screenshots; %d issues" % [checks, captured, errors.size()])
 	for issue in errors: print("FLOW ISSUE: ", issue)
+	if is_instance_valid(ui): ui.free()
+	surface.free()
+	await create_timer(0.15).timeout
 	quit(0 if errors.is_empty() else 1)
 
 func check(condition: bool, message: String) -> void:
@@ -225,6 +232,153 @@ func settle() -> void:
 	for index in range(6): await process_frame
 	if can_render: await RenderingServer.frame_post_draw
 
+func test_end_turn_warning() -> void:
+	set_game("end_turn_warning")
+	game.battle.hand = [card("strike"), card("rally", "")]
+	game.battle.energy = 2
+	ui.card_index = 0
+	ui.last_action = "Rook has acted."
+	ui.refresh()
+	await settle()
+	var before: Dictionary = game.battle.to_dict()
+	var run_before: Dictionary = game.run.duplicate(true)
+	var rng_before: int = game.rng.state
+	ui.end_player_turn()
+	var warning = TurnChecks.named(ui, "EndTurnWarning")
+	var keep = TurnChecks.named(ui, "KeepPlaying")
+	var confirm = TurnChecks.named(ui, "EndTurnAnyway")
+	check(warning != null and keep is Button and confirm is Button, "Positive energy opens a warning with separate Keep playing and End turn anyway actions")
+	if warning == null or keep == null or confirm == null: return
+	var copy: String = TurnChecks.visible_text(warning)
+	check(copy.contains("2 energy left") and copy.contains("discards") and copy.contains("invaders act") and copy.contains("does not carry over"), "Warning explains the actual remaining energy and consequences of ending the turn")
+	check(not ui.resolving_turn and game.end_calls == 0 and game.save_calls == 0 and equal(before, game.battle.to_dict()) and equal(run_before, game.run) and game.rng.state == rng_before and ui.card_index == 0, "Opening the warning preserves hand, energy, intents, selection, run and both RNGs without saving")
+	var old_keep_callback: Callable = keep.pressed.get_connections()[0]["callable"]
+	var old_confirm_callback: Callable = confirm.pressed.get_connections()[0]["callable"]
+	var pending_overlay = ui.overlay
+	ui.end_player_turn()
+	var space := InputEventKey.new()
+	space.pressed = true
+	space.keycode = KEY_SPACE
+	ui._unhandled_key_input(space)
+	ui.play_selected_card("e0")
+	check(ui.overlay == pending_overlay and game.end_calls == 0 and equal(before, game.battle.to_dict()), "Repeated End or Space and a stale target press cannot bypass an open warning")
+	keep.pressed.emit()
+	check(not is_instance_valid(ui.overlay) and game.end_calls == 0 and game.save_calls == 0 and equal(before, game.battle.to_dict()) and ui.card_index == 0 and ui.last_action == "Rook has acted.", "Keep playing closes the warning and preserves selected card, feedback and the whole combat state")
+	await settle()
+	ui._unhandled_key_input(space)
+	check(TurnChecks.named(ui, "EndTurnWarning") != null and game.end_calls == 0, "Space opens the same warning when energy remains")
+	pending_overlay = ui.overlay
+	old_keep_callback.call()
+	old_confirm_callback.call()
+	check(ui.overlay == pending_overlay and game.end_calls == 0 and game.save_calls == 0 and equal(before, game.battle.to_dict()), "Freed old Keep playing and confirmation callbacks cannot close or commit a newly opened warning for the same turn")
+	var escape := InputEventKey.new()
+	escape.pressed = true
+	escape.keycode = KEY_ESCAPE
+	ui._unhandled_key_input(escape)
+	check(not is_instance_valid(ui.overlay) and ui.card_index == 0 and equal(before, game.battle.to_dict()) and game.end_calls == 0, "Escape cancels the warning without cancelling the selected card or changing combat")
+	await settle()
+	ui.end_player_turn()
+	confirm = TurnChecks.named(ui, "EndTurnAnyway")
+	check(confirm is Button, "Reopened warning still requires an enabled explicit confirmation")
+	if confirm == null: return
+	var stale_callback: Callable = confirm.pressed.get_connections()[0]["callable"]
+	var expected = Replay.make(game.battle)
+	ui.flow.delay_scale = 1.0
+	confirm.pressed.emit()
+	confirm.pressed.emit()
+	check(ui.resolving_turn and game.end_calls == 1 and game.save_calls == 1 and equal(expected.to_dict(), game.battle.to_dict()), "Confirming commits the ordinary turn once even if the same confirm button emits twice")
+	ui.skip_turn_animation()
+	await settle()
+	var committed: Dictionary = game.battle.to_dict()
+	# Keep the old callable through disposal to check its lifetime guard.
+	stale_callback.call()
+	check(game.end_calls == 1 and game.save_calls == 1 and equal(committed, game.battle.to_dict()) and not ui.resolving_turn, "A captured old confirmation cannot end a later turn after playback is skipped")
+	set_game("stale_energy_warning")
+	ui.card_index = 0
+	ui.end_player_turn()
+	confirm = TurnChecks.named(ui, "EndTurnAnyway")
+	game.battle.energy -= 1
+	before = game.battle.to_dict()
+	if confirm != null: confirm.pressed.emit()
+	check(game.end_calls == 0 and game.save_calls == 0 and equal(before, game.battle.to_dict()) and ui.card_index == 0, "A stale confirmation cannot commit a turn whose remaining energy has changed")
+	ui.close_modal()
+	await settle()
+	set_game("zero_energy_turn")
+	game.battle.energy = 0
+	expected = Replay.make(game.battle)
+	ui.end_player_turn()
+	check(not is_instance_valid(ui.overlay) and ui.resolving_turn and game.end_calls == 1 and game.save_calls == 1 and equal(expected.to_dict(), game.battle.to_dict()), "Zero remaining energy ends directly through the ordinary one-commit turn flow")
+	ui.skip_turn_animation()
+	await settle()
+
+func test_core_help() -> void:
+	set_game("core_help")
+	game.run["core"] = 73
+	ui.card_index = 0
+	ui.refresh()
+	await settle()
+	var before: Dictionary = game.battle.to_dict()
+	var run_before: Dictionary = game.run.duplicate(true)
+	var core = TurnChecks.named(ui, "CoreInfo")
+	check(core is Button and core.text.contains("73") and core.text.contains("100") and core.text.contains("HP"), "Core health is a clearly labelled help action showing current and maximum dungeon HP")
+	if core == null: return
+	core.pressed.emit()
+	var explanation = TurnChecks.named(ui, "DungeonCoreInfo")
+	var text: String = TurnChecks.visible_text(explanation) if explanation != null else ""
+	check(explanation != null and text.contains("Dungeon health: 73 / 100 HP") and text.contains("all three monsters") and text.contains("25 HP") and text.contains("retry this same raid") and text.contains("At 0 Core HP, the run ends") and text.contains("Healing cards restore your monsters"), "Core explanation states breach damage, retry, loss condition and the difference from monster healing")
+	var close = TurnChecks.named(ui, "CloseCoreInfo")
+	check(close is Button, "Dungeon core help has a production return control")
+	if close != null: close.pressed.emit()
+	check(not is_instance_valid(ui.overlay) and equal(before, game.battle.to_dict()) and equal(run_before, game.run) and game.end_calls == 0 and game.save_calls == 0 and ui.card_index == 0, "Core help opens and closes without changing combat, campaign, RNG, saves or selection")
+	await settle()
+
+func key_event(code: int, pressed: bool) -> void:
+	var event := InputEventKey.new()
+	event.window_id = root.get_window_id()
+	event.keycode = code
+	event.physical_keycode = code
+	event.pressed = pressed
+	Input.parse_input_event(event)
+	await process_frame
+
+func test_actual_keyboard_warning() -> void:
+	# Actual Input dispatch uses the root Window, without direct handler calls.
+	if is_instance_valid(ui): ui.free()
+	ui = MainScene.instantiate()
+	ui.state = State.new(profile_root + "keyboard_bootstrap/")
+	root.add_child(ui)
+	set_game("actual_keyboard_warning")
+	ui.card_index = 0
+	ui.refresh()
+	await settle()
+	var before: Dictionary = game.battle.to_dict()
+	await key_event(KEY_SPACE, true)
+	await key_event(KEY_SPACE, false)
+	await settle()
+	check(TurnChecks.named(ui, "EndTurnWarning") != null and game.end_calls == 0 and not ui.resolving_turn and equal(before, game.battle.to_dict()), "Actual opening Space press and release leaves the warning open and does not confirm or dismiss it")
+	var keep = TurnChecks.named(ui, "KeepPlaying")
+	check(keep is Button and keep.has_focus(), "The safe Keep playing action receives initial keyboard focus")
+	await key_event(KEY_ESCAPE, true)
+	await key_event(KEY_ESCAPE, false)
+	await settle()
+	check(not is_instance_valid(ui.overlay) and game.end_calls == 0 and ui.card_index == 0 and equal(before, game.battle.to_dict()), "Actual Escape cancels the warning while preserving the selected card and combat")
+	await key_event(KEY_SPACE, true)
+	await key_event(KEY_SPACE, false)
+	await settle()
+	var confirm = TurnChecks.named(ui, "EndTurnAnyway")
+	check(confirm is Button and game.end_calls == 0, "A later Space request still opens an uncommitted warning")
+	await key_event(KEY_TAB, true)
+	await key_event(KEY_TAB, false)
+	await settle()
+	check(confirm != null and confirm.has_focus(), "Actual Tab moves focus to the explicit End turn anyway action")
+	var expected = Replay.make(game.battle)
+	await key_event(KEY_ENTER, true)
+	await key_event(KEY_ENTER, false)
+	await settle()
+	check(game.end_calls == 1 and game.save_calls == 1 and ui.resolving_turn and equal(expected.to_dict(), game.battle.to_dict()), "Actual Tab and Enter explicitly confirm exactly one ordinary turn")
+	ui.skip_turn_animation()
+	await settle()
+
 func test_controller() -> void:
 	set_game("controller")
 	game.battle.hand = [card("strike"), card("rally", "")]
@@ -237,7 +391,7 @@ func test_controller() -> void:
 	check(ui.last_action.contains("Rook") and ui.last_action.contains("Strike") and ui.last_action.contains("-6 HP"), "Player action feedback names actor, ability and actual HP result")
 	game.save_calls = 0
 	ui.flow.delay_scale = 1.0
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	check(ui.resolving_turn and game.end_calls == 1 and game.save_calls == 1, "First end click commits exactly one authoritative turn and save before playback")
 	var final: Dictionary = game.battle.to_dict()
 	var turn: int = game.battle.turn
@@ -264,7 +418,7 @@ func test_controller() -> void:
 	await create_timer(0.4).timeout
 	check(game.end_calls == 1 and equal(final, game.battle.to_dict()), "Cancelled timers cannot resume the old sequence or resolve a second turn")
 	ui.flow.delay_scale = 0
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	await wait_finished()
 	check(game.end_calls == 2 and game.battle.turn == turn + 1, "A completed skipped sequence allows exactly one later turn")
 
@@ -281,7 +435,7 @@ func test_terminal_transitions() -> void:
 		monster["hp"] = 1
 		monster["statuses"]["poison"] = 1
 	ui.flow.delay_scale = 1.0
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	check(game.run["phase"] == "result" and game.run["core"] == 75, "Breach state and core loss commit before terminal playback")
 	check(game.run["monsters"].all(func(m): return m["hp"] == 5), "Authoritative breach recovery occurs exactly once before visual tape")
 	var recovered: Dictionary = game.run.duplicate(true)
@@ -292,7 +446,7 @@ func test_terminal_transitions() -> void:
 	check(equal(recovered, game.run) and game.end_calls == 1, "Skipping breach sequence cannot change recovery or core")
 	set_game("won", [enemy("e0", "guard", 1)])
 	game.battle.enemies[0]["statuses"]["poison"] = 1
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	check(game.run["phase"] == "feeding" and game.run["rewards"].size() == 1, "Victory creates actual feeding body before playback ends")
 	ui.skip_turn_animation()
 	await settle()
@@ -315,7 +469,7 @@ func test_visible_sequence(pixels: Vector2i) -> void:
 			while sc != null and not sc is ScrollContainer: sc = sc.get_parent()
 			if sc == null and is_instance_valid(ui.battlefield): sc = ui.battlefield
 			check(sc != null and sc.get_global_rect().grow(1).encloses(actor_button.get_global_rect()), "Desktop baseline shows all three monster actors without scrolling")
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	var committed: Dictionary = game.battle.to_dict()
 	var seen: Dictionary = {}
 	for step in range(500):
@@ -353,7 +507,7 @@ func capture_terminal(pixels: Vector2i, breach: bool) -> void:
 	else:
 		game.battle.enemies[0]["statuses"]["poison"] = 1
 	ui.flow.delay_scale = 1.0
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	var saw_finish := false
 	for step in range(500):
 		if not ui.resolving_turn: break

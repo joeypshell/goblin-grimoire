@@ -5,6 +5,7 @@ const State = preload("res://scripts/run_state.gd")
 const CountingState = preload("res://tests/flow_state_fixture.gd")
 const Preferences = preload("res://scripts/ui_preferences.gd")
 const Replay = preload("res://scripts/battle_replay.gd")
+const TurnChecks = preload("res://tests/turn_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(375, 667), Vector2i(390, 844), Vector2i(844, 320)]
 
 var ui
@@ -194,7 +195,7 @@ func test_sequence(fast: bool) -> Dictionary:
 		configured += pauses.x + pauses.y
 	check(is_equal_approx(configured, 2.4 if fast else 4.8), "Three-invader turn has the intended configured duration")
 	var started := Time.get_ticks_usec()
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	check(game.end_calls == 1 and game.save_calls == 1 and ui.resolving_turn, "Playback commits and saves exactly once before its first animation")
 	check(equal(expected.to_dict(), game.battle.to_dict()), "Authoritative result already matches ordinary combat and RNG")
 	var committed: Dictionary = game.battle.to_dict()
@@ -228,7 +229,7 @@ func test_skip_and_reload(fast: bool) -> void:
 	ui.set_reduced_motion(false, true)
 	await settle()
 	var expected = Replay.make(game.battle)
-	ui.end_player_turn()
+	TurnChecks.request_and_confirm(self, ui)
 	var committed: Dictionary = game.battle.to_dict()
 	var reloaded = State.new(game._prefix)
 	check(reloaded.load_game() and equal(committed, reloaded.battle.to_dict()) and equal(expected.to_dict(), committed), "Reload during either speed restores the committed result and exact RNG")
