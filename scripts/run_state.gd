@@ -4,6 +4,7 @@ extends RefCounted
 const Data = preload("res://scripts/game_data.gd")
 const Combat = preload("res://scripts/battle.gd")
 const Traits = preload("res://scripts/dungeon_traits.gd")
+const Routes = preload("res://scripts/raid_routes.gd")
 const Reports = preload("res://scripts/run_reports.gd")
 const SAVE_VERSION = 1
 
@@ -32,7 +33,10 @@ func _read_json(path: String) -> Dictionary:
 	if file == null:
 		return {}
 	var parsed = JSON.parse_string(file.get_as_text())
-	return _restore_numbers(parsed) if parsed is Dictionary else {}
+	var restored: Dictionary = _restore_numbers(parsed) if parsed is Dictionary else {}
+	if path.get_file() == "run.json" and restored.get("seed") is String:
+		restored["seed"] = int(restored["seed"])
+	return restored
 
 func _restore_numbers(value):
 	# JSON decodes integers as floats. Preserve IDs, counters and HP as integers.
@@ -82,7 +86,11 @@ func save_game() -> void:
 	_reports.sync_view(run)
 	_reports.finish(run)
 	_write_json(_prefix + "grimoire.json", profile)
-	if _write_json(_prefix + "run.json", run): _persist_report(run["report"])
+	# JSON numbers lose low bits of a 64-bit seed. Keep the live API integer-valued,
+	# but persist its exact decimal spelling, just as we already do for RNG state.
+	var saved_run := run.duplicate()
+	saved_run["seed"] = str(run["seed"])
+	if _write_json(_prefix + "run.json", saved_run): _persist_report(run["report"])
 
 func _persist_report(report: Dictionary) -> void:
 	_reports.upsert(report)
@@ -167,15 +175,47 @@ func party_preview() -> Array:
 		return []
 	if not run.has("party"):
 		run["party"] = Data.generate_party(int(run["raid"]), rng)
+		var options := Routes.choices(int(run["raid"]), int(run["seed"]), run["party"])
+		if not options.is_empty():
+			run["party_options"] = options
+			run["party_options_raid"] = int(run["raid"])
+			run["party_choice"] = "standard"
+			run["party_locked"] = false
 		save_game()
 	Data.ensure_champion_mechanics(run["party"])
 	return run["party"]
 
+func party_choices() -> Array:
+	if run.get("phase", "") != "prep" or run.get("party_locked", false): return []
+	if int(run.get("party_options_raid", -1)) != int(run.get("raid", -2)): return []
+	return run.get("party_options", []).duplicate(true)
+
+func select_party(id: String) -> bool:
+	for option in party_choices():
+		if option["id"] != id: continue
+		if run.get("party_choice", "") == id: return true
+		run["party_choice"] = id
+		run["party"] = option["party"].duplicate(true)
+		_reports.record(run, "party_selected", {"choice": id, "name": option["name"], "party": run["party"].duplicate(true)})
+		save_game()
+		changed.emit()
+		return true
+	return false
+
+func selected_party_name() -> String:
+	if int(run.get("party_options_raid", -1)) == int(run.get("raid", -2)):
+		for option in run.get("party_options", []):
+			if option["id"] == run.get("party_choice", ""): return option["name"]
+	var raid := int(run.get("raid", 0))
+	return Data.ENCOUNTERS[raid]["name"] if raid >= 0 and raid < Data.ENCOUNTERS.size() else "Campaign complete"
+
 func start_raid() -> void:
 	if run.get("phase", "") != "prep":
 		return
+	var party := party_preview()
+	run["party_locked"] = true
 	battle = Combat.new()
-	battle.setup(run["monsters"], party_preview(), rng, run.get("traits", []))
+	battle.setup(run["monsters"], party, rng, run.get("traits", []))
 	run["phase"] = "combat"
 	run["promotion"] = ""
 	run["evolution_budget"] = 0
@@ -360,6 +400,7 @@ func finish_feeding() -> bool:
 	var previous_rank = rank_name()
 	run["raid"] = int(run["raid"]) + 1
 	run.erase("party")
+	for key in ["party_options", "party_options_raid", "party_choice", "party_locked"]: run.erase(key)
 	run["evolution_budget"] = 0
 	if rank_name() != previous_rank:
 		run["promotion"] = rank_name()

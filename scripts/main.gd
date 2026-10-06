@@ -6,6 +6,7 @@ const Screens = preload("res://scripts/ui_screens.gd")
 const CombatScreen = preload("res://scripts/ui_battle.gd")
 const RewardsScreen = preload("res://scripts/ui_rewards.gd")
 const TraitScreen = preload("res://scripts/ui_traits.gd")
+const PartyRoutes = preload("res://scripts/ui_party_routes.gd")
 const Portrait = preload("res://scripts/monster_portrait.gd")
 const Chamber = preload("res://scripts/ui_chamber.gd")
 const TouchScroller = preload("res://scripts/touch_scroller.gd")
@@ -36,6 +37,7 @@ var screens
 var combat_screen
 var rewards_screen
 var traits_screen
+var party_routes
 var actor_nodes: Dictionary = {}
 var margin: MarginContainer
 var _layout_size := Vector2.ZERO
@@ -79,6 +81,7 @@ func _ready() -> void:
 	combat_screen = CombatScreen.new(self)
 	rewards_screen = RewardsScreen.new(self)
 	traits_screen = TraitScreen.new(self)
+	party_routes = PartyRoutes.new(self)
 	_apply_theme()
 	add_child(TouchScroller.new(self))
 	var room = Chamber.new()

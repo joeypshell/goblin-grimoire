@@ -16,6 +16,12 @@ Defend one chamber with Grub, Nix, and Moss. Read the invading party's intention
 
 After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, or coordinate all three monsters for extra energy and a draw with **Pack Instinct**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
 
+## v0.8 party choices
+
+Before regular raids 2, 4 and 5, **choose which party to lure**. Two comparable parties offer different threats and possible meals. Their real HP, Armor and available affinities help you plan around the dungeon traits and skills you already have. Switch freely during preparation; **Defend the dungeon** locks the selected party through combat, breaches and Continue. The first raid and both champions keep their established parties. Devouring still rolls one random unknown ability with the same rarity weights.
+
+The usual party is selected initially, so you can defend immediately. Both candidates are generated once and saved; inspecting or switching cannot reroll them. Existing saves retain an already generated incoming party, then receive choices at future eligible raids.
+
 ## v0.7 playtest reporting
 
 **Playtest reports** on the title, results, and **Log & rules** opens collection status, an upload toggle, and a review-dashboard link. Reports record decks, card use, unused energy, raid outcomes, feeding, evolutions, and traits without player identity. Older saves are labelled **partial coverage**; unseen history is not reconstructed. Native builds also offer **Copy current report JSON**. Local storage retains up to ten reports; bounded timelines can trim older events while keeping cumulative recorded totals.
@@ -35,6 +41,7 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 ## Controls and loop
 
 - Click **New Run** or **Continue**. Inspect the incoming party and choose two available skills per monster.
+- On raids 2, 4 and 5, compare two incoming parties and choose who to lure. Your current selection is shown above preparation. Starting combat locks that party, including on a breach retry.
 - Click **Defend the dungeon**, then select a card and a highlighted legal target. Cards resolve immediately. Owned cards require a living owner.
 - Click **End your turn** (or press Space) to watch the announced invader actions resolve. You have three energy and draw five cards each turn. Friendly monsters only act through cards. Cards pause during the enemy sequence; **Skip animation** finishes its presentation.
 - After victory, choose a body and a recipient, then **Devour & inherit**. One of that adventurer's unknown abilities is rolled randomly, with common abilities more likely. Possible results and their chances are shown before devouring; the saved result appears afterward. You can skip a body. Learned abilities can be selected for the next raid.
@@ -51,6 +58,8 @@ No equipment or shops. D through S are data definitions for future campaigns; th
 Edit `scripts/game_data.gd`: `BALANCE` contains energy, hand size, core HP, 25-HP breach damage, recovery, and status tuning. `ABILITIES` defines costs, targets, affinities, rarity, and effects; `INHERITANCE_WEIGHTS` uses common 4, uncommon 2, rare 1. Weights are normalized across the actual corpse's abilities that the recipient does not already know. A lone eligible ability has a 100% chance. `FORMS` defines HP, signatures, passives, and portrait colors. `CLASSES` and `ENCOUNTERS` control coherent seeded parties and difficulty, including permanent armor (warrior 1, defender 2, other classes 0). `RECIPES` stores hidden progression; **reading that developer data reveals discoveries**.
 
 `scripts/dungeon_traits.gd` defines trait choices, their two reward milestones and player-facing descriptions. Venom Nest spreads a fresh 2-strength poison application when an already poisoned invader dies, including poison-tick deaths. Spiteful Shields retaliates for 3 direct damage after an announced attack finishes, once per surviving monster whose Block absorbed that attack; Armor, Evasion and status damage alone do not trigger it. Pack Instinct counts three distinct monster card owners, excludes shared cards and grants one bonus energy and card draw per turn. Its progress survives saving mid-turn.
+
+`scripts/raid_routes.gd` defines the three alternate class mixes and threat descriptions. They use the same health bonus and three-member size as that raid's original party. Their separate seeded generation leaves the usual party and gameplay RNG unchanged; cached options and the combat lock live in RunState. See [the party-choice verification](docs/testing.md#v080-party-choices).
 
 Captain Torren, the F champion, announces **Banner Volley** every third round: 5 direct damage and 1 burning to every monster. His volley replaces his ordinary action. Defeat him or stun that announced action to cancel it, or prepare team Block and healing. Resolve still prevents consecutive stuns. Banner Volley is a rare Flame ability in his actual corpse pool and can be inherited by the same weighted random rule.
 
@@ -79,6 +88,7 @@ godot --headless --path . --script tests/mobile_smoke.gd
 godot --headless --path . --script tests/flow_smoke.gd
 godot --headless --path . --script tests/art_smoke.gd
 godot --headless --path . --script tests/trait_smoke.gd
+godot --headless --path . --script tests/party_routes_smoke.gd
 godot --headless --path . --script tests/report_core_smoke.gd
 godot --headless --path . --script tests/report_upload_smoke.gd
 godot --headless --path . --script tests/report_ui_smoke.gd

@@ -1,5 +1,30 @@
 # Verification
 
+## v0.8.0 party choices
+
+The focused party-choice suite passed **903 assertions with zero failures**. It checks the six released baseline parties against independently captured fixed-seed fixtures, caches deterministic alternatives without consuming gameplay RNG, rejects invalid or locked choices without mutation, and restores the selected party through preparation, combat, breaches and retries. Actual chosen invader abilities become the real corpse pools; inheritance keeps its existing 4:2:1 rarity weights. Legacy saves preserve an already generated party and receive choices at a future eligible raid.
+
+A campaign choosing every offered alternate completed all six raids with seed `730204`, using **85 card plays over 29 ended turns, six attempts and zero breaches** through normal RunState APIs. It performed two Oni evolutions and reached victory with production health, card costs and weighted random inheritance. This establishes campaign reachability; it does not measure human enjoyment or compare strategy strength under matched conditions. The driver knows developer recipes, and changing parties changes later decisions and RNG consumption.
+
+Save-boundary checks exposed loss of low bits when a full-width seed was stored as a JSON number. New saves now store the seed's exact decimal spelling and restore the live integer API. Tests with ordinary and full-width signed 64-bit seeds confirm that future options generated after reload match uninterrupted play.
+
+| Check | Recorded result |
+| --- | --- |
+| Party preparation, headless | 8,377 assertions / 52 layouts / zero issues |
+| Party preparation, native | 8,665 assertions / 54 screenshots / zero issues |
+| Existing mobile screens, headless | 16,027 assertions / 180 views / zero issues |
+| Existing trait/champion UI, headless | 2,837 assertions / 56 layouts / zero issues |
+
+The party harness covers raids 2, 4 and 5 at **1280×720, 375×667, 390×844 and 844×320**, checking real button closures, numeric Armor, affinities from actual unknown skills, skill-selection advice updates, continued saves, orientation changes, locked retries and reachable 44-pixel controls. Native ScreenTouch selects alternate, standard and alternate again, then Defend starts exactly the selected encounter. Rendered desktop, portrait and short-landscape captures were inspected. Logs contain no script/engine errors or warnings. Profiles and uploader bindings stay isolated under `user://verification/`; normal player saves and live reports are not used. Physical iPhone Safari remains untested.
+
+```sh
+godot --headless --path . --script tests/test_runner.gd
+godot --headless --path . --script tests/party_routes_smoke.gd
+godot --path . --script tests/party_routes_smoke.gd
+```
+
+The Verify and publish workflow includes the new party UI harness alongside the full gameplay, mobile, turn-flow, art, trait and existing reporting checks. Browser and Windows v0.8 exports finish cleanly. Screenshots are in the ignored `tests/artifacts/routes/` directory.
+
 ## v0.7.0 playtest reporting
 
 The game connects to the approved separate Supabase Free project **`kuokxkgujawxvtfgefsw`**. The ingestion function is deployed, and the game endpoint and public dashboard configuration are filled. The Auth Site URL is `https://joeypshell.github.io/goblin-grimoire/dashboard/`; email confirmation is enabled. The selected reviewer is approved in the private database allowlist; reviewer email addresses are not included in public source. The Verify and publish workflow exports the game and copies its static dashboard into the Pages artifact after all CI checks pass.

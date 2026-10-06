@@ -127,9 +127,9 @@ static func eligible(monster: Dictionary) -> Array:
 			choices.append(recipe.duplicate(true))
 	return choices
 
-static func generate_party(raid_index: int, rng: RandomNumberGenerator) -> Array:
+static func generate_party(raid_index: int, rng: RandomNumberGenerator, encounter_override: Dictionary = {}) -> Array:
 	var index: int = clampi(raid_index, 0, ENCOUNTERS.size() - 1)
-	var encounter: Dictionary = ENCOUNTERS[index]
+	var encounter: Dictionary = ENCOUNTERS[index] if encounter_override.is_empty() else encounter_override
 	var party: Array = []
 	for slot in range(encounter["classes"].size()):
 		var class_id: String = encounter["classes"][slot]

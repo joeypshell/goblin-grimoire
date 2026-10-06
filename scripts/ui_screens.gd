@@ -73,7 +73,9 @@ func _new_run() -> void:
 
 func preparation() -> void:
 	var compact = ui.is_compact()
+	var incoming: Array = ui.state.party_preview()
 	var page = ui.scroll(ui.content)
+	page.get_parent().name = "PreparationScroll"
 	var top = _flow(compact)
 	page.add_child(top)
 	var text = VBoxContainer.new()
@@ -81,17 +83,22 @@ func preparation() -> void:
 	top.add_child(text)
 	text.add_child(ui.label("1 / Prepare the chamber", 25 if compact else 27, ui.PARCHMENT, compact))
 	text.add_child(ui.label("Choose two skills per monster; check their energy costs. Monsters act through owned cards. Invaders choose living targets each round, then keep their shown intentions. Next: inspect and defend.", 14, ui.MUTED, true))
+	var selected = ui.label("READY TO DEFEND / " + ui.state.selected_party_name(), 14, ui.EMBER, true)
+	selected.name = "PartySelectionCue"
+	text.add_child(selected)
 	top.add_child(ui.primary("Defend the dungeon", func():
 		ui.act(ui.state.start_raid, "Choose a card, then one of its highlighted targets."), 0 if compact else 230))
 	ui.traits_screen.summary(page)
+	ui.party_routes.render(page)
 	var roster = _flow(compact)
 	roster.add_theme_constant_override("separation", 14)
 	roster.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.add_child(roster)
 	for monster in ui.state.run["monsters"]:
 		_roster_card(monster, roster)
-	page.add_child(ui.label("INCOMING  /  " + ui.state.raid_name().to_upper(), 15 if compact else 17, ui.EMBER, compact))
-	var incoming: Array = ui.state.party_preview()
+	var incoming_title = ui.label("INCOMING / " + ui.state.selected_party_name(), 15 if compact else 17, ui.EMBER, true)
+	incoming_title.name = "SelectedIncomingParty"
+	page.add_child(incoming_title)
 	ui.traits_screen.champion_warning(incoming, page)
 	var party = _flow(compact)
 	party.add_theme_constant_override("separation", 12)
