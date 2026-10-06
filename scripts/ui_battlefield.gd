@@ -139,6 +139,12 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 	intent.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(intent)
 	intent_nodes[actor["id"]] = intent
+	var rule_text: String = Copy.encounter_caption(actor) if enemy and not body.dead else ""
+	if rule_text != "":
+		var rule = ui.label(rule_text, 10, ui.EMBER, true)
+		rule.name = "EncounterRule_" + actor["id"]
+		rule.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		column.add_child(rule)
 	var form_hint: String = Forms.status(battle, actor) if not enemy else ""
 	if form_hint != "":
 		var combo = ui.label(form_hint, 10, ui.MOSS, true)
@@ -154,6 +160,7 @@ func _unit(actor: Dictionary, parent: Node, enemy: bool, index: int) -> void:
 		button.tooltip_text = "Play %s on %s\n%s\n%s" % [Data.ABILITIES[selected["ability"]]["name"], actor["name"], full_preview, text]
 	else: button.tooltip_text = text + ("\n" + statuses if statuses != "" else "")
 	if form_hint != "": button.tooltip_text += "\n" + form_hint
+	if rule_text != "": button.tooltip_text += "\n" + Data.encounter_rule_text(actor)
 	_ignore_mouse(inset)
 
 func _short_preview(full: String) -> String:

@@ -45,6 +45,11 @@ func _route_card(option: Dictionary, parent: Node) -> void:
 		var member = ui.label("%s · %d HP · Armor %d" % [actor_class, int(actor["max_hp"]), Data.armor(actor)], 13, ui.PARCHMENT, true)
 		member.name = "PartyMember_" + id + "_" + str(actor["id"])
 		box.add_child(member)
+		var rule_text: String = Data.encounter_rule_text(actor)
+		if rule_text != "":
+			var rule = ui.label(rule_text, 13, ui.EMBER, true)
+			rule.name = "PartyRule_" + id + "_" + str(actor["id"])
+			box.add_child(rule)
 	var affinities: Array = meal_affinities(option["party"])
 	var opportunities = ui.label("Possible meal affinities: " + (", ".join(affinities) if not affinities.is_empty() else "No unknown non-Neutral skills for this team"), 13, ui.MOSS, true)
 	opportunities.name = "PartyAffinities_" + id

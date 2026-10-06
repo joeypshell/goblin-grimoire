@@ -41,10 +41,21 @@ static func describe(before: Dictionary, after: Dictionary) -> String:
 	for id in delta: lines.append("%s: %s" % [delta[id]["name"], delta[id]["text"]])
 	var old_counts: Dictionary = before.get("trait_state", {}).get("trigger_counts", {})
 	var new_counts: Dictionary = after.get("trait_state", {}).get("trigger_counts", {})
-	var activations = {"venom_nest": "Venom Nest spreads poison", "spiteful_shields": "Spiteful Shields retaliates", "pack_instinct": "Pack Instinct: +1 energy, draw 1"}
+	var activations = {"venom_nest": "Venom Nest spreads poison", "spiteful_shields": "Spiteful Shields retaliates", "pack_instinct": "Pack Instinct: +1 energy, draw 1", "war_drums": "War Drums: +1 energy, draw 1"}
 	for id in activations:
 		var count: int = int(new_counts.get(id, 0)) - int(old_counts.get(id, 0))
 		if count > 0: lines.append(activations[id] + (" x%d" % count if count > 1 else ""))
+	var old_forms: Dictionary = before.get("form_state", {})
+	var new_forms: Dictionary = after.get("form_state", {})
+	for id in new_forms:
+		var actor: Dictionary = actors(after).get(id, {})
+		if actor.get("form", "") not in ["green_ogre", "ancient_ogre"] or int(actor.get("hp", 0)) <= 0: continue
+		var was_ready: bool = old_forms.get(id, {}).get("ready", false)
+		var now_ready: bool = new_forms[id].get("ready", false)
+		if now_ready and not was_ready:
+			lines.append("%s protected an ally: Bulwark stored, next attack +%d damage" % [actor.get("name", "Your ogre"), 14 if actor["form"] == "ancient_ogre" else 10])
+		elif was_ready and not now_ready and new_forms[id].get("used", false):
+			lines.append(actor.get("name", "Your ogre") + " unleashed Bulwark")
 	return " · ".join(lines) if not lines.is_empty() else "No HP, block or status changed."
 
 static func clear(ui) -> void:

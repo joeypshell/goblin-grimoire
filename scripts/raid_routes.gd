@@ -6,7 +6,8 @@ const Data = preload("res://scripts/game_data.gd")
 const ALTERNATIVES = {
 	1: {"name": "Runebound Pilgrims", "classes": ["warrior", "mage", "priest"],
 		"forced": [["heavy_blow"], ["firebolt", "arcane_bolt"], ["mend", "regrowth"]], "hp_bonus": 1,
-		"description": "Heavy hits and burning, backed by a healer. Stop the priest from keeping the party alive."},
+		"rules": ["", "", "ritual_priest"],
+		"description": "Heavy hits and burning, backed by a 9-HP healing ritual. Save an interrupt for the priest. Their actual corpse may grant Renewal Ritual."},
 	3: {"name": "Venom Seekers", "classes": ["rogue", "controller", "priest"],
 		"forced": [["poisoned_blade", "smoke_step"], ["snare", "arcane_bolt"], ["mend", "regrowth"]], "hp_bonus": 4,
 		"description": "Poison and control, backed by a healer. Plan for damage that bypasses your defenses."},
@@ -15,7 +16,7 @@ const ALTERNATIVES = {
 		"description": "An armored defender protects burning and control magic. Bring a way through their defenses."}
 }
 const STANDARD_DESCRIPTIONS = {
-	1: "An armored defender, a controller and a rogue. Expect party Block, stun and poison.",
+	1: "Hurting the ward captain shields another invader for 4 Block. Finish the captain or pick off their allies first; expect stun and poison.",
 	3: "Burning and control magic behind an armored defender. Protect announced targets and break their Block.",
 	4: "Poison, heavy hits and a healer. Removing the priest limits their recovery."
 }

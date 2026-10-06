@@ -3,10 +3,13 @@ extends RefCounted
 const Data = preload("res://scripts/game_data.gd")
 const Combat = preload("res://scripts/battle.gd")
 const Tactics = preload("res://scripts/invader_tactics.gd")
+const Forms = preload("res://scripts/battle_forms.gd")
 
 func run(t) -> void:
-	t.group("form setup/payoff, once-per-turn boundaries, snapshots and deliberate invader pressure")
+	t.group("stored Bulwark, form setup/payoff, snapshots and deliberate invader pressure")
 	test_bulwark(t)
+	test_stored_bulwark(t)
+	test_bulwark_gating(t)
 	test_fire_chain(t)
 	test_venom_trap(t)
 	test_ambush_chain(t)
@@ -46,7 +49,7 @@ func read_only_preview(t, battle, card: Dictionary, target: String, fragment: St
 
 func test_bulwark(t) -> void:
 	for form in ["green_ogre", "ancient_ogre"]:
-		var bonus: int = 6 if form == "green_ogre" else 8
+		var bonus: int = 10 if form == "green_ogre" else 14
 		var battle = formed(t, form)
 		t.check(t.all_cards(battle).size() == 12, "A transformation keeps the original twelve-card deck: " + form)
 		play(t, battle, "guard", "m0")
@@ -84,6 +87,58 @@ func test_bulwark(t) -> void:
 		t.check(area.enemies.all(func(actor): return actor["hp"] == 497 - bonus), "Readied area card boosts every recipient before consuming Bulwark once")
 		play(t, area, "strike", "e0")
 		t.check(area.enemies[0]["hp"] == 491 - bonus, "Area payoff is consumed after the entire card, rather than left ready")
+
+func test_stored_bulwark(t) -> void:
+	for form in ["green_ogre", "ancient_ogre"]:
+		var bonus: int = 10 if form == "green_ogre" else 14
+		var battle = formed(t, form)
+		read_only_preview(t, battle, t.card("guard"), "m1", "including on a later turn")
+		play(t, battle, "guard", "m1")
+		var stored: Dictionary = battle.form_state["m0"].duplicate()
+		play(t, battle, "guard", "m2")
+		t.check(battle.form_state["m0"] == stored and Forms.damage_bonus(battle, battle.monsters[0]) == bonus, "Protecting multiple allies stores exactly one charge without stacking")
+		read_only_preview(t, battle, t.card("guard"), "m1", "cannot stack")
+		play(t, battle, "snare_dungeon", "e0", "")
+		play(t, battle, "strike", "e0", "m1")
+		t.check(battle.form_state["m0"] == stored, "A shared attack or another owner's attack cannot spend the stored charge")
+		for turn_index in range(2):
+			battle.end_turn()
+			t.check(battle.form_state["m0"].get("ready", false) and not battle.form_state["m0"].get("used", true), "Unspent Bulwark survives the entire invader turn and subsequent player turn")
+			t.check(Forms.status(battle, battle.monsters[0]).contains("STORED") and Forms.status(battle, battle.monsters[0]).contains("persists across turns"), "Stored status explains its retained charge and future attack payoff")
+		for enemy in battle.enemies: enemy["block"] = 0
+		battle.energy = 10
+		battle.hand = [t.card("strike")]
+		var snapshot: Dictionary = battle.to_dict()
+		var restored = Combat.new()
+		restored.restore(snapshot, snapshot["monster_combat"].duplicate(true), RandomNumberGenerator.new())
+		t.check(t.same_saved_value(snapshot, restored.to_dict()), "Continue preserves a charge carried across several turn boundaries, including its RNG")
+		var hp_before: int = battle.enemies[0]["hp"]
+		t.check(battle.play_card(0, "e0") and restored.play_card(0, "e0"), "A carried charge can be spent by the next owned damaging card after Continue")
+		t.check(battle.enemies[0]["hp"] == hp_before - 6 - bonus and t.same_saved_value(battle.to_dict(), restored.to_dict()), "Saved and uninterrupted later-turn Bulwark attacks give identical exact payoffs")
+		play(t, battle, "guard", "m1")
+		t.check(not battle.form_state["m0"]["ready"] and battle.form_state["m0"]["used"], "Spending a carried charge blocks immediate same-turn recharging")
+		battle.end_turn()
+		battle.energy = 10
+		play(t, battle, "guard", "m1")
+		t.check(battle.form_state["m0"]["ready"] and not battle.form_state["m0"]["used"], "The turn after spending a charge permits protection to store a new charge")
+
+func test_bulwark_gating(t) -> void:
+	for exclusion in ["dead_ally", "invalid_target", "dead_owner", "stunned_owner"]:
+		var battle = formed(t, "green_ogre")
+		var target: String = "e0" if exclusion == "invalid_target" else "m1"
+		if exclusion == "dead_ally": battle.monsters[1]["hp"] = 0
+		if exclusion == "dead_owner": battle.monsters[0]["hp"] = 0
+		if exclusion == "stunned_owner": battle._status(battle.monsters[0], "stun", 1)
+		battle.hand = [t.card("guard")]
+		var before: Dictionary = battle.to_dict()
+		t.check(Forms.prepare(battle, battle.hand[0], target).is_empty() and Forms.preview(battle, battle.hand[0], target) == "", "Invalid or unavailable protection cannot advertise or prepare a charge: " + exclusion)
+		t.check(not battle.play_card(0, target) and t.same_saved_value(before, battle.to_dict()), "Rejected protection leaves pending charges, all state and RNG unchanged: " + exclusion)
+	var fallen = formed(t, "green_ogre")
+	play(t, fallen, "guard", "m1")
+	fallen._damage(fallen.monsters[0], 999)
+	var random_before: int = fallen.rng.state
+	Forms.begin_turn(fallen)
+	t.check(not fallen.form_state["m0"]["ready"] and Forms.damage_bonus(fallen, fallen.monsters[0]) == 0 and Forms.status(fallen, fallen.monsters[0]) == "" and fallen.rng.state == random_before, "A knocked-out owner's charge cannot survive or grant damage, without advancing RNG")
 
 func test_fire_chain(t) -> void:
 	for form in ["red_ogre", "oni"]:

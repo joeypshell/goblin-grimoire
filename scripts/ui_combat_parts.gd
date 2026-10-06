@@ -67,6 +67,10 @@ func actor(actor: Dictionary, parent: Node, enemy: bool, compact: bool) -> void:
 		if acting and ui.turn_kind == "stun": action["line"] = "STUNNED · announced action skipped"
 		var prefix: String = "NOW · " if acting else ("DONE · " if actor["id"] in ui.acted_actor_ids else "NEXT · ")
 		lines.append(prefix + action["line"])
+		var rule_text: String = Copy.encounter_caption(actor)
+		# The selected target's exact forecast below replaces its general rule.
+		# Keeping both makes a charged Ward attack taller than a small phone's view.
+		if rule_text != "" and not legal: lines.append(rule_text)
 	else:
 		var excluded: Array = ui.acted_actor_ids.duplicate()
 		if ui.resolving_turn and ui.turn_kind == "stun": excluded.append(ui.acting_actor_id)
@@ -86,6 +90,8 @@ func actor(actor: Dictionary, parent: Node, enemy: bool, compact: bool) -> void:
 	var font: Font = target.get_theme_font("font")
 	target.custom_minimum_size.y = maxf(68, font.get_multiline_string_size(detail_text, HORIZONTAL_ALIGNMENT_LEFT, text_width, 12 if compact else 13).y + 36)
 	target.tooltip_text = detail_text
+	var complete_rule: String = Data.encounter_rule_text(actor) if enemy else ""
+	if complete_rule != "": target.tooltip_text += "\n" + complete_rule
 	_ignore_mouse(margin)
 	call_deferred("_queue_actor_fit", target, detail)
 
@@ -114,8 +120,29 @@ func card(index: int, parent: Node, compact: bool, portrait: bool = false) -> vo
 			ui.combat_screen.show_card_details(index)
 			return
 		ui.card_index = index
+		var previous_side: String = ui.combat_screen.compact_side
 		ui.combat_screen.compact_side = "monsters" if ability["target"] in ["ally", "all_allies", "self"] else "enemies"
-		ui.refresh())
+		ui.refresh()
+		if ui.is_portrait() and previous_side != ui.combat_screen.compact_side:
+			call_deferred("_queue_target_focus"))
+
+func _queue_target_focus() -> void:
+	# Main restores scroll positions after rebuilding; a new side has new actors.
+	call_deferred("_focus_selected_targets")
+
+func _focus_selected_targets() -> void:
+	if ui.resolving_turn or not ui.is_portrait(): return
+	var battle = ui.combat_battle()
+	if battle == null or ui.card_index < 0 or ui.card_index >= battle.hand.size(): return
+	for id in battle.legal_targets(battle.hand[ui.card_index]):
+		var target = ui.actor_nodes.get(id)
+		if not is_instance_valid(target): continue
+		var ancestor = target.get_parent()
+		while ancestor != null:
+			if ancestor is ScrollContainer:
+				ancestor.scroll_vertical = 0
+				return
+			ancestor = ancestor.get_parent()
 
 func _ignore_mouse(node: Node) -> void:
 	if node is Control: node.mouse_filter = Control.MOUSE_FILTER_IGNORE

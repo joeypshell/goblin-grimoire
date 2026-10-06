@@ -2,8 +2,8 @@ extends RefCounted
 
 # Dungeon rules share Battle's authoritative state. These helpers never own RNG.
 static func fresh_state() -> Dictionary:
-	return {"owners": [], "pack_triggered": false, "venom_kos": [],
-		"trigger_counts": {"venom_nest": 0, "spiteful_shields": 0, "pack_instinct": 0}}
+	return {"owners": [], "pack_triggered": false, "war_drums_triggered": false, "venom_kos": [],
+		"trigger_counts": {"venom_nest": 0, "spiteful_shields": 0, "pack_instinct": 0, "war_drums": 0}}
 
 static func ensure_state(battle) -> void:
 	var defaults: Dictionary = fresh_state()
@@ -20,19 +20,37 @@ static func begin_turn(battle) -> void:
 	ensure_state(battle)
 	battle.trait_state["owners"] = []
 	battle.trait_state["pack_triggered"] = false
+	battle.trait_state["war_drums_triggered"] = false
 
-static func played(battle, card: Dictionary) -> void:
-	if not battle.traits.has("pack_instinct") or not battle._is_monster(card.get("owner", "")): return
+static func _war_drums_ready(battle, card: Dictionary, before: Dictionary) -> bool:
+	if not battle.traits.has("war_drums") or battle.trait_state.get("war_drums_triggered", false) or not before.get("protect", false): return false
+	var owner: Dictionary = battle.get_actor(card.get("owner", ""))
+	return not owner.is_empty() and battle._is_monster(owner["id"]) and int(owner.get("hp", 0)) > 0
+
+static func card_preview(battle, card: Dictionary, before: Dictionary = {}) -> String:
+	if not _war_drums_ready(battle, card, before): return ""
+	return "War Drums: protect another monster to gain 1 energy and draw 1 card (first protection this turn)."
+
+static func played(battle, card: Dictionary, before: Dictionary = {}) -> void:
+	if not battle._is_monster(card.get("owner", "")): return
 	ensure_state(battle)
-	var owners: Array = battle.trait_state["owners"]
-	if not owners.has(card["owner"]): owners.append(card["owner"])
-	if owners.size() < 3 or battle.trait_state["pack_triggered"]: return
-	battle.trait_state["pack_triggered"] = true
-	_trigger(battle, "pack_instinct")
-	battle.energy += 1
-	var before: int = battle.hand.size()
-	battle._draw(1)
-	battle._add_log("Pack Instinct: three monsters acted; gain 1 energy and draw %d card." % (battle.hand.size() - before))
+	if _war_drums_ready(battle, card, before):
+		battle.trait_state["war_drums_triggered"] = true
+		_trigger(battle, "war_drums")
+		battle.energy += 1
+		var hand_before: int = battle.hand.size()
+		battle._draw(1)
+		battle._add_log("War Drums: protecting another monster grants 1 energy and draws %d card." % (battle.hand.size() - hand_before))
+	if battle.traits.has("pack_instinct"):
+		var owners: Array = battle.trait_state["owners"]
+		if not owners.has(card["owner"]): owners.append(card["owner"])
+		if owners.size() >= 3 and not battle.trait_state["pack_triggered"]:
+			battle.trait_state["pack_triggered"] = true
+			_trigger(battle, "pack_instinct")
+			battle.energy += 1
+			var hand_before: int = battle.hand.size()
+			battle._draw(1)
+			battle._add_log("Pack Instinct: three monsters acted; gain 1 energy and draw %d card." % (battle.hand.size() - hand_before))
 
 static func knocked_out(battle, actor: Dictionary, poisoned: bool) -> void:
 	if not poisoned or not battle.traits.has("venom_nest") or battle._is_monster(actor["id"]): return

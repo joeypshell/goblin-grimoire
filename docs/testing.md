@@ -1,5 +1,38 @@
 # Verification
 
+## v0.10.0 first-act build experiment
+
+The integrated gameplay suite passes **7,995 checks across 18 groups**, with zero failures. Focused stored-Bulwark/War Drums checks pass **1,521 assertions**; encounter-rule checks pass **206**. Coverage includes persistent charges, complete-card consumption, same-turn recharge limits, legal teammate protection, once-per-turn energy/draw, combined Pack Instinct rewards, exact snapshots and read-only previews. Ward checks exercise actual HP loss after Armor/Block/Evade, surviving captains, stable lowest-HP-percentage recipients and deferred area-card resolution. Ritual checks cover rounds 2/5/8, wounded teammates, stun/KO interruption, stable dead-target fallback, repeatable inherited healing and unchanged RNG.
+
+`tests/first_act_playtest.gd` passes **1,176 checks** using actual generated parties, learned skills, earned traits/forms and weighted corpse rolls. Eight comparison policies (four seeds, both raid-two routes) finish the first three raids in **7–12 End Turns / 27–38 card plays**, without breaches or timeouts. They activate earned War Drums **21 times**. Standard seed `730205` naturally earns Green Ogre, stores a charge on turn one and spends it on turn two; alternate seed `730215` announces Renewal Ritual and cancels it with stun. A separately labelled captain-first policy triggers three wards and completes raid two in five End Turns, versus four when attacking allies first. The JSON report and actual corpse-roll journal are written only to ignored `build/` files.
+
+These are bounded developer policies, not human win rates or evidence of enjoyment. Feeding uses the existing helper that knows developer recipe ordering, and combat scores cloned production battles. No abilities, forms or rewards are granted to the campaign; changing decisions also changes later RNG. The intended human follow-up is a new run through the first three raids, choosing War Drums and checking whether setup, reward and encounter choices feel satisfying.
+
+| Check | Recorded result |
+| --- | --- |
+| Focused first-act UI, native and headless | 3,278 assertions in each mode / 36 screens or layouts / zero issues |
+| Full mobile UI and native touch | 16,626 assertions / 180 screenshots / zero issues |
+| Party preparation, headless | 8,680 assertions / 52 layouts / zero issues |
+| Trait/champion UI, headless | 2,977 assertions / 56 layouts / zero issues |
+| Turn flow, headless | 2,394 assertions / zero issues |
+| Illustrated cards and motion, headless | 8,474 assertions / 74 layouts / zero issues |
+| Combat pacing, headless | 1,689 assertions / six layouts / zero issues |
+| Reward/form UI, headless | 2,395 assertions / 32 layouts / zero issues |
+| Existing tactical UI, headless | 3,354 assertions / 32 layouts / zero issues |
+
+Focused screenshots were reviewed at 1280×720, 375×667, 390×844 and 844×320. All four initial trait choices and three remaining choices stay reachable; the immediate Guard payoff, stored charge, actual ward forecast and cancelled ritual remain readable. Changing from an ally-targeted protection card to an attack resets the portrait actor scroll so the invader's name, HP and Armor appear. The fixed short-landscape footer stays visible. Native ScreenTouch/ScreenDrag checks pass; physical iPhone Safari remains untested. All final engine logs are free of script errors and warnings, and profiles/uploader bindings stay isolated under `user://verification/`.
+
+CI includes both new first-act harnesses alongside the existing regression suites. The campaign still has six raids; generated legacy parties and locked actions are preserved, while future eligible parties receive the new encounter flags. The fixed twelve-card deck, repeatable healing and 4:2:1 random inheritance remain intact. Reporting backend work remains deferred.
+
+Browser and Windows release exports complete without errors or warnings. Windows file/product metadata is `0.10.0`; its ZIP contains the standalone executable and matching launch/playtest instructions.
+
+```sh
+godot --headless --path . --script tests/test_runner.gd
+godot --headless --path . --script tests/first_act_playtest.gd
+godot --headless --path . --script tests/slice_ui_smoke.gd
+godot --path . --script tests/slice_ui_smoke.gd
+```
+
 ## v0.9.0 combat, transformations and reward clarity
 
 The new form suite passes **1,395 focused checks**. It exercises all eight evolved forms through accepted card actions: setup before payoff, wrong-order exclusions, per-owner once-per-turn limits, area damage, lethal targets, Resolve, rejected plays, save/Continue, and exact combined form/trait draw and energy rewards. Sequential previews remove Block before forecasting a hit, include evolved self-Block modifiers, omit impossible post-KO stun/draw, and preserve the complete snapshot and RNG. Actual generated invader kits follow six-round role schedules; legacy unflagged parties retain their prior selection behavior and locked actions. The Marshal's scheduled Breach Order tests Block removal, armor, Evade and stun counterplay.

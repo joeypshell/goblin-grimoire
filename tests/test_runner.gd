@@ -12,6 +12,8 @@ const Traits = preload("res://tests/test_traits.gd")
 const Reports = preload("res://tests/test_reports.gd")
 const PartyRoutes = preload("res://tests/test_party_routes.gd")
 const FormTactics = preload("res://tests/test_form_tactics.gd")
+const WarDrums = preload("res://tests/test_war_drums.gd")
+const EncounterRules = preload("res://tests/test_encounter_rules.gd")
 
 var checks := 0
 var failures: Array = []
@@ -39,6 +41,8 @@ func _run() -> void:
 	Traits.new().run(self)
 	Reports.new().run(self)
 	FormTactics.new().run(self)
+	WarDrums.new().run(self)
+	EncounterRules.new().run(self)
 	PartyRoutes.new().run(self)
 	test_campaign()
 	Campaigns.new().run(self)

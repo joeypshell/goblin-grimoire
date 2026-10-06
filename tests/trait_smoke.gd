@@ -184,7 +184,7 @@ func exercise_size() -> void:
 	check(captain["statuses"].get("resolve", 0) == 1, "Cancelled champion action grants real Resolve immunity")
 	resolve_victory()
 	await capture("08_second_trait_choice")
-	check(game.run["raid"] == 3 and game.trait_choices().size() == 2 and not game.trait_choices().has("pack_instinct"), "Champion milestone offers only remaining trait rules")
+	check(game.run["raid"] == 3 and game.trait_choices().size() == Traits.DEFINITIONS.size() - 1 and not game.trait_choices().has("pack_instinct"), "Champion milestone offers only remaining trait rules")
 	await select_trait("spiteful_shields")
 	await capture("09_rank_e_two_trait_result")
 	check(game.run["promotion"] == "E" and named(ui, "TraitSummary").text.contains("Spiteful Shields"), "Rank E result displays promotion and both selected build rules")

@@ -17,6 +17,11 @@ const DEFINITIONS = {
 		"name": "Pack Instinct",
 		"description": "Play cards from three different monsters in one turn to gain 1 energy and draw 1 card. Once per turn; dungeon cards do not count.",
 		"hint": "Keep the whole pack alive and equip affordable cards across all three monsters."
+	},
+	"war_drums": {
+		"name": "War Drums",
+		"description": "The first monster-owned card each turn that gives Block to another living monster grants 1 energy and draws 1 card. Once per turn; protecting yourself and shared dungeon cards do not count.",
+		"hint": "Guard another monster to keep your turn going. Shared and self-only protection do not count."
 	}
 }
 

@@ -5,7 +5,8 @@ const Traits = preload("res://scripts/dungeon_traits.gd")
 const SHORT = {
 	"venom_nest": "Poisoned KO spreads 2 Poison",
 	"spiteful_shields": "Block absorbs a hit: retaliate 3",
-	"pack_instinct": "3 different owners: +1 energy, draw 1"
+	"pack_instinct": "3 different owners: +1 energy, draw 1",
+	"war_drums": "Protect a teammate: +1 energy, draw 1"
 }
 var ui
 
@@ -22,7 +23,7 @@ func render() -> void:
 	page.add_child(ui.label("Choose one lasting bonus for this run. It changes how your cards work together. Devouring still grants one random unknown skill.", 15, ui.PARCHMENT, true))
 	var recovery: String = "Recovery is already applied. Your choice leads to the raid result, then preparation."
 	if ui.state.run.get("trait_return", "result") == "prep": recovery = "This saved run has an earned trait choice. Choose it, then return to preparation."
-	if ui.state.trait_choices().size() == 2:
+	if not ui.state.run.get("traits", []).is_empty():
 		recovery += " Your first trait stays active; choose a different second trait."
 	page.add_child(ui.label(recovery, 13, ui.MUTED, true))
 	summary(page, false)
@@ -54,7 +55,7 @@ func _choose(id: String) -> void:
 func summary(parent: Node, show_milestone: bool = true) -> void:
 	var lines: Array = []
 	for id in ui.state.run.get("traits", []):
-		if Traits.DEFINITIONS.has(id): lines.append(Traits.DEFINITIONS[id]["name"] + " / " + SHORT[id])
+		if Traits.DEFINITIONS.has(id): lines.append(Traits.DEFINITIONS[id]["name"] + " / " + SHORT.get(id, Traits.DEFINITIONS[id]["description"]))
 	if not lines.is_empty():
 		var build = ui.label("YOUR DUNGEON BUILD\n" + "\n".join(lines), 13, ui.MOSS, true)
 		build.name = "TraitSummary"
@@ -70,6 +71,8 @@ func combat_summary(battle) -> String:
 		if not Traits.DEFINITIONS.has(id): continue
 		if id == "pack_instinct":
 			names.append("Pack 3/3 used" if battle.trait_state.get("pack_triggered", false) else "Pack %d/3" % battle.trait_state.get("owners", []).size())
+		elif id == "war_drums":
+			names.append("War Drums used" if battle.trait_state.get("war_drums_triggered", false) else "War Drums ready")
 		else: names.append(Traits.DEFINITIONS[id]["name"])
 	return " · ".join(names)
 
@@ -89,13 +92,23 @@ func reward_after_raid() -> bool:
 func compatibility(id: String) -> String:
 	var cards: Array = []
 	var affordable: Array = []
+	var protectors: Array = []
 	for monster in ui.state.run.get("monsters", []):
 		var abilities: Array = [Data.FORMS[monster["form"]]["signature"]] + monster["selected"]
 		var has_affordable: bool = false
 		for ability_id in abilities:
 			cards.append(ability_id)
 			if int(Data.ABILITIES[ability_id]["cost"]) <= 1: has_affordable = true
+			var ability: Dictionary = Data.ABILITIES[ability_id]
+			if ability["target"] not in ["ally", "all_allies"]: continue
+			for effect in ability["effects"]:
+				if effect["kind"] == "block" and effect.get("to", "target") != "self" and int(effect.get("amount", 0)) > 0:
+					if not protectors.has(monster["name"]): protectors.append(monster["name"])
+					break
 		if has_affordable: affordable.append(monster["name"])
+	if id == "war_drums":
+		if protectors.is_empty(): return "NEXT DECK: Equip Guard or another ally-protection skill. Its owner must protect a teammate; self-only and shared cards do not trigger War Drums."
+		return "READY NOW: %s can protect a teammate to gain 1 energy and draw 1 card. Try Guard on another monster, then use the extra card this turn." % ", ".join(protectors)
 	if id == "pack_instinct":
 		return "CURRENT DECK: %d/3 monsters have a 1-energy card equipped%s." % [affordable.size(), " / " + ", ".join(affordable) if not affordable.is_empty() else ""]
 	cards.append_array(["rally", "core_pulse", "snare_dungeon"])

@@ -8,6 +8,7 @@ const BALANCE = {
 }
 const INHERITANCE_WEIGHTS = {"common": 4, "uncommon": 2, "rare": 1}
 const ABILITIES = {
+	"renewal_ritual": {"name": "Renewal Ritual", "rarity": "rare", "cost": 2, "target": "ally", "affinity": "Vitality", "description": "Restore 9 HP to a living ally. Repeatable. Runebound priests announce it on rounds 2, 5, 8... when another invader is wounded; stun or defeat the priest to interrupt it.", "effects": [{"kind": "heal", "amount": 9}]},
 	"shield_bash": {"name": "Shield Bash", "rarity": "uncommon", "cost": 1, "target": "enemy", "affinity": "Guard", "description": "Deal 5 damage and give the owner 4 Block.", "effects": [{"kind": "damage", "amount": 5}, {"kind": "block", "amount": 4, "to": "self"}]},
 	"ember_burst": {"name": "Ember Burst", "rarity": "rare", "cost": 2, "target": "all_enemies", "affinity": "Flame", "description": "Deal 3 damage and add 1 Burn to every living foe.", "effects": [{"kind": "damage", "amount": 3}, {"kind": "status", "status": "burn", "amount": 1}]},
 	"quick_jab": {"name": "Quick Jab", "rarity": "common", "cost": 0, "target": "enemy", "affinity": "Trickery", "description": "Deal 3 damage. Costs no energy; uses a card from your hand.", "effects": [{"kind": "damage", "amount": 3}]},
@@ -41,13 +42,13 @@ const ABILITIES = {
 }
 const FORMS = {
 	"goblin": {"name": "Goblin", "max_hp": 20, "signature": "stab", "passive": "Scrappy beginnings. Learn from the invaders you consume.", "color": "80b66d"},
-	"green_ogre": {"name": "Green Ogre", "max_hp": 28, "signature": "ogre_aegis", "passive": "Bulwark: your block cards grant 2 additional block to each target.", "tactic": "Bulwark chain: once per turn, protect another ally with an owned block card, then your next owned attack gains 6 damage.", "color": "68ac71"},
+	"green_ogre": {"name": "Green Ogre", "max_hp": 28, "signature": "ogre_aegis", "passive": "Bulwark: your block cards grant 2 additional block to each target.", "tactic": "Stored smash: protect another ally with an owned Block card to store +10 damage for your next owned attack, even on a later turn. One charge; no stacking. After attacking, recharge next turn.", "color": "68ac71"},
 	"red_ogre": {"name": "Red Ogre", "max_hp": 26, "signature": "burning_cleave", "passive": "Kindling: each of your damage cards adds 1 burning to its victims.", "tactic": "Fire chain: once per turn, attack an already-burning foe to spread 2 Burn to every other living invader.", "color": "db7961"},
 	"basilisk": {"name": "Basilisk", "max_hp": 24, "signature": "petrifying_gaze", "passive": "Venom gland: your poison applications gain 1 strength.", "tactic": "Venom trap: once per turn, successfully stun an already-poisoned foe to draw 1 card.", "color": "a2be63"},
 	"shadow_stalker": {"name": "Shadow Stalker", "max_hp": 22, "signature": "ambush", "passive": "Opportunist: deal 2 extra damage to foes with poison, burning, or stun.", "tactic": "Ambush chain: once per turn, attack a foe already affected by Poison, Burn or Stun to return 1 energy.", "color": "a399d1"},
 	"oni": {"name": "Oni", "max_hp": 34, "signature": "spirit_flame", "passive": "Spirit mastery: your Mystic and Flame damage cards deal 2 extra damage.", "tactic": "Spirit chain: once per turn, attack an already-burning foe to spread 2 Burn to the other invaders and return 1 energy.", "color": "e4a174"},
 	"ember_basilisk": {"name": "Ember Basilisk", "max_hp": 32, "signature": "ember_venom", "passive": "Volatile venom: your poison applications also add 2 burning.", "tactic": "Venom trap: once per turn, successfully stun an already-poisoned foe to draw 2 cards.", "color": "dfb464"},
-	"ancient_ogre": {"name": "Ancient Ogre", "max_hp": 36, "signature": "renewing_aegis", "passive": "Ancient bulwark: your block cards grant 3 additional block to each target.", "tactic": "Bulwark chain: once per turn, protect another ally with an owned block card, then your next owned attack gains 8 damage.", "color": "9fbd77"},
+	"ancient_ogre": {"name": "Ancient Ogre", "max_hp": 36, "signature": "renewing_aegis", "passive": "Ancient bulwark: your block cards grant 3 additional block to each target.", "tactic": "Stored smash: protect another ally with an owned Block card to store +14 damage for your next owned attack, even on a later turn. One charge; no stacking. After attacking, recharge next turn.", "color": "9fbd77"},
 	"nightstalker": {"name": "Nightstalker", "max_hp": 30, "signature": "nightfall", "passive": "Predator: deal 3 extra damage to foes with poison, burning or stun.", "tactic": "Ambush chain: once per turn, attack a foe already affected by Poison, Burn or Stun to return 1 energy and draw 1 card.", "color": "bbb0e4"}
 }
 const RECIPES = [
@@ -76,7 +77,7 @@ const RANKS = {
 }
 const ENCOUNTERS = [
 	{"name": "Torchlight Scouts", "classes": ["warrior", "mage", "rogue"], "forced": [["heavy_blow"], ["firebolt", "arcane_bolt"], ["smoke_step", "poisoned_blade"]], "hp_bonus": 0},
-	{"name": "The Iron Company", "classes": ["defender", "controller", "rogue"], "forced": [["shield_wall", "heavy_blow", "shield_bash"], ["snare"], ["poisoned_blade"]], "hp_bonus": 1},
+	{"name": "The Iron Company", "classes": ["defender", "controller", "rogue"], "forced": [["shield_wall", "heavy_blow", "shield_bash"], ["snare"], ["poisoned_blade"]], "hp_bonus": 1, "rules": ["ward_captain", "", ""]},
 	{"name": "F Champion · The Cinder Banner", "classes": ["warrior", "mage", "priest"], "forced": [["heavy_blow"], ["firebolt", "arcane_bolt", "ember_burst"], ["regrowth", "mend"]], "hp_bonus": 3},
 	{"name": "Ashen Expedition", "classes": ["mage", "defender", "controller"], "forced": [["firebolt", "arcane_bolt"], ["shield_wall", "heavy_blow", "shatter_guard"], ["snare", "smoke_step"]], "hp_bonus": 4},
 	{"name": "Sanctum Hunters", "classes": ["rogue", "priest", "warrior"], "forced": [["poisoned_blade", "smoke_step", "quick_jab"], ["regrowth", "mend"], ["heavy_blow"]], "hp_bonus": 6},
@@ -91,6 +92,12 @@ static func new_monster(id: String, monster_name: String) -> Dictionary:
 
 static func armor(actor: Dictionary) -> int:
 	return maxi(0, int(actor.get("armor", 0)))
+
+static func encounter_rule_text(actor: Dictionary) -> String:
+	match actor.get("encounter_rule", ""):
+		"ward_captain": return "WARD CAPTAIN · After an attack costs this captain HP and they survive the card, give 4 Block to the other living invader with the lowest HP percentage. Finish the captain or attack their allies first."
+		"ritual_priest": return "RENEWAL RITUAL · On rounds 2, 5, 8... restore 9 HP if another invader is wounded. Stun or defeat the priest to interrupt the announced heal."
+	return ""
 
 static func inheritance_outcomes(abilities: Array, learned: Array) -> Array:
 	var outcomes: Array = []
@@ -158,6 +165,12 @@ static func generate_party(raid_index: int, rng: RandomNumberGenerator, encounte
 		party.append({"id": "raid_%d_foe_%d" % [index, slot], "name": actor_name,
 			"class_name": class_id, "form": class_id, "hp": hp, "max_hp": hp,
 			"abilities": skills, "tactics": true, "armor": maxi(0, int(template.get("armor", 0))), "block": 0, "statuses": {}})
+		# Rules belong only to newly generated actors. Existing parties stay intact.
+		var rules: Array = encounter.get("rules", [])
+		if slot < rules.size() and rules[slot] != "":
+			party[-1]["encounter_rule"] = rules[slot]
+			if rules[slot] == "ritual_priest" and not skills.has("renewal_ritual"):
+				skills.append("renewal_ritual")
 	ensure_priest_offense(party)
 	ensure_champion_mechanics(party)
 	return party

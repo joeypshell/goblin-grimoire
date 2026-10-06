@@ -12,6 +12,16 @@ static func choose_ability(battle, enemy: Dictionary, choices: Array) -> String:
 	if available.is_empty(): return ""
 	var round_number: int = maxi(1, int(battle.turn))
 	var cycle: int = (round_number - 1) % 3
+	if enemy.get("encounter_rule", "") == "ritual_priest":
+		var ritual_ready: bool = false
+		for ally in battle.enemies:
+			if ally.get("id", "") != enemy.get("id", "") and int(ally.get("hp", 0)) > 0 and int(ally["hp"]) < int(ally["max_hp"]):
+				ritual_ready = true
+				break
+		if round_number % 3 == 2 and ritual_ready and available.has("renewal_ritual"):
+			return "renewal_ritual"
+		available.erase("renewal_ritual")
+		if available.is_empty(): return ""
 	var priorities: Array = []
 	match enemy.get("class_name", enemy.get("form", "")):
 		"warrior":
@@ -57,6 +67,10 @@ static func choose_ability(battle, enemy: Dictionary, choices: Array) -> String:
 
 static func choose_target(battle, enemy: Dictionary, ability: Dictionary, candidates: Array) -> Dictionary:
 	if candidates.is_empty(): return {}
+	if enemy.get("encounter_rule", "") == "ritual_priest" and ability == Data.ABILITIES.get("renewal_ritual", {}):
+		var ritual_allies: Array = candidates.filter(func(actor): return actor.get("id", "") != enemy.get("id", "") and int(actor.get("hp", 0)) > 0 and int(actor["hp"]) < int(actor["max_hp"]))
+		if ritual_allies.is_empty(): return {}
+		candidates = ritual_allies
 	var target: Dictionary = candidates[0]
 	if ability["target"] == "enemy":
 		var actor_class: String = enemy.get("class_name", enemy.get("form", ""))

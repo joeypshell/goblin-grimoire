@@ -4,6 +4,8 @@ extends RefCounted
 const Data = preload("res://scripts/game_data.gd")
 const BattleTraits = preload("res://scripts/battle_traits.gd")
 const Forms = preload("res://scripts/battle_forms.gd")
+const EncounterRules = preload("res://scripts/encounter_rules.gd")
+const InvaderTactics = preload("res://scripts/invader_tactics.gd")
 
 static func owner_name(battle, card: Dictionary) -> String:
 	if card["owner"] == "": return "Dungeon shared"
@@ -30,6 +32,8 @@ static func guidance(battle, selected: int, resolving: bool, turn_message: Strin
 		var actor: String = battle.get_actor(card["owner"]).get("name", "Dungeon")
 		var tap: String = {"enemy": "Tap a highlighted invader to play.", "ally": "Tap a highlighted monster to play.", "self": "Tap its highlighted owner to play.", "all_enemies": "Tap any invader · hits ALL invaders.", "all_allies": "Tap any monster · affects ALL monsters."}[ability["target"]]
 		var bonus: String = pack_bonus(battle, card)
+		var protection_hint: String = protection_bonus(battle, card)
+		if protection_hint != "": bonus += ("\n" if bonus != "" else "") + protection_hint
 		var form_hint: String = Forms.status(battle, battle.get_actor(card["owner"]))
 		if form_hint != "": bonus += ("\n" if bonus != "" else "") + form_hint
 		return "%s uses %s · %d energy\n%s\n%s%s" % [actor, ability["name"], ability["cost"], tap, card_effect(battle, card), "\n" + bonus if bonus != "" else ""]
@@ -46,6 +50,13 @@ static func pack_bonus(battle, card: Dictionary) -> String:
 	var owners: Array = battle.trait_state.get("owners", [])
 	if card.get("owner", "") == "" or owners.has(card["owner"]) or owners.size() != 2: return ""
 	return "Pack Instinct: this third owner grants +1 energy and draws 1 card."
+
+static func protection_bonus(battle, card: Dictionary) -> String:
+	# A target is still required: Guard on its owner never earns this reward.
+	for id in battle.legal_targets(card):
+		var hint: String = BattleTraits.card_preview(battle, card, Forms.prepare(battle, card, id))
+		if hint != "": return hint
+	return ""
 
 static func next_step(battle, resolving: bool) -> String:
 	if resolving: return "Invaders act, effects tick, then your next hand."
@@ -65,6 +76,12 @@ static func status(actor: Dictionary) -> String:
 
 static func defenses(actor: Dictionary) -> String:
 	return "Armor %d · Block %d" % [Data.armor(actor), maxi(0, int(actor.get("block", 0)))]
+
+static func encounter_caption(actor: Dictionary) -> String:
+	match actor.get("encounter_rule", ""):
+		"ward_captain": return "WARD CAPTAIN · Survives HP damage from a card: weakest ally +4 Block"
+		"ritual_priest": return "RENEWAL RITUAL · Rounds 2/5/8: wounded ally +9 HP. Stun interrupts"
+	return ""
 
 static func _status_name(id: String) -> String:
 	return {"burn": "Burn", "poison": "Poison", "regen": "Regen", "stun": "Stun", "evasion": "Evade", "resolve": "Resolve"}.get(id, id.capitalize())
@@ -150,6 +167,10 @@ static func preview(battle, card: Dictionary, actor: Dictionary) -> String:
 				break
 	var form_hint: String = Forms.preview(battle, card, actor.get("id", ""))
 	if form_hint != "": text += " · " + form_hint
+	var trait_hint: String = BattleTraits.card_preview(battle, card, Forms.prepare(battle, card, actor.get("id", "")))
+	if trait_hint != "": text += " · " + trait_hint
+	var encounter_hint: String = EncounterRules.card_preview(battle, card, actor.get("id", ""))
+	if encounter_hint != "": text += " · " + encounter_hint
 	return text
 
 static func intent(battle, actor: Dictionary) -> Dictionary:
@@ -159,6 +180,7 @@ static func intent(battle, actor: Dictionary) -> Dictionary:
 		var skipped: String = "STUNNED · next action skipped"
 		for locked in battle.intents:
 			if locked["enemy_id"] == actor["id"] and locked["ability"] == "banner_volley": skipped = "STUNNED · Banner Volley cancelled"
+			if locked["enemy_id"] == actor["id"] and locked["ability"] == "renewal_ritual": skipped = "STUNNED · Renewal Ritual cancelled"
 		return {"line": skipped, "targets": [], "damage": 0}
 	for locked in battle.intents:
 		if locked["enemy_id"] != actor["id"]: continue
@@ -166,8 +188,13 @@ static func intent(battle, actor: Dictionary) -> Dictionary:
 		var id: String = locked["target_id"]
 		var target: Dictionary = battle.get_actor(id)
 		if int(target.get("hp", 0)) <= 0:
-			var alive: Array = battle._targets(ability["target"], actor, "")
-			if not alive.is_empty(): id = alive[0]["id"]
+			if actor.get("encounter_rule", "") == "ritual_priest" and locked["ability"] == "renewal_ritual":
+				var replacement: Dictionary = InvaderTactics.choose_target(battle, actor, ability, battle._targets(ability["target"], actor, ""))
+				if replacement.is_empty(): return {"line": "Renewal Ritual · no wounded ally left to heal", "targets": [], "damage": 0}
+				id = replacement["id"]
+			else:
+				var alive: Array = battle._targets(ability["target"], actor, "")
+				if not alive.is_empty(): id = alive[0]["id"]
 		var targets: Array = battle._targets(ability["target"], actor, id)
 		var destination: String = "No living target"
 		if not targets.is_empty(): destination = targets[0]["name"]
@@ -199,6 +226,8 @@ static func intent(battle, actor: Dictionary) -> Dictionary:
 		elif actor.get("champion", "") == "iron_marshal":
 			var rounds: int = (2 - battle.turn % 3 + 3) % 3
 			line += "\nBreach Order in %d round%s" % [rounds, "s" if rounds != 1 else ""]
+		if locked["ability"] == "renewal_ritual":
+			line += "\nCOUNTERPLAY: Resolve prevents Stun; defeat the priest." if int(actor.get("statuses", {}).get("resolve", 0)) > 0 else "\nCOUNTERPLAY: Stun or defeat the priest to stop the heal."
 		return {"line": line, "targets": ids, "damage": damage}
 	return {"line": "No pending action", "targets": [], "damage": 0}
 
@@ -232,4 +261,16 @@ static func banner_guidance(battle) -> String:
 			return "COUNTERPLAY: Stun or defeat the captain to cancel Banner Volley"
 		var rounds: int = 3 - battle.turn % 3
 		return "Captain: Banner Volley in %d round%s" % [rounds, "s" if rounds != 1 else ""]
+	for actor in battle.enemies:
+		if int(actor.get("hp", 0)) <= 0: continue
+		if actor.get("encounter_rule", "") == "ward_captain":
+			return "WARD CAPTAIN: Surviving HP damage protects the weakest ally (+4 Block). Defeat the captain or strike their allies"
+		if actor.get("encounter_rule", "") != "ritual_priest": continue
+		for locked in battle.intents:
+			if locked["enemy_id"] != actor["id"] or locked["ability"] != "renewal_ritual": continue
+			if int(actor.get("statuses", {}).get("stun", 0)) > 0: return "Priest: Renewal Ritual cancelled"
+			if intent(battle, actor)["targets"].is_empty(): return "Priest: no wounded ally left to heal"
+			if int(actor.get("statuses", {}).get("resolve", 0)) > 0: return "Renewal Ritual heals 9 HP: Resolve blocks Stun; defeat the priest to stop it"
+			return "Renewal Ritual heals 9 HP: Stun or defeat the priest to stop it"
+		return encounter_caption(actor)
 	return ""

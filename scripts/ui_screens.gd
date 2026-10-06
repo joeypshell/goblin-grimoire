@@ -122,6 +122,11 @@ func preparation() -> void:
 			var role = ui.label(tactic, 13, ui.EMBER, true)
 			role.name = "IncomingTactic_" + enemy["id"]
 			info.add_child(role)
+		var encounter_rule: String = Data.encounter_rule_text(enemy)
+		if encounter_rule != "":
+			var rule = ui.label(encounter_rule, 13, ui.EMBER, true)
+			rule.name = "IncomingRule_" + enemy["id"]
+			info.add_child(rule)
 	page.add_child(ui.label("Run seed " + str(ui.state.run["seed"]) + "  ·  Enemy abilities shown here are the abilities they can use and transfer.", 12, ui.MUTED, true))
 
 func _roster_card(monster: Dictionary, parent: Node) -> void:

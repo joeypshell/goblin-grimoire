@@ -14,7 +14,17 @@ Or download the standalone Windows build from [Releases](https://github.com/joey
 
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
 
-After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, or coordinate all three monsters for extra energy and a draw with **Pack Instinct**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
+After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, coordinate all three monsters with **Pack Instinct**, or protect a teammate for extra energy and a draw with **War Drums**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
+
+## v0.10 first-act build experiment
+
+Start a new run and play the first three raids to test the protection build. **War Drums** rewards the first owned card each turn that grants Block to another living monster with **1 energy and 1 card draw**. Guard works immediately; self-only and shared dungeon cards do not activate it. The interface shows whether the reward is ready or used, forecasts its payoff on legal targets, and reports its activation after playing.
+
+**Green Ogre** now stores **+10 damage** when it protects another monster, and **Ancient Ogre** stores **+14**. The charge survives turns until the owner's next damaging card, so drawing the attack later no longer wastes the setup. One charge cannot stack; after spending it, the owner can recharge on the following turn. Stored and spent states remain visible and survive Continue. Other forms retain their existing tactics, and unmet transformations stay hidden.
+
+Raid two offers contrasting puzzles at the existing health budgets. **The Iron Company** has a ward captain: a player attack that costs the captain HP without defeating them gives **4 Block** to the other living invader with the lowest HP percentage, after the whole card resolves. Defeating the captain, attacking allies first, or using damage over time changes the plan. **Runebound Pilgrims** has a priest announcing **Renewal Ritual** on rounds **2, 5, 8...** when another invader is wounded. Stun or defeat the priest to interrupt the **9-HP** heal. Its real corpse includes the rare, repeatable two-energy skill in its random inheritance pool, with later raids left to use it.
+
+The campaign still has six raids. This experiment focuses its new encounter rules on the first act; it adds no separate mode or extra fights. Existing generated parties keep their rules and locked intentions. Future parties get the new rules. Healing remains repeatable, inheritance remains weighted randomly among actual unknown corpse abilities, and the deck retains twelve cards.
 
 ## v0.9 combat and transformation pass
 

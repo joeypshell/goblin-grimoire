@@ -3,6 +3,8 @@ extends RefCounted
 # Read-only combat descriptions; no effect resolution or RNG.
 const Data = preload("res://scripts/game_data.gd")
 const Forms = preload("res://scripts/battle_forms.gd")
+const Traits = preload("res://scripts/battle_traits.gd")
+const EncounterRules = preload("res://scripts/encounter_rules.gd")
 
 static func describe(battle, card: Dictionary, target_id: String) -> String:
 	if not Data.ABILITIES.has(card.get("ability", "")):
@@ -75,4 +77,8 @@ static func describe(battle, card: Dictionary, target_id: String) -> String:
 			lines.append("Pack Instinct: this third monster grants 1 energy and draws 1 card.")
 	var form_hint: String = Forms.preview(battle, card, target_id)
 	if form_hint != "": lines.append(form_hint)
+	var trait_hint: String = Traits.card_preview(battle, card, Forms.prepare(battle, card, target_id))
+	if trait_hint != "": lines.append(trait_hint)
+	var encounter_hint: String = EncounterRules.card_preview(battle, card, target_id)
+	if encounter_hint != "": lines.append(encounter_hint)
 	return "\n".join(lines)

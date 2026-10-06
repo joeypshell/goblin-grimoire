@@ -41,6 +41,10 @@ jobs:
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/reward_tactics_smoke.gd
       - name: Verify Marshal counterplay and form combo layouts
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/tactical_ui_smoke.gd
+      - name: Verify early build rewards and encounter puzzles
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/slice_ui_smoke.gd
+      - name: Play bounded first-act campaigns with actual rewards
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/first_act_playtest.gd
       - name: Verify automatic report uploads and retries
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/report_upload_smoke.gd
       - name: Verify phone report controls

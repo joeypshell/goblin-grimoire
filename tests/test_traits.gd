@@ -2,6 +2,7 @@ extends RefCounted
 
 const CountingState = preload("res://tests/flow_state_fixture.gd")
 const CombatTraits = preload("res://tests/test_trait_combat.gd")
+const DungeonTraits = preload("res://scripts/dungeon_traits.gd")
 
 func run(t) -> void:
 	t.group("earned trait choices, single recovery, saved milestones and legacy boundaries")
@@ -39,7 +40,7 @@ func test_progression(t) -> void:
 	for query in range(10): game.trait_choices()
 	game.start_raid()
 	game.continue_after_result()
-	t.check(choices.size() == 3 and game.run == before and game.rng.state == random_before and game.save_calls == 0, "Queries and premature continuation cannot leave or reroll a pending trait choice")
+	t.check(choices.size() == DungeonTraits.DEFINITIONS.size() and game.run == before and game.rng.state == random_before and game.save_calls == 0, "Queries and premature continuation cannot leave or reroll a pending trait choice")
 	t.check(not game.choose_trait("missing_trait") and game.run == before and game.rng.state == random_before and game.save_calls == 0, "Unknown trait choice changes no state, RNG or persistence")
 	game.save_game()
 	var loaded = game_at(t, "trait_progression")
@@ -55,7 +56,7 @@ func test_progression(t) -> void:
 	t.check(fixture_victory(continued) and continued.run["raid"] == 2 and continued.run["phase"] == "result", "The middle F raid does not award an extra trait")
 	continued.continue_after_result()
 	t.check(fixture_victory(continued) and continued.run["raid"] == 3 and continued.run["phase"] == "trait" and continued.run["promotion"] == "E", "F champion milestone opens the second trait alongside promotion to E")
-	t.check(not continued.trait_choices().has("venom_nest") and continued.trait_choices().size() == 2, "Previously selected traits cannot appear again")
+	t.check(not continued.trait_choices().has("venom_nest") and continued.trait_choices().size() == DungeonTraits.DEFINITIONS.size() - 1, "Previously selected traits cannot appear again")
 	before = continued.run.duplicate(true)
 	random_before = continued.rng.state
 	continued.save_calls = 0
@@ -81,7 +82,7 @@ func test_legacy(t) -> void:
 	t.check(loaded.rng.state == random_before and loaded.run["party"] == original_party, "Opening legacy trait rewards preserves its existing party and RNG")
 	t.check(loaded.choose_trait("pack_instinct") and loaded.run["phase"] == "trait" and loaded.run["trait_milestones"] == [1], "First of two owed legacy milestones keeps the reward screen open")
 	var pending = game_at(t, "trait_legacy_prep")
-	t.check(pending.load_game() and pending.trait_choices().size() == 2 and not pending.trait_choices().has("pack_instinct"), "Partly selected legacy rewards reload with only remaining traits")
+	t.check(pending.load_game() and pending.trait_choices().size() == DungeonTraits.DEFINITIONS.size() - 1 and not pending.trait_choices().has("pack_instinct"), "Partly selected legacy rewards reload with only remaining traits")
 	t.check(pending.choose_trait("venom_nest") and pending.run["phase"] == "prep" and pending.run["trait_milestones"] == [1, 3] and pending.rng.state == random_before, "Second legacy reward returns to the original preparation without RNG consumption")
 	var active = game_at(t, "trait_legacy_combat")
 	active.new_run(72818)

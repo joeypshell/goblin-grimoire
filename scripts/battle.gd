@@ -6,6 +6,7 @@ const Preview = preload("res://scripts/battle_preview.gd")
 const Traits = preload("res://scripts/battle_traits.gd")
 const Forms = preload("res://scripts/battle_forms.gd")
 const Tactics = preload("res://scripts/invader_tactics.gd")
+const EncounterRules = preload("res://scripts/encounter_rules.gd")
 const LAYERED_STATUSES = ["poison", "burn", "regen"]
 signal changed
 signal finished(outcome: String)
@@ -114,7 +115,7 @@ func play_card(index: int, target_id: String) -> bool:
 	_resolve(ability, owner, target_id)
 	Forms.played(self, card, before)
 	_remove_ko_cards()
-	Traits.played(self, card)
+	Traits.played(self, card, before)
 	_check_outcome()
 	changed.emit()
 	return true
@@ -147,7 +148,15 @@ func end_turn() -> void:
 			var candidates: Array = _targets(ability["target"], enemy, "")
 			if candidates.is_empty():
 				continue
-			target_id = candidates[0]["id"]
+			if intent["ability"] == "renewal_ritual" and enemy.get("encounter_rule", "") == "ritual_priest":
+				var recipient: Dictionary = Tactics.choose_target(self, enemy, ability, candidates)
+				if recipient.is_empty():
+					_add_log("%s's Renewal Ritual has no wounded ally left to heal." % enemy["name"])
+					_clear_status(enemy, "resolve")
+					continue
+				target_id = recipient["id"]
+			else:
+				target_id = candidates[0]["id"]
 		_add_log("%s uses %s." % [enemy["name"], ability["name"]])
 		_resolve(ability, enemy, target_id)
 		if _check_outcome():
@@ -184,6 +193,7 @@ func _begin_turn() -> void:
 		if not wounded:
 			choices.erase("mend")
 			choices.erase("regrowth")
+			choices.erase("renewal_ritual")
 		if choices.is_empty():
 			choices = enemy["abilities"].duplicate()
 			if banner_captain: choices.erase("banner_volley")
@@ -206,6 +216,7 @@ func _begin_turn() -> void:
 			for candidate in candidates:
 				if float(candidate["hp"]) / float(candidate["max_hp"]) < float(target["hp"]) / float(target["max_hp"]):
 					target = candidate
+		if target.is_empty(): continue
 		var destination: String = target["name"]
 		if ability["target"] == "all_allies": destination = "all adventurers"
 		if ability["target"] == "all_enemies": destination = "all monsters"
@@ -232,6 +243,7 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 	var default_targets: Array = _targets(ability["target"], caster, target_id)
 	var kindling: Array = []
 	var retaliators: Array = []
+	var ward_captains: Array = []
 	for effect in ability["effects"]:
 		var targets: Array = [caster] if effect.get("to", "target") == "self" else default_targets
 		for actor in targets:
@@ -243,7 +255,9 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 					_add_log("%s loses %d Block." % [actor["name"], int(actor.get("block", 0))])
 					actor["block"] = 0
 				"damage":
+					var hp_before: int = int(actor["hp"])
 					var blocked: int = _damage(actor, amount)
+					EncounterRules.collect_damage(self, caster, actor, hp_before - int(actor["hp"]), ward_captains)
 					Traits.collect_retaliation(self, caster, actor, blocked, retaliators)
 					if caster.get("form", "") == "red_ogre" and not kindling.has(actor["id"]):
 						kindling.append(actor["id"])
@@ -267,6 +281,7 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 		if int(actor["hp"]) > 0:
 			_status(actor, "burn", 1)
 	Traits.retaliate(self, caster, retaliators)
+	EncounterRules.apply_after_card(self, ward_captains)
 	if not caster.is_empty() and not _is_monster(caster["id"]):
 		_clear_status(caster, "resolve")
 
