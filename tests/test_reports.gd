@@ -26,7 +26,7 @@ func test_actions(t) -> void:
 	game.new_run(9223372036854775806)
 	reference.new_run(9223372036854775806)
 	var report: Dictionary = game.current_report()
-	t.check(report["schema"] == 1 and report["build"] == "0.9.0" and report["coverage"] == "full", "New run receives a full versioned report")
+	t.check(report["schema"] == 1 and report["build"] == "0.10.0" and report["coverage"] == "full", "New run receives a full versioned report")
 	t.check(report["seed"] == "9223372036854775806" and report["seed"] is String, "Report seed preserves all 64 bits as decimal text")
 	t.check(report["id"].length() == 36 and report["id"][14] == "4" and report["id"] != reference.current_report()["id"], "Cryptographic UUIDv4 identifies runs independently")
 	t.check(game.rng.state == reference.rng.state and t.same_saved_value(game.run["party"], reference.run["party"]), "Report IDs and timestamps do not alter seeded party generation")
