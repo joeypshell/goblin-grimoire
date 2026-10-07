@@ -156,6 +156,8 @@ func load_game() -> bool:
 		run["phase"] = "defeat"
 		run.erase("trait_return")
 	if run["phase"] == "defeat": run.erase("raid_recap")
+	# Legacy pending rewards receive their stable offer at load, never on query.
+	if run["phase"] == "trait": _ensure_first_trait_offer()
 	_reports.ensure(run)
 	if legacy_loss:
 		if run["report"].get("status", "active") == "active":
@@ -458,15 +460,32 @@ func _pending_trait_milestone() -> int:
 
 func _open_trait_reward(return_phase: String) -> bool:
 	if _pending_trait_milestone() < 0 or Traits.choices(run.get("traits", [])).is_empty(): return false
+	_ensure_first_trait_offer()
 	run["trait_return"] = return_phase
 	run["phase"] = "trait"
 	return true
 
+func _ensure_first_trait_offer() -> void:
+	if _pending_trait_milestone() != int(Traits.MILESTONES[0]): return
+	var available: Array = Traits.choices(run.get("traits", []))
+	var offered = run.get("first_trait_offer")
+	if offered is Array and offered.size() == mini(2, available.size()):
+		var unique: Array = []
+		for id in offered:
+			if available.has(id) and not unique.has(id): unique.append(id)
+		if unique.size() == offered.size(): return
+	# Keep after selection for saved history. Only new or missing/invalid pending
+	# offers are generated; a normal first reward has all four traits available.
+	run["first_trait_offer"] = Traits.first_offer(int(run["seed"]), run.get("traits", []))
+
 func trait_choices() -> Array:
-	return Traits.choices(run.get("traits", [])) if run.get("phase", "") == "trait" and _pending_trait_milestone() >= 0 else []
+	if run.get("phase", "") != "trait" or _pending_trait_milestone() < 0: return []
+	if _pending_trait_milestone() == int(Traits.MILESTONES[0]): return run.get("first_trait_offer", []).duplicate()
+	return Traits.choices(run.get("traits", []))
 
 func choose_trait(id: String) -> bool:
-	if not trait_choices().has(id): return false
+	var offered: Array = trait_choices()
+	if not offered.has(id): return false
 	var milestone := _pending_trait_milestone()
 	run["traits"].append(id)
 	run["trait_milestones"].append(milestone)
@@ -475,7 +494,7 @@ func choose_trait(id: String) -> bool:
 	run.erase("trait_return")
 	_open_trait_reward(return_phase)
 	_reports.count(run, "traits_chosen")
-	_reports.record(run, "trait_chosen", {"trait": id, "milestone": milestone})
+	_reports.record(run, "trait_chosen", {"trait": id, "milestone": milestone, "offered": offered})
 	save_game()
 	changed.emit()
 	return true

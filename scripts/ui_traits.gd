@@ -20,17 +20,24 @@ func render() -> void:
 	var heading = ui.label("Dungeon trait reward", 25 if compact else 30, ui.EMBER, true)
 	heading.name = "TraitMilestone"
 	page.add_child(heading)
-	page.add_child(ui.label("Choose one lasting bonus for this run. It changes how your cards work together. Devouring still grants one random unknown skill.", 15, ui.PARCHMENT, true))
-	var recovery: String = "Recovery is already applied. Your choice leads to the raid result, then preparation."
-	if ui.state.run.get("trait_return", "result") == "prep": recovery = "This saved run has an earned trait choice. Choose it, then return to preparation."
-	if not ui.state.run.get("traits", []).is_empty():
-		recovery += " Your first trait stays active; choose a different second trait."
-	page.add_child(ui.label(recovery, 13, ui.MUTED, true))
+	var offered: Array = ui.state.trait_choices()
+	var first: bool = ui.state._pending_trait_milestone() == int(Traits.MILESTONES[0])
+	var offer_copy: String = "Choose one of this run's two offers. Continue keeps these same offers. Your chosen trait lasts for this run."
+	if first and offered.size() != 2: offer_copy = "Choose from this run's saved offers. Continue keeps these same offers. Your chosen trait lasts for this run."
+	if not first: offer_copy = "Choose a second trait from all remaining options. Your first trait stays active; both last for this run."
+	var offer_summary = ui.label(offer_copy + " Devouring still grants one random unknown skill.", 15, ui.PARCHMENT, true)
+	offer_summary.name = "TraitOfferSummary"
+	page.add_child(offer_summary)
+	var recovery: String = "Recovery is already applied. Complete the earned trait choices, then view the raid result and prepare."
+	if ui.state.run.get("trait_return", "result") == "prep": recovery = "Complete the earned trait choices, then return to preparation."
+	var return_guidance = ui.label(recovery, 13, ui.MUTED, true)
+	return_guidance.name = "TraitReturnGuidance"
+	page.add_child(return_guidance)
 	summary(page, false)
 	var choices = VBoxContainer.new() if compact else HBoxContainer.new()
 	choices.add_theme_constant_override("separation", 12)
 	page.add_child(choices)
-	for id in ui.state.trait_choices():
+	for id in offered:
 		var definition: Dictionary = Traits.DEFINITIONS[id]
 		var box = ui.panel(choices, true)
 		box.name = "TraitChoice_" + id
@@ -44,7 +51,7 @@ func render() -> void:
 		take.name = "TraitSelect_" + id
 		take.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		box.add_child(take)
-	page.add_child(ui.label("Traits are saved with this run. A new run starts with fresh choices.", 12, ui.MUTED, true))
+	page.add_child(ui.label("These offers are saved with this run. A new run starts with fresh offers." if first else "Your chosen traits are saved with this run. A new run starts with fresh choices.", 12, ui.MUTED, true))
 
 func _choose(id: String) -> void:
 	if not ui.state.choose_trait(id): return

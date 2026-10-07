@@ -8,6 +8,7 @@ const Copy = preload("res://scripts/combat_copy.gd")
 const Replay = preload("res://scripts/battle_replay.gd")
 const Traits = preload("res://scripts/dungeon_traits.gd")
 const TurnChecks = preload("res://tests/turn_ui_checks.gd")
+const OfferChecks = preload("res://tests/trait_offer_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(390, 844), Vector2i(375, 667), Vector2i(844, 320)]
 
 var ui
@@ -40,12 +41,13 @@ func _run() -> void:
 		pixels = size_
 		surface.size = pixels
 		await exercise_size()
+		await exercise_offered_pairs()
 		await exercise_combo()
 	print("TRAIT SMOKE: %d assertions; %d %s; %d issues" % [checks, captured, "screenshots" if can_render else "layouts", errors.size()])
 	for issue in errors: print("TRAIT ISSUE: ", issue)
 	surface.free()
 	# AudioServer retires stopped music playback references on its next mix callback.
-	await create_timer(0.15).timeout
+	await create_timer(0.4).timeout
 	quit(0 if errors.is_empty() else 1)
 
 func check(condition: bool, message: String) -> void:
@@ -61,11 +63,11 @@ func settle() -> void:
 	for frame in range(8): await process_frame
 	if can_render: await RenderingServer.frame_post_draw
 
-func reset_game(tag: String) -> void:
+func reset_game(tag: String, seed_value: int = 730204) -> void:
 	ui.skip_turn_animation()
 	ui.close_modal()
 	game = State.new(profile_root + "%dx%d/%s/" % [pixels.x, pixels.y, tag])
-	game.new_run(730204)
+	game.new_run(seed_value)
 	ui.state = game
 	ui.menu = "game"
 	ui.card_index = -1
@@ -128,7 +130,10 @@ func show_enemies() -> void:
 	await settle()
 
 func exercise_size() -> void:
-	reset_game("progression")
+	var seed_value: int = OfferChecks.seed_for(["pack_instinct", "venom_nest"])
+	check(seed_value != 0, "Production offer generator supplies a deterministic seed for the Pack and Venom advice fixture")
+	if seed_value == 0: return
+	reset_game("progression", seed_value)
 	game.start_raid()
 	resolve_victory()
 	var goblin: Dictionary = game.run["monsters"][0]
@@ -143,6 +148,7 @@ func exercise_size() -> void:
 	await select_trait("pack_instinct")
 	await capture("02_first_trait_result")
 	check(named(ui, "TraitSummary").text.contains("Pack Instinct"), "Result identifies the actual selected lasting build")
+	check(named(ui, "TraitMilestone").text.contains("One raid until the F champion"), "After choosing the first trait, the visible next reward remains the second-trait champion milestone")
 	game.continue_after_result()
 	check(game.set_selected(goblin["id"], 0, "poisoned_blade"), "Next preparation can equip the known compatibility recommendation")
 	ui.refresh()
@@ -222,6 +228,81 @@ func exercise_size() -> void:
 
 func enemy(id: String, ability: String, hp: int) -> Dictionary:
 	return {"id": id, "name": "Invader " + id, "class_name": "warrior", "form": "warrior", "hp": hp, "max_hp": hp, "abilities": [ability], "armor": 0, "block": 0, "statuses": {}}
+
+func exercise_offered_pairs() -> void:
+	# Two real seed-derived pairs cover every existing trait without granting an
+	# arbitrary option. Select both members through production controls at each size.
+	for required in [["pack_instinct", "venom_nest"], ["war_drums", "spiteful_shields"]]:
+		var seed_value: int = OfferChecks.seed_for(required)
+		check(seed_value != 0, "A deterministic production seed exists for this two-trait offer fixture")
+		if seed_value == 0: return
+		for index in range(2):
+			reset_game("offered_%d_%d" % [seed_value, index], seed_value)
+			game.start_raid()
+			resolve_victory()
+			await settle()
+			var offered: Array = game.trait_choices()
+			check(offered.size() == 2 and offered[0] != offered[1] and required.all(func(id): return offered.has(id)), "An earned first reward renders exactly its two distinct saved offers")
+			if offered.size() != 2: return
+			var before: Dictionary = game.run.duplicate(true)
+			var rng_before: int = game.rng.state
+			for id in Traits.DEFINITIONS:
+				check((named(ui, "TraitSelect_" + id) != null) == offered.has(id), "The first reward exposes no action for an unoffered trait: " + id)
+			var intro = named(ui, "TraitOfferSummary")
+			check(intro is Label and intro.text.contains("two offers") and intro.text.contains("Continue keeps"), "First-reward copy explains the run's two saved offers and Continue behavior")
+			ui.refresh()
+			ui.refresh()
+			await settle()
+			check(equal(before, game.run) and game.rng.state == rng_before and game.trait_choices() == offered, "Repeated UI refresh preserves the pending offers, complete run and RNG")
+			var loaded = State.new(game._prefix)
+			check(loaded.load_game() and loaded.trait_choices() == offered and loaded.rng.state == rng_before, "Actual Continue restores the exact pending pair without a reroll")
+			game = loaded
+			ui.state = game
+			ui.refresh()
+			await settle()
+			var chosen: String = offered[index]
+			var action = named(ui, "TraitSelect_" + chosen)
+			check(action is Button and not action.disabled, "Both saved offers can be selected through their actual production action")
+			if action == null: return
+			await reachable(action)
+			check(action.size.x >= 43.9 and action.size.y >= 43.9, "Both offered choices preserve forty-four-pixel touch targets in every layout")
+			await capture("13_saved_pair_%d_choose_%s" % [seed_value, chosen])
+			action.pressed.emit()
+			await settle()
+			check(game.run["traits"] == [chosen] and game.run["phase"] == "result" and game.run["first_trait_offer"] == offered, "Selecting either offered trait commits its exact ID and retains the offer history")
+			check(game.rng.state == rng_before and game.run["monsters"] == before["monsters"], "Neither offered choice consumes combat RNG or repeats healing")
+			check(named(ui, "TraitSummary").text.contains(Traits.DEFINITIONS[chosen]["name"]) and named(ui, "TraitMilestone").text.contains("second dungeon trait"), "Result identifies the actual chosen build and the next second-trait milestone")
+			await capture("14_offered_%s_result" % chosen)
+	# Explicit legacy shape supported by the migration: three already-owned
+	# traits with an unpaid first milestone leave one valid offer, never two.
+	reset_game("legacy_one_remaining_offer")
+	game.run["raid"] = 1
+	game.run["traits"] = ["venom_nest", "spiteful_shields", "pack_instinct"]
+	check(game._open_trait_reward("prep"), "Legacy pending first milestone still offers its one remaining unowned trait")
+	game.save_game()
+	ui.refresh()
+	await settle()
+	var intro = named(ui, "TraitOfferSummary")
+	check(game.trait_choices() == ["war_drums"] and intro is Label and intro.text.contains("saved offers") and not intro.text.contains("two offers"), "Legacy one-option reward truthfully describes saved offers rather than promising two")
+	await capture("15_legacy_one_saved_offer")
+	reset_game("legacy_two_owed_rewards")
+	game.run["raid"] = 3
+	game.run.erase("party")
+	game.party_preview()
+	check(game._open_trait_reward("prep"), "An older raid-three preparation can owe both actual trait milestones")
+	game.save_game()
+	ui.refresh()
+	await settle()
+	check(named(ui, "TraitReturnGuidance").text.contains("Complete the earned trait choices"), "Legacy first-reward guidance allows the remaining earned choice before promising preparation")
+	var first_choice: String = game.trait_choices()[0]
+	named(ui, "TraitSelect_" + first_choice).pressed.emit()
+	await settle()
+	check(game.run["phase"] == "trait" and game.trait_choices().size() == 3 and named(ui, "TraitOfferSummary").text.contains("all remaining options"), "Selecting the owed first offer exposes the full remaining second pool before preparation")
+	await capture("16_legacy_second_reward_pending")
+	var second_choice: String = game.trait_choices()[0]
+	named(ui, "TraitSelect_" + second_choice).pressed.emit()
+	await settle()
+	check(game.run["phase"] == "prep" and game.run["traits"].size() == 2 and named(ui, "TraitMilestone").text.contains("Two raids until the E champion"), "Completing both owed choices reaches preparation with accurate next-milestone copy")
 
 func exercise_combo() -> void:
 	reset_game("combo")

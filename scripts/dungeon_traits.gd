@@ -31,6 +31,18 @@ static func choices(owned: Array) -> Array:
 		if not owned.has(id): result.append(id)
 	return result
 
+static func first_offer(seed_value: int, owned: Array = []) -> Array:
+	var available: Array = choices(owned)
+	var offered: Array = []
+	var random := RandomNumberGenerator.new()
+	# A separate seed-derived stream never changes combat or corpse inheritance.
+	random.seed = seed_value ^ (int(MILESTONES[0]) * 104729) ^ 0x74726169
+	for pick in range(mini(2, available.size())):
+		var index: int = random.randi_range(0, available.size() - 1)
+		offered.append(available[index])
+		available.remove_at(index)
+	return offered
+
 static func milestone(run: Dictionary) -> String:
 	var raid := int(run.get("raid", 0))
 	if run.get("phase", "") == "trait":

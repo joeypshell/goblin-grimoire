@@ -6,7 +6,10 @@ decimal string so JavaScript preserves all 64 bits. Reports include the build,
 deck and skill selections, cards and their owners/targets, end-turn intentions
 and actual combat logs, before/after HP/defenses/statuses, inheritance odds and
 rolled results, traits and activations, transformations, raid results, recovery,
-and the final outcome. Team state is captured before recovery changes it.
+and the final outcome. Team state is captured before recovery changes it. From
+v0.14.0, the current run view retains its saved first trait offer, and each accepted
+trait choice records the actual offered IDs alongside the selected ID. Older
+reports do not reconstruct offers that were never recorded.
 
 The dashboard can compare recorded card use, energy spent and voluntarily left
 at End Turn, breaches, builds, and ordered decisions. Combat snapshots show net

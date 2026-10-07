@@ -2,6 +2,7 @@ extends "res://tests/tactical_ui_smoke.gd"
 
 # Exercise the production choice, target and result controls on isolated profiles.
 const Feedback = preload("res://scripts/combat_feedback.gd")
+const OfferChecks = preload("res://tests/trait_offer_ui_checks.gd")
 
 func _run() -> void:
 	profile_root = "user://verification/slice_ui_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
@@ -27,16 +28,23 @@ func _run() -> void:
 	ui.free()
 	surface.free()
 	# AudioServer retires stopped music playback references on its next mix callback.
-	await create_timer(0.15).timeout
+	await create_timer(0.4).timeout
 	quit(0 if failures.is_empty() else 1)
 
 func test_trait_choices() -> void:
 	reset_game("war_drums_choice", 1)
-	game.run["traits"] = []
-	check(game._open_trait_reward("prep"), "Earned first raid reward opens the actual trait choice")
+	var seed_value: int = OfferChecks.seed_for(["war_drums"])
+	check(seed_value != 0, "War Drums advice fixture uses a seed that actually offers War Drums")
+	if seed_value == 0: return
+	game.new_run(seed_value)
+	game.start_raid()
+	for enemy in game.battle.enemies: enemy["hp"] = 0
+	game.end_turn()
+	for index in range(game.run["rewards"].size()): game.skip_body(index)
+	check(game.finish_feeding(), "First raid feeding completion opens the actual trait choice")
 	ui.refresh()
 	await settle()
-	check(game.trait_choices().size() == 4, "First trait reward offers all four distinct build choices")
+	check(game.trait_choices().size() == 2, "First trait reward offers exactly two distinct saved build choices")
 	for id in game.trait_choices():
 		var choose = named(ui, "TraitSelect_" + id)
 		check(choose is Button and not choose.disabled, "Available trait has an enabled production choice: " + id)
@@ -44,12 +52,16 @@ func test_trait_choices() -> void:
 	var compatibility = named(ui, "TraitCompatibility_war_drums")
 	check(compatibility is Label and compatibility.text.contains("READY NOW") and compatibility.text.contains("Guard") and compatibility.text.contains("another monster") and compatibility.text.contains("1 energy") and compatibility.text.contains("draw 1"), "War Drums explains an immediate, affordable teammate Guard payoff")
 	check(not visible_text().contains("Green Ogre") and not visible_text().contains("Ancient Ogre"), "First trait reward reveals no undiscovered form names")
-	await capture("slice_01_four_trait_choices")
+	check(named(ui, "TraitOfferSummary").text.contains("two offers") and named(ui, "TraitOfferSummary").text.contains("Continue"), "The first reward explains its two saved offers without exposing other options")
+	await capture("slice_01_two_saved_trait_offers")
 	var choose = named(ui, "TraitSelect_war_drums")
 	await reachable(choose)
 	choose.pressed.emit()
 	await settle()
-	check(game.run["traits"] == ["war_drums"] and game.run["phase"] == "prep", "Production trait press activates War Drums and returns to preparation")
+	check(game.run["traits"] == ["war_drums"] and game.run["phase"] == "result", "Production trait press activates the actually offered War Drums and reaches the raid result")
+	game.continue_after_result()
+	ui.refresh()
+	await settle()
 	check(named(ui, "TraitSummary").text.contains("Protect a teammate"), "Preparation reminds players what their chosen build rewards")
 	game.run["raid"] = 3
 	game.run.erase("party")

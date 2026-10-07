@@ -23,7 +23,7 @@ func _run() -> void:
 	profile_root = "user://verification/first_act_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
 	DirAccess.make_dir_recursive_absolute(profile_root)
 	print("FIRST ACT DIAGNOSTIC: ", profile_root)
-	print("Policy: concentrated actual-corpse feeding, earned visible forms, learned form-aware slots, earned War Drums, protection-aware tactical probes. No grants, HP resets, uploader or run-report upload.")
+	print("Policy: concentrated actual-corpse feeding, earned visible forms, learned form-aware slots, actual offered traits, protection-aware tactical probes. No grants, HP resets, uploader or run-report upload.")
 	for seed_value in SEEDS:
 		for route in ["standard", "alternate"]:
 			diagnostic_rows.append(_simulate_policy(int(seed_value), str(route)))
@@ -71,7 +71,7 @@ func _configure_protection_loadout(game) -> void:
 func _simulate_policy(seed_value: int, route: String, captain_first: bool = false) -> Dictionary:
 	var game = state_at("seed_%d_%s%s" % [seed_value, route, "_captain_first" if captain_first else ""])
 	game.new_run(seed_value)
-	var row: Dictionary = {"seed": seed_value, "second_raid_route": route, "target_policy": "captain first on raid 2; mechanic consequence exercise" if captain_first else "position score", "attempts": [], "meals": [], "ended_turns": 0, "card_plays": 0, "defeats": 0}
+	var row: Dictionary = {"seed": seed_value, "second_raid_route": route, "target_policy": "captain first on raid 2; mechanic consequence exercise" if captain_first else "position score", "attempts": [], "meals": [], "trait_rewards": [], "ended_turns": 0, "card_plays": 0, "defeats": 0}
 	var attempt_count: int = 0
 	while int(game.run["raid"]) < 3 and game.run["phase"] != "defeat" and attempt_count < POLICY_ATTEMPT_BOUND and int(row["ended_turns"]) < POLICY_TURN_BOUND:
 		check(game.run["phase"] == "prep", "First-act attempt begins in normal preparation")
@@ -104,7 +104,13 @@ func _simulate_policy(seed_value: int, route: String, captain_first: bool = fals
 			for body in game.run["rewards"]:
 				row["meals"].append({"raid": raid_number, "body": body["id"], "actual_pool": body["abilities"].duplicate(), "recipient": body.get("recipient", ""), "taken": body.get("taken", ""), "weight": Data.INHERITANCE_WEIGHTS.get(Data.ABILITIES.get(body.get("taken", ""), {}).get("rarity", ""), 0), "skipped": body.get("skipped", false)})
 			check(game.finish_feeding(), "First-act feeding completes through normal recovery and raid advancement")
+			var offered: Array = game.trait_choices()
+			var owned_before: Array = game.run.get("traits", []).duplicate()
 			choose_campaign_trait(game, ["war_drums", "spiteful_shields", "venom_nest", "pack_instinct"])
+			if not offered.is_empty():
+				var selected: Array = game.run.get("traits", []).filter(func(id): return not owned_before.has(id))
+				check(selected.size() == 1 and offered.has(selected[0]), "First-act reward policy selects only an actually offered trait")
+				row["trait_rewards"].append({"raid": raid_number, "offered": offered, "chosen": selected[0] if not selected.is_empty() else ""})
 		else:
 			check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "First-act full wipe immediately destroys the dungeon without recovery, rewards or retries")
 			row["defeats"] += 1

@@ -6,6 +6,7 @@ const Data = preload("res://scripts/game_data.gd")
 const CombatChecks = preload("res://tests/ui_combat_checks.gd")
 const FeedingChecks = preload("res://tests/feeding_ui_checks.gd")
 const TurnChecks = preload("res://tests/turn_ui_checks.gd")
+const OfferChecks = preload("res://tests/trait_offer_ui_checks.gd")
 const SIZES = [Vector2i(375, 667), Vector2i(390, 844), Vector2i(430, 932), Vector2i(844, 390), Vector2i(844, 320), Vector2i(756, 330), Vector2i(1280, 720), Vector2i(1920, 1080), Vector2i(1920, 900)]
 
 var ui
@@ -50,7 +51,7 @@ func _run() -> void:
 		print("MOBILE ISSUE: ", issue)
 	surface.free()
 	# AudioServer retires stopped music playback references on its next mix callback.
-	await create_timer(0.15).timeout
+	await create_timer(0.4).timeout
 	quit(0 if issues.is_empty() else 1)
 
 func check(condition: bool, message: String) -> void:
@@ -464,7 +465,56 @@ func exercise_native_touch() -> void:
 	await settle()
 	await native_warning_and_defeat(Vector2i(375, 667))
 	await native_warning_and_defeat(Vector2i(844, 320))
+	await native_trait_offers(Vector2i(375, 667))
+	await native_trait_offers(Vector2i(390, 844))
+	await native_trait_offers(Vector2i(844, 320))
 	ui.free()
+
+func native_trait_offers(pixels: Vector2i) -> void:
+	current_size = pixels
+	root.size = pixels
+	var seed_value: int = OfferChecks.seed_for(["pack_instinct", "venom_nest"])
+	check(seed_value != 0, "Native trait touch uses a deterministic seed with two real offers")
+	if seed_value == 0: return
+	for index in range(2):
+		game.new_run(seed_value)
+		game.start_raid()
+		for enemy in game.battle.enemies: enemy["hp"] = 0
+		game.end_turn()
+		for body in range(game.run["rewards"].size()): game.skip_body(body)
+		check(game.finish_feeding(), "Native fixture earns its first pair through normal victory and feeding completion")
+		ui.menu = "game"
+		ui.card_index = -1
+		ui.refresh()
+		await settle()
+		var offered: Array = game.trait_choices()
+		check(offered.size() == 2 and offered == game.run.get("first_trait_offer", []), "Native first trait screen shows the saved two-option pair")
+		if offered.size() != 2: return
+		var rng_before: int = game.rng.state
+		var health_before: Array = game.run["monsters"].map(func(actor): return actor["hp"])
+		# Exercise the actual Save & title and Continue touch path, not just reload.
+		await tap_native(find_button(ui, "Save & title"))
+		check(ui.menu == "title", "Native touch saves the pending offers and opens the title")
+		await tap_native(find_button(ui, "Continue"))
+		check(ui.menu == "game" and game.run["phase"] == "trait" and game.trait_choices() == offered and game.rng.state == rng_before, "Actual touch Continue retains the pending pair without a combat-RNG reroll")
+		var intro = TurnChecks.named(ui, "TraitOfferSummary")
+		check(intro is Label and intro.text.contains("two offers") and intro.text.contains("Continue keeps"), "Native phone choice explains its saved offers after Continue")
+		var chosen: String = offered[index]
+		var action = TurnChecks.named(ui, "TraitSelect_" + chosen)
+		check(action is Button and not action.disabled, "Both actually offered traits have usable native touch actions")
+		if action == null: return
+		await ensure_reachable(action, "Saved trait offer")
+		inspect_controls(ui, "native_saved_trait_offers")
+		var destination: String = "res://tests/artifacts/mobile/%dx%d/native_saved_trait_%s.png" % [pixels.x, pixels.y, chosen]
+		DirAccess.make_dir_recursive_absolute(destination.get_base_dir())
+		var picture = root.get_texture().get_image()
+		check(picture.get_size() == pixels and picture.save_png(destination) == OK, "Native saved-offer capture uses the exact phone viewport")
+		captured += 1
+		await tap_native(action)
+		check(game.run["phase"] == "result" and game.run["traits"] == [chosen] and game.run["first_trait_offer"] == offered, "Real touch selects each saved offer once and retains its history")
+		check(game.rng.state == rng_before and game.run["monsters"].map(func(actor): return actor["hp"]) == health_before, "Real trait touch cannot reroll combat or reapply recovery")
+		var milestone = TurnChecks.named(ui, "TraitMilestone")
+		check(milestone is Label and milestone.text.contains("second dungeon trait"), "After either real choice, next-reward copy still points to the F champion's second trait")
 
 func native_warning_and_defeat(pixels: Vector2i) -> void:
 	current_size = pixels

@@ -9,6 +9,9 @@ func choose_trait(t) -> void:
 	t.check(game.run["phase"] == "trait" and game.run["raid"] == 1, "First feeding completion opens its earned trait milestone after recovery")
 	if game.run["phase"] != "trait": return
 	var choices: Array = game.trait_choices()
+	t.check(choices.size() == 2 and choices[0] != choices[1] and choices == game.run.get("first_trait_offer", []), "First mobile reward uses its exact two distinct saved offers")
+	var offer_copy = ui.find_child("TraitOfferSummary", true, false)
+	t.check(offer_copy is Label and offer_copy.text.contains("two offers") and offer_copy.text.contains("Continue keeps"), "Mobile first reward explains the two saved offers and Continue behavior")
 	var hp_before: Array = game.run["monsters"].map(func(m): return m["hp"])
 	var random_before: int = game.rng.state
 	await t.capture("10a_trait_choice")
@@ -16,6 +19,8 @@ func choose_trait(t) -> void:
 		var select = ui.find_child("TraitSelect_" + id, true, false)
 		var advice = ui.find_child("TraitCompatibility_" + id, true, false)
 		t.check(select is Button and advice is Label and advice.text != "", "Every offered trait has a real action and readable deck-compatibility advice")
+	for id in Traits.DEFINITIONS:
+		t.check((ui.find_child("TraitSelect_" + id, true, false) != null) == choices.has(id), "Mobile first reward renders no unoffered trait choice")
 	var chosen: String = choices[0]
 	var button = ui.find_child("TraitSelect_" + chosen, true, false)
 	if button != null:

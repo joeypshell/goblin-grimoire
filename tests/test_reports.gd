@@ -28,7 +28,7 @@ func test_actions(t) -> void:
 	game.new_run(9223372036854775806)
 	reference.new_run(9223372036854775806)
 	var report: Dictionary = game.current_report()
-	t.check(report["schema"] == 1 and report["build"] == "0.13.0" and report["coverage"] == "full", "New run receives a full versioned report")
+	t.check(report["schema"] == 1 and report["build"] == "0.14.0" and report["coverage"] == "full", "New run receives a full versioned report")
 	t.check(not game.run.has("core") and not report["summary"]["current"].has("core"), "New game and report views have no obsolete separate dungeon HP")
 	t.check(report["summary"]["current"].get("loss_rule", "") == "party_wipe_ends_run", "Current report explicitly records the new immediate full-wipe loss rule")
 	t.check(report["seed"] == "9223372036854775806" and report["seed"] is String, "Report seed preserves all 64 bits as decimal text")
@@ -110,8 +110,12 @@ func test_rewards(t) -> void:
 	game.finish_feeding()
 	t.check(game.current_report()["summary"]["bodies_claimed"] == 1 and game.current_report()["summary"]["bodies_skipped"] == 2, "Feeding summary distinguishes consumption from discarded bodies")
 	t.check(game.current_report()["summary"]["recoveries"] == 1 and kinds(game.current_report(), "recovered").size() == 1, "Feeding recovery records exactly once")
-	t.check(game.run["phase"] == "trait" and game.choose_trait("pack_instinct"), "Earned trait choice uses production reward state")
-	t.check(game.current_report()["summary"]["traits_chosen"] == 1 and kinds(game.current_report(), "trait_chosen").back()["data"]["trait"] == "pack_instinct", "Trait decision appears in cumulative and event data")
+	var offers: Array = game.trait_choices()
+	t.check(offers.size() == 2 and game.current_report()["summary"]["current"]["first_trait_offer"] == offers, "Pending first reward records its actual two offered traits")
+	var chosen: String = offers[0]
+	t.check(game.run["phase"] == "trait" and game.choose_trait(chosen), "Earned offered trait choice uses production reward state")
+	var decision: Dictionary = kinds(game.current_report(), "trait_chosen").back()["data"]
+	t.check(game.current_report()["summary"]["traits_chosen"] == 1 and decision["trait"] == chosen and decision["offered"] == offers, "Trait decision records actual offers alongside the chosen trait")
 
 func test_outcomes(t) -> void:
 	var defeat = t.state_at("reports_defeat")

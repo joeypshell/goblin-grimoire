@@ -12,6 +12,14 @@ Cards now have painterly goblin illustrations for attack, guard, and healing cat
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
+## v0.14 first reward offers
+
+After raid one, choose between **two randomly offered dungeon traits**. The offer is generated once and saved, so Continue keeps the same pair. Different runs can offer different pairs; the four existing traits keep their current effects. The F champion still offers every remaining unowned trait for your second choice.
+
+The reward screen explains the two offers and shows the next reward milestone. Local playtest reports retain both the offered pair and the chosen trait, so later review can distinguish an unavailable trait from one the player declined. Body inheritance remains a separate weighted random roll.
+
+This is a small replay experiment. Try a new run and see whether the first offered pair changes who you feed, which skills you equip, or how you approach the next party.
+
 ## v0.13 build feedback
 
 The combat banner counts down to Captain Torren's next **Banner Volley** on phones and desktop. When the Volley is announced, it explains the team threat and how to cancel or defend against it. A stunned captain shows a cancelled Volley; a defeated captain removes the warning.
@@ -40,7 +48,7 @@ Open **Sound settings** on the title or inside **Log & rules** to change music v
 
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
 
-After the first raid, choose a **dungeon trait** for the run: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, coordinate all three monsters with **Pack Instinct**, or protect a teammate for extra energy and a draw with **War Drums**. The F champion earns a second, different trait. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
+After the first raid, choose a **dungeon trait** from two saved random offers: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, coordinate all three monsters with **Pack Instinct**, or protect a teammate for extra energy and a draw with **War Drums**. The F champion earns a second, different trait from all remaining choices. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
 
 ## v0.10 first-act build experiment
 
@@ -96,7 +104,7 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 - An **Evolve** action appears only for transformations a monster has earned. You can accept it or return to it during preparation.
 - Finish feeding to recover 25% of each monster's maximum HP. Clear two raids and a champion at F, then E. Defeating the E champion wins and records promotion to D.
 - A knockout removes that monster's owned cards for the rest of the fight. A surviving victory brings teammates back through normal recovery. Losing all three monsters ends the run immediately; there are no raid retries.
-- After raid one and the F champion, choose a run-wide trait before continuing. Traits have no duplicates and combine for the remaining raids. Continue preserves a pending choice. Older runs receive any missed trait choices at the next safe preparation or recovery boundary.
+- After raid one, choose a run-wide trait from two saved random offers. The F champion offers all remaining traits for a second choice. Traits have no duplicates and combine for the remaining raids. Continue preserves a pending offer. Older runs receive any missed trait choices at the next safe preparation or recovery boundary.
 - **Save & title** and **Continue** preserve the current battle or reward phase. **New Run** preserves permanent discoveries.
 - **Log & rules** shows the combat record and a saved **Reduce motion** preference. The browser's motion preference supplies the initial setting when no choice has been saved.
 

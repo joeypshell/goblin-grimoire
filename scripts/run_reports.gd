@@ -6,7 +6,7 @@ const MAX_EVENTS = 2000
 const MAX_REPORTS = 10
 const MAX_BYTES = 384 * 1024
 const MAX_ATTEMPTS = 100
-const BUILD = "0.13.0"
+const BUILD = "0.14.0"
 var reports: Array = []
 
 static func utc_now() -> String:
@@ -79,6 +79,7 @@ static func view(run: Dictionary) -> Dictionary:
 	# Historical fixtures and reports can retain the old metric; new runs omit it.
 	if run.has("core"): result["core"] = run["core"]
 	if run.has("loss_rule"): result["loss_rule"] = run["loss_rule"]
+	if run.get("first_trait_offer") is Array: result["first_trait_offer"] = run["first_trait_offer"].duplicate()
 	return result
 
 static func deck_entry(ability: String, owner: String) -> Dictionary:
