@@ -28,7 +28,7 @@ func test_actions(t) -> void:
 	game.new_run(9223372036854775806)
 	reference.new_run(9223372036854775806)
 	var report: Dictionary = game.current_report()
-	t.check(report["schema"] == 1 and report["build"] == "0.14.0" and report["coverage"] == "full", "New run receives a full versioned report")
+	t.check(report["schema"] == 1 and report["build"] == "0.15.0" and report["coverage"] == "full", "New run receives a full versioned report")
 	t.check(not game.run.has("core") and not report["summary"]["current"].has("core"), "New game and report views have no obsolete separate dungeon HP")
 	t.check(report["summary"]["current"].get("loss_rule", "") == "party_wipe_ends_run", "Current report explicitly records the new immediate full-wipe loss rule")
 	t.check(report["seed"] == "9223372036854775806" and report["seed"] is String, "Report seed preserves all 64 bits as decimal text")
@@ -83,6 +83,7 @@ func win_fixture(game) -> void:
 	game.end_turn()
 
 func finish_rewards(game) -> void:
+	while game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": game.choose_trait(game.trait_choices()[0])
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
 	game.finish_feeding()
 	while game.run["phase"] == "trait": game.choose_trait(game.trait_choices()[0])
@@ -91,6 +92,15 @@ func test_rewards(t) -> void:
 	var game = t.state_at("reports_rewards")
 	game.new_run(730204)
 	win_fixture(game)
+	var offers: Array = game.trait_choices()
+	t.check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and offers.size() == 2, "First victory opens the actual saved first trait before feeding")
+	t.check(game.current_report()["summary"]["current"]["first_trait_offer"] == offers and game.current_report()["summary"]["recoveries"] == 0 and game.run["rewards"].all(func(item): return not item["claimed"]), "Pending early offer is recorded with untouched corpses and no recovery")
+	var choice_rng: int = game.rng.state
+	var choice_hp: Array = game.run["monsters"].map(func(actor): return actor["hp"])
+	var chosen: String = offers[0]
+	t.check(game.choose_trait(chosen) and game.run["phase"] == "feeding" and game.rng.state == choice_rng and game.run["monsters"].map(func(actor): return actor["hp"]) == choice_hp, "Choosing an offered build returns to feeding without recovery or inheritance RNG")
+	var decision: Dictionary = kinds(game.current_report(), "trait_chosen").back()["data"]
+	t.check(game.current_report()["summary"]["traits_chosen"] == 1 and decision["trait"] == chosen and decision["offered"] == offers, "Trait decision records actual offers before any body decision")
 	var body: Dictionary = game.run["rewards"][0].duplicate(true)
 	var outcomes: Array = game.inheritance_outcomes(0, "m1").duplicate(true)
 	var rng_before: int = game.rng.state
@@ -110,12 +120,12 @@ func test_rewards(t) -> void:
 	game.finish_feeding()
 	t.check(game.current_report()["summary"]["bodies_claimed"] == 1 and game.current_report()["summary"]["bodies_skipped"] == 2, "Feeding summary distinguishes consumption from discarded bodies")
 	t.check(game.current_report()["summary"]["recoveries"] == 1 and kinds(game.current_report(), "recovered").size() == 1, "Feeding recovery records exactly once")
-	var offers: Array = game.trait_choices()
-	t.check(offers.size() == 2 and game.current_report()["summary"]["current"]["first_trait_offer"] == offers, "Pending first reward records its actual two offered traits")
-	var chosen: String = offers[0]
-	t.check(game.run["phase"] == "trait" and game.choose_trait(chosen), "Earned offered trait choice uses production reward state")
-	var decision: Dictionary = kinds(game.current_report(), "trait_chosen").back()["data"]
-	t.check(game.current_report()["summary"]["traits_chosen"] == 1 and decision["trait"] == chosen and decision["offered"] == offers, "Trait decision records actual offers alongside the chosen trait")
+	t.check(game.run["phase"] == "result" and game.trait_choices().is_empty() and game.current_report()["summary"]["traits_chosen"] == 1, "First feeding completion reaches the result without reopening the chosen trait")
+	var ordered: Array = game.current_report()["events"]
+	var trait_event: Dictionary = kinds(game.current_report(), "trait_chosen")[0]
+	var body_event: Dictionary = kinds(game.current_report(), "body_claimed")[0]
+	var recovery_event: Dictionary = kinds(game.current_report(), "recovered")[0]
+	t.check(int(trait_event["seq"]) < int(body_event["seq"]) and int(body_event["seq"]) < int(recovery_event["seq"]) and ordered.back()["kind"] == "feeding_finished", "Report timeline preserves the actual first trait, body and recovery order")
 
 func test_outcomes(t) -> void:
 	var defeat = t.state_at("reports_defeat")

@@ -141,10 +141,11 @@ func win_prepared(t, game) -> Dictionary:
 	state_play(t, game, "guard", "m2")
 	state_play(t, game, "rally", "m1", "")
 	state_play(t, game, "ember_burst", game.battle.enemies[0]["id"])
-	t.check(game.run["phase"] == "feeding" and game.run.has("raid_recap"), "Winning card commits its actual recap before entering feeding")
+	t.check(game.run["phase"] in ["trait", "feeding"] and game.run.has("raid_recap"), "Winning card commits its actual recap before early rewards or feeding")
 	return game.run["raid_recap"].duplicate(true)
 
 func resolve_feeding(t, game) -> void:
+	if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": t.choose_campaign_trait(game)
 	for index in range(game.run["rewards"].size()): t.check(game.skip_body(index), "Recap feeding fixture resolves every actual corpse through the normal skip API")
 	t.check(game.finish_feeding(), "Recap fixture finishes feeding and applies ordinary victory recovery")
 
@@ -161,13 +162,13 @@ func test_capture_and_persistence(t) -> void:
 		mutable["traits"][0]["count"] = 900
 		t.check(game.run["raid_recap"] == recap and game.battle.recap_state["bulwark"]["m1"]["bonus_total"] == 10 and game.rng.state == saved_rng, "Captured presentation data cannot mutate saved/live payoffs or gameplay RNG")
 		var feeding_loaded = t.state_at("recap_persistence_%d" % raid_index)
-		t.check(feeding_loaded.load_game() and feeding_loaded.run["raid_recap"] == recap and feeding_loaded.rng.state == saved_rng, "Reloading feeding preserves the exact victory recap and RNG")
+		t.check(feeding_loaded.load_game() and feeding_loaded.run["raid_recap"] == recap and feeding_loaded.rng.state == saved_rng, "Reloading pending first reward or feeding preserves the exact victory recap and RNG")
+		if raid_index == 0:
+			t.check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and game.run["raid_recap"] == recap, "Early first trait reward preserves its untouched pre-recovery victory recap")
 		resolve_feeding(t, game)
 		t.check(game.run["monsters"].map(func(monster): return monster["hp"]).reduce(func(total, value): return total + value, 0) == 36 and game.run["raid_recap"] == recap, "Recovery changes live HP while preserving the immutable pre-recovery receipt")
 		if raid_index == 0:
-			t.check(game.run["phase"] == "trait" and game.run["raid_recap"] == recap, "The earned trait milestone preserves its raid victory recap")
-			t.choose_campaign_trait(game)
-			t.check(game.run["phase"] == "result" and game.run["raid_recap"] == recap, "Choosing the trait preserves the recap through result")
+			t.check(game.run["phase"] == "result" and game.run["raid_recap"] == recap, "Choosing the early trait and completing feeding preserves the recap through result")
 			game.continue_after_result()
 			t.check(game.run["phase"] == "prep" and game.run["raid_recap"] == recap, "Preparing the next raid retains the previous recap until a valid start")
 			game.start_raid()

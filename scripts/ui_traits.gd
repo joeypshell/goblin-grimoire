@@ -20,6 +20,8 @@ func render() -> void:
 	var heading = ui.label("Dungeon trait reward", 25 if compact else 30, ui.EMBER, true)
 	heading.name = "TraitMilestone"
 	page.add_child(heading)
+	if ui.state.run.get("trait_return", "result") == "feeding":
+		ui.screens.raid_recap(page)
 	var offered: Array = ui.state.trait_choices()
 	var first: bool = ui.state._pending_trait_milestone() == int(Traits.MILESTONES[0])
 	var offer_copy: String = "Choose one of this run's two offers. Continue keeps these same offers. Your chosen trait lasts for this run."
@@ -30,6 +32,7 @@ func render() -> void:
 	page.add_child(offer_summary)
 	var recovery: String = "Recovery is already applied. Complete the earned trait choices, then view the raid result and prepare."
 	if ui.state.run.get("trait_return", "result") == "prep": recovery = "Complete the earned trait choices, then return to preparation."
+	elif ui.state.run.get("trait_return", "result") == "feeding": recovery = "Choose your trait, then feed the fallen and equip any new skills. Recovery follows the meal."
 	var return_guidance = ui.label(recovery, 13, ui.MUTED, true)
 	return_guidance.name = "TraitReturnGuidance"
 	page.add_child(return_guidance)
@@ -139,8 +142,8 @@ func compatibility(id: String) -> String:
 		for ability_id in known:
 			learned.append(Data.ABILITIES[ability_id]["name"] + " (" + ", ".join(known[ability_id]) + ")")
 		if not learned.is_empty():
-			return "CURRENT DECK: No poison equipped. Your team knows %s; equip %s during next preparation." % [", ".join(learned), "it" if learned.size() == 1 else "a poison skill"]
-		return "CURRENT DECK: No poison equipped yet. Look for Poisoned Blade in future meals."
+			return "CURRENT DECK: No poison equipped. Your team knows %s; equip %s after this choice." % [", ".join(learned), "it" if learned.size() == 1 else "a poison skill"]
+		return "CURRENT DECK: No poison equipped yet. Meals may grant Poisoned Blade; inheritance stays random."
 	return "CURRENT DECK: %d %s cards / %s." % [count, "poison" if id == "venom_nest" else "Block", ", ".join(names)]
 
 func champion_warning(party: Array, parent: Node) -> void:

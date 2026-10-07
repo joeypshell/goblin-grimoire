@@ -5,6 +5,7 @@ const State = preload("res://scripts/run_state.gd")
 const Combat = preload("res://scripts/battle.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Tactics = preload("res://scripts/invader_tactics.gd")
+const OfferChecks = preload("res://tests/trait_offer_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(375, 667), Vector2i(390, 844), Vector2i(844, 320)]
 
 var ui
@@ -69,7 +70,7 @@ func reset_feeding(tag: String) -> void:
 	# Earn the ordinary feeding transition; focused UI fixtures complement campaigns.
 	for enemy in game.battle.enemies: enemy["hp"] = 0
 	game.end_turn()
-	check(game.run["phase"] == "feeding", "Won battle opens real corpse rewards")
+	check(OfferChecks.enter_feeding(game), "Won battle explicitly accepts its real early trait before corpse reward tests")
 	ui.state = game
 	ui.menu = "game"
 	ui.feed_body = 0

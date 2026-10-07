@@ -93,13 +93,21 @@ func reachable(control: Control) -> void:
 		ancestor = ancestor.get_parent()
 	check(Rect2(Vector2.ZERO, Vector2(pixels)).grow(1).encloses(control.get_global_rect()), "Intended scrolling makes the action reachable inside the viewport")
 
-func resolve_victory() -> void:
+func resolve_victory(before_meal: bool = false) -> void:
 	# Phase fixtures complement the full campaigns played through real cards.
 	for enemy in game.battle.enemies: enemy["hp"] = 0
 	game.end_turn()
-	for index in range(game.run["rewards"].size()): game.skip_body(index)
-	check(game.finish_feeding(), "Fixture reaches an earned trait using normal feeding completion")
+	if before_meal:
+		check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and game.run["raid"] == 0, "First victory offers its trait before any feeding or raid advancement")
+	else:
+		check(OfferChecks.enter_feeding(game), "Focused victory explicitly accepts any actual early offer before feeding")
+		finish_meal()
 	ui.card_index = -1
+	ui.refresh()
+
+func finish_meal() -> void:
+	for index in range(game.run["rewards"].size()): game.skip_body(index)
+	check(game.finish_feeding(), "Resolved meal applies normal recovery and raid advancement")
 	ui.refresh()
 
 func select_trait(id: String) -> void:
@@ -135,7 +143,7 @@ func exercise_size() -> void:
 	if seed_value == 0: return
 	reset_game("progression", seed_value)
 	game.start_raid()
-	resolve_victory()
+	resolve_victory(true)
 	var goblin: Dictionary = game.run["monsters"][0]
 	# Explicit known-but-unequipped skill fixture for compatibility advice.
 	goblin["learned"].append("poisoned_blade")
@@ -144,11 +152,15 @@ func exercise_size() -> void:
 	ui.refresh()
 	await capture("01_first_trait_known_poison")
 	var advice = named(ui, "TraitCompatibility_venom_nest")
-	check(advice is Label and advice.text.contains("Poisoned Blade") and advice.text.contains(goblin["name"]) and advice.text.to_lower().contains("preparation") and not advice.text.to_lower().contains("future meals"), "Known unequipped poison recommends equipping the existing owner's skill next preparation")
+	check(advice is Label and advice.text.contains("Poisoned Blade") and advice.text.contains(goblin["name"]) and advice.text.contains("after this choice") and not advice.text.to_lower().contains("future meals"), "Known unequipped poison recommends using the existing owner's skill after this choice")
+	check(named(ui, "RaidRecap") != null and named(ui, "TraitReturnGuidance").text.contains("Recovery follows the meal"), "First choice shows its earned victory recap and truthful pre-recovery guidance")
 	await select_trait("pack_instinct")
-	await capture("02_first_trait_result")
-	check(named(ui, "TraitSummary").text.contains("Pack Instinct"), "Result identifies the actual selected lasting build")
-	check(named(ui, "TraitMilestone").text.contains("One raid until the F champion"), "After choosing the first trait, the visible next reward remains the second-trait champion milestone")
+	await capture("02_first_trait_feeding")
+	check(game.run["phase"] == "feeding" and named(ui, "TraitSummary").text.contains("Pack Instinct"), "First choice reaches feeding and identifies the selected lasting build")
+	check(Traits.milestone(game.run).contains("FIRST TRAIT CHOSEN") and Traits.milestone(game.run).contains("second dungeon trait") and named(ui, "TraitMilestone") == null, "Chosen-first milestone mapping is accurate while feeding keeps only the current action prompt")
+	finish_meal()
+	check(game.run["phase"] == "result", "First recovery reaches the result without reopening its chosen trait")
+	await capture("02b_first_recovered_result")
 	game.continue_after_result()
 	check(game.set_selected(goblin["id"], 0, "poisoned_blade"), "Next preparation can equip the known compatibility recommendation")
 	ui.refresh()
@@ -239,13 +251,15 @@ func exercise_offered_pairs() -> void:
 		for index in range(2):
 			reset_game("offered_%d_%d" % [seed_value, index], seed_value)
 			game.start_raid()
-			resolve_victory()
+			resolve_victory(true)
 			await settle()
 			var offered: Array = game.trait_choices()
 			check(offered.size() == 2 and offered[0] != offered[1] and required.all(func(id): return offered.has(id)), "An earned first reward renders exactly its two distinct saved offers")
 			if offered.size() != 2: return
 			var before: Dictionary = game.run.duplicate(true)
 			var rng_before: int = game.rng.state
+			check(before["raid"] == 0 and before["recovered_id"] < before["resolved_id"] and before["rewards"].all(func(body): return not body["claimed"]), "Saved first pair is offered with untouched corpses and no recovery")
+			check(named(ui, "RaidRecap") != null and named(ui, "TraitReturnGuidance").text.contains("Recovery follows the meal"), "Every offered first trait has an earned recap and accurate next step")
 			for id in Traits.DEFINITIONS:
 				check((named(ui, "TraitSelect_" + id) != null) == offered.has(id), "The first reward exposes no action for an unoffered trait: " + id)
 			var intro = named(ui, "TraitOfferSummary")
@@ -269,12 +283,36 @@ func exercise_offered_pairs() -> void:
 			await capture("13_saved_pair_%d_choose_%s" % [seed_value, chosen])
 			action.pressed.emit()
 			await settle()
-			check(game.run["traits"] == [chosen] and game.run["phase"] == "result" and game.run["first_trait_offer"] == offered, "Selecting either offered trait commits its exact ID and retains the offer history")
+			check(game.run["traits"] == [chosen] and game.run["phase"] == "feeding" and game.run["first_trait_offer"] == offered, "Selecting either offered trait commits its exact ID and retains the offer history before feeding")
 			check(game.rng.state == rng_before and game.run["monsters"] == before["monsters"], "Neither offered choice consumes combat RNG or repeats healing")
-			check(named(ui, "TraitSummary").text.contains(Traits.DEFINITIONS[chosen]["name"]) and named(ui, "TraitMilestone").text.contains("second dungeon trait"), "Result identifies the actual chosen build and the next second-trait milestone")
-			await capture("14_offered_%s_result" % chosen)
+			check(game.run["rewards"] == before["rewards"] and game.run["raid"] == 0 and game.run["recovered_id"] == before["recovered_id"], "Choice changes neither corpse receipts, raid nor recovery identity")
+			check(named(ui, "TraitSummary").text.contains(Traits.DEFINITIONS[chosen]["name"]) and Traits.milestone(game.run).contains("second dungeon trait") and named(ui, "TraitMilestone") == null, "Feeding identifies the chosen build without duplicating its current next-action guidance")
+			await capture("14_offered_%s_feeding" % chosen)
+			finish_meal()
+			check(game.run["phase"] == "result" and not game.finish_feeding(), "Completing the first meal recovers exactly once and never reopens the chosen reward")
 	# Explicit legacy shape supported by the migration: three already-owned
 	# traits with an unpaid first milestone leave one valid offer, never two.
+	reset_game("legacy_existing_feeding")
+	game.start_raid()
+	for foe in game.battle.enemies: foe["hp"] = 0
+	game.end_turn()
+	# A v0.14 save already inside feeding must retain that old order on Continue.
+	game.run["phase"] = "feeding"
+	game.run.erase("trait_return")
+	game.save_game()
+	var legacy = State.new(game._prefix)
+	check(legacy.load_game() and legacy.run["phase"] == "feeding" and legacy.run["traits"].is_empty(), "Existing legacy feeding save is not interrupted by the new early-reward ordering")
+	game = legacy
+	ui.state = game
+	finish_meal()
+	await settle()
+	check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "result" and named(ui, "TraitReturnGuidance").text.contains("Recovery is already applied") and named(ui, "RaidRecap") == null, "Legacy meal still earns its first trait after recovery with truthful old-order guidance")
+	var legacy_hp: Array = game.run["monsters"].map(func(actor): return actor["hp"])
+	var legacy_choice: String = game.trait_choices()[0]
+	named(ui, "TraitSelect_" + legacy_choice).pressed.emit()
+	await settle()
+	check(game.run["phase"] == "result" and game.run["monsters"].map(func(actor): return actor["hp"]) == legacy_hp, "Legacy post-meal trait returns to result without repeating recovery")
+	await capture("17_legacy_postfeeding_result")
 	reset_game("legacy_one_remaining_offer")
 	game.run["raid"] = 1
 	game.run["traits"] = ["venom_nest", "spiteful_shields", "pack_instinct"]
@@ -330,6 +368,13 @@ func exercise_combo() -> void:
 
 func capture(tag: String) -> void:
 	await settle()
+	if game.run.get("phase", "") == "feeding" and game.run.has("raid_recap"):
+		var recap_box = named(ui, "RaidRecap")
+		for id in ["RaidRecapPace", "RaidRecapHealth"]:
+			var line = named(ui, id)
+			check(line is Label and line.size.y >= line.get_theme_font("font").get_height(line.get_theme_font_size("font_size")), "Feeding recap line retains a visible font-height allocation: " + id)
+			if line is Label and recap_box is Control:
+				check(recap_box.get_global_rect().grow(1).encloses(line.get_global_rect()) and line.modulate.a > 0.99 and line.self_modulate.a > 0.99, "Feeding recap contains its opaque text: " + id)
 	inspect(ui)
 	var path := "res://tests/artifacts/traits/%dx%d/" % [pixels.x, pixels.y]
 	DirAccess.make_dir_recursive_absolute(path)

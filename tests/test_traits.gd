@@ -8,8 +8,10 @@ func run(t) -> void:
 	t.group("earned trait choices, single recovery, saved milestones and legacy boundaries")
 	test_first_offer_pairs(t)
 	test_progression(t)
+	test_first_win_guard(t)
 	test_legacy(t)
 	test_legacy_first_offer(t)
+	test_legacy_feeding_order(t)
 	CombatTraits.new().run(t)
 
 func game_at(t, tag: String):
@@ -17,9 +19,16 @@ func game_at(t, tag: String):
 
 func fixture_victory(game) -> bool:
 	# Explicit phase fixture; the campaign test wins with production cards/HP.
+	fixture_win(game)
+	if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": game.choose_trait(game.trait_choices()[0])
+	return finish_fixture_meals(game)
+
+func fixture_win(game) -> void:
 	game.start_raid()
 	for enemy in game.battle.enemies: enemy["hp"] = 0
 	game.end_turn()
+
+func finish_fixture_meals(game) -> bool:
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
 	return game.finish_feeding()
 
@@ -37,11 +46,13 @@ func test_first_offer_pairs(t) -> void:
 	for pair in representatives:
 		var game = game_at(t, "trait_pair_" + str(representatives[pair]))
 		game.new_run(int(representatives[pair]))
-		# Earned-phase unit fixture. Progression below resolves real battle/feeding.
-		game.run["raid"] = 1
+		# Phase fixture uses real generated corpses; full campaigns play real cards.
+		game.start_raid()
+		for enemy in game.battle.enemies: enemy["hp"] = 0
 		var random_before: int = game.rng.state
 		var party: Array = game.run["party"].duplicate(true)
-		t.check(game._open_trait_reward("prep") and game.trait_choices() == DungeonTraits.first_offer(int(representatives[pair])), "Actual reward boundary creates the pair for " + str(pair))
+		game.end_turn()
+		t.check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and game.run["raid"] == 0 and game.trait_choices() == DungeonTraits.first_offer(int(representatives[pair])), "Actual first-win reward boundary creates the pair for " + str(pair))
 		t.check(game.rng.state == random_before and game.run["party"] == party, "Opening a two-trait offer preserves gameplay RNG and the existing encounter")
 		var first_offer: Array = game.trait_choices()
 		var returned: Array = game.trait_choices()
@@ -61,7 +72,7 @@ func test_first_offer_pairs(t) -> void:
 		var chosen: String = str(first_offer[0])
 		t.check(loaded.choose_trait(chosen) and loaded.run["first_trait_offer"] == first_offer and loaded.run["trait_milestones"] == [1], "Choosing one offered trait retains the original saved pair and marks its boundary")
 		var chosen_loaded = game_at(t, "trait_pair_" + str(representatives[pair]))
-		t.check(chosen_loaded.load_game() and chosen_loaded.run["phase"] == "prep" and chosen_loaded.run["traits"] == [chosen] and chosen_loaded.run["first_trait_offer"] == first_offer and chosen_loaded.trait_choices().is_empty(), "Continue after selection cannot reopen or regenerate the first reward")
+		t.check(chosen_loaded.load_game() and chosen_loaded.run["phase"] == "feeding" and chosen_loaded.run["traits"] == [chosen] and chosen_loaded.run["first_trait_offer"] == first_offer and chosen_loaded.trait_choices().is_empty() and chosen_loaded.run["recovered_id"] == 0, "Continue after early selection cannot reopen its reward or recover the pending meal")
 
 func test_progression(t) -> void:
 	var game = game_at(t, "trait_progression")
@@ -72,9 +83,12 @@ func test_progression(t) -> void:
 	var random_before: int = game.rng.state
 	t.check(not game.choose_trait("venom_nest") and game.run == before and game.rng.state == random_before and game.save_calls == 0, "Trait cannot be selected before an earned reward; rejection is mutation/RNG/save free")
 	game.run["monsters"][0]["hp"] = 5
-	t.check(fixture_victory(game) and game.run["raid"] == 1 and game.run["phase"] == "trait", "First resolved raid opens the first earned trait phase")
-	var recovered_hp: Array = game.run["monsters"].map(func(m): return m["hp"])
-	t.check(recovered_hp[0] == 10 and game.run["recovered_id"] == game.run["resolved_id"], "Recovery commits exactly once before the trait choice")
+	fixture_win(game)
+	t.check(game.run["raid"] == 0 and game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding", "First resolved raid opens its earned trait before the first meal, recovery or raid advancement")
+	var pending_hp: Array = game.run["monsters"].map(func(m): return m["hp"])
+	var pending_bodies: Array = game.run["rewards"].duplicate(true)
+	var pending_recap: Dictionary = game.run["raid_recap"].duplicate(true)
+	t.check(pending_hp[0] == 5 and game.run["recovered_id"] == 0 and game.run["resolved_id"] == 1 and pending_bodies.size() == 3 and pending_bodies.all(func(body): return not body["claimed"]), "Early reward retains the raw combat HP, actual untouched corpses and one unrecovered resolution")
 	var choices: Array = game.trait_choices()
 	before = game.run.duplicate(true)
 	random_before = game.rng.state
@@ -85,23 +99,35 @@ func test_progression(t) -> void:
 	t.check(choices.size() == 2 and choices == game.run["first_trait_offer"] and game.run == before and game.rng.state == random_before and game.save_calls == 0, "Queries and premature continuation cannot leave or reroll the two-option first reward")
 	t.check(game.current_report()["summary"]["current"]["first_trait_offer"] == choices, "Pending first offer is included as copied report view metadata")
 	t.check(not game.choose_trait("missing_trait") and game.run == before and game.rng.state == random_before and game.save_calls == 0, "Unknown trait choice changes no state, RNG or persistence")
+	t.check(not game.claim_body(0, "m1") and not game.skip_body(0) and not game.finish_feeding() and not game.set_selected("m1", 0, "guard") and not game.evolve("m1", "green_ogre") and game.inheritance_outcomes(0, "m1").is_empty(), "Meal, recovery and build actions stay blocked until the earned early trait is chosen")
+	t.check(game.run == before and game.rng.state == random_before and game.save_calls == 0, "Rejected early feeding/build requests cannot alter bodies, HP, offers, reports, RNG or persistence")
 	game.save_game()
 	var loaded = game_at(t, "trait_progression")
-	t.check(loaded.load_game() and loaded.run["phase"] == "trait" and loaded.trait_choices() == choices, "Continue restores the exact pending first trait choices")
+	t.check(loaded.load_game() and loaded.run["phase"] == "trait" and loaded.run.get("trait_return", "") == "feeding" and loaded.trait_choices() == choices and loaded.run["raid"] == 0, "Continue restores the exact early first offer and its feeding destination")
+	t.check(loaded.run["rewards"] == pending_bodies and loaded.run["raid_recap"] == pending_recap and loaded.run["monsters"].map(func(m): return m["hp"]) == pending_hp and loaded.run["recovered_id"] == 0 and loaded.rng.state == random_before, "Early Continue preserves actual corpses, recap, raw HP, deferred recovery and gameplay RNG")
+	t.check(loaded.current_report()["summary"]["recoveries"] == 0 and loaded.current_report()["summary"]["traits_chosen"] == 0, "Continue cannot fabricate early recovery or a trait selection")
 	loaded.save_calls = 0
 	var chosen: String = str(choices[0])
-	t.check(loaded.choose_trait(chosen) and loaded.run["traits"] == [chosen] and loaded.run["trait_milestones"] == [1] and loaded.run["phase"] == "result", "One actually offered choice records its milestone and reaches the intended result phase")
+	t.check(loaded.choose_trait(chosen) and loaded.run["traits"] == [chosen] and loaded.run["trait_milestones"] == [1] and loaded.run["phase"] == "feeding" and loaded.run["raid"] == 0, "One offered early choice records its milestone and returns to the first bodies without advancing the raid")
 	var choice_events: Array = loaded.current_report()["events"].filter(func(event): return event["kind"] == "trait_chosen")
 	t.check(choice_events.size() == 1 and choice_events[0]["data"]["offered"] == choices and choice_events[0]["data"]["trait"] == chosen, "Trait report event records the actual offer separately from the selected trait")
-	t.check(loaded.rng.state == random_before and loaded.save_calls == 1 and loaded.run["monsters"].map(func(m): return m["hp"]) == recovered_hp, "Valid trait selection saves once without consuming RNG or repeating recovery")
+	t.check(loaded.rng.state == random_before and loaded.save_calls == 1 and loaded.run["monsters"].map(func(m): return m["hp"]) == pending_hp and loaded.run["rewards"] == pending_bodies and loaded.run["raid_recap"] == pending_recap and loaded.run["recovered_id"] == 0, "Valid early trait selection saves once without changing RNG, bodies, recap or raw HP")
+	t.check(loaded.current_report()["summary"]["traits_chosen"] == 1 and loaded.current_report()["summary"]["recoveries"] == 0, "Early choice reports once while recovery remains unapplied")
 	before = loaded.run.duplicate(true)
 	t.check(not loaded.choose_trait("pack_instinct") and loaded.run == before, "Double selection cannot award a second trait from one milestone")
 	var continued = game_at(t, "trait_progression")
-	t.check(continued.load_game() and continued.run["traits"] == [chosen] and continued.run["phase"] == "result", "Selected trait and milestone persist without reopening their reward")
+	t.check(continued.load_game() and continued.run["traits"] == [chosen] and continued.run["phase"] == "feeding" and continued.run["rewards"] == pending_bodies and continued.rng.state == random_before, "Selected early trait and unresolved bodies persist without reopening their reward")
+	t.check(finish_fixture_meals(continued) and continued.run["raid"] == 1 and continued.run["phase"] == "result" and continued.run["monsters"][0]["hp"] == 10 and continued.run["resolved_id"] == continued.run["recovered_id"], "Only completed feeding applies recovery once and advances to the first result")
+	t.check(continued.current_report()["summary"]["recoveries"] == 1 and continued.current_report()["summary"]["traits_chosen"] == 1, "Finishing the first meal records one recovery without repeating the early choice")
+	var recovered: Dictionary = continued.run.duplicate(true)
+	continued.save_calls = 0
+	t.check(not continued.finish_feeding() and continued.run == recovered and continued.save_calls == 0, "A repeated completion cannot recover or advance a second time")
 	continued.continue_after_result()
 	t.check(fixture_victory(continued) and continued.run["raid"] == 2 and continued.run["phase"] == "result", "The middle F raid does not award an extra trait")
 	continued.continue_after_result()
-	t.check(fixture_victory(continued) and continued.run["raid"] == 3 and continued.run["phase"] == "trait" and continued.run["promotion"] == "E", "F champion milestone opens the second trait alongside promotion to E")
+	fixture_win(continued)
+	t.check(continued.run["raid"] == 2 and continued.run["phase"] == "feeding" and not continued.run.has("trait_return") and continued.run["trait_milestones"] == [1], "The champion still opens feeding before its second trait reward")
+	t.check(finish_fixture_meals(continued) and continued.run["raid"] == 3 and continued.run["phase"] == "trait" and continued.run["promotion"] == "E", "Champion feeding and recovery still precede the second trait and promotion")
 	t.check(not continued.trait_choices().has(chosen) and continued.trait_choices() == DungeonTraits.choices([chosen]) and continued.trait_choices().size() == 3, "The second reward retains all three remaining traits rather than another random pair")
 	before = continued.run.duplicate(true)
 	random_before = continued.rng.state
@@ -117,6 +143,24 @@ func test_progression(t) -> void:
 	t.check(continued.battle.traits == continued.run["traits"] and continued.battle.trait_state["owners"].is_empty(), "Next real raid receives selected traits with fresh per-battle progress")
 	continued.new_run(1772)
 	t.check(continued.run["traits"].is_empty() and continued.run["trait_milestones"].is_empty() and not continued.run.has("first_trait_offer"), "New Run clears chosen traits, milestone progress and the previous offer")
+
+func test_first_win_guard(t) -> void:
+	var game = game_at(t, "trait_first_win_guard")
+	game.new_run(96107)
+	var original: Dictionary = game.run.duplicate(true)
+	for invalid in [
+		{"phase": "feeding", "raid": 0, "last_result": "breach", "resolved_id": 1, "recovered_id": 0},
+		{"phase": "feeding", "raid": 0, "last_result": "won", "resolved_id": 1, "recovered_id": 1},
+		{"phase": "combat", "raid": 0, "last_result": "won", "resolved_id": 1, "recovered_id": 0},
+		{"phase": "prep", "raid": 0, "last_result": "won", "resolved_id": 1, "recovered_id": 0},
+		{"phase": "trait", "trait_return": "result", "raid": 0, "last_result": "won", "resolved_id": 1, "recovered_id": 0},
+		{"phase": "feeding", "raid": 2, "last_result": "won", "resolved_id": 3, "recovered_id": 2, "trait_milestones": [1]}
+	]:
+		game.run = original.duplicate(true)
+		game.run.merge(invalid, true)
+		var before: Dictionary = game.run.duplicate(true)
+		var random_before: int = game.rng.state
+		t.check(game._pending_trait_milestone() == -1 and game.trait_choices().is_empty() and game.run == before and game.rng.state == random_before, "Only an actual unrecovered first win at its feeding destination counts early: " + str(invalid))
 
 func test_legacy(t) -> void:
 	var old = game_at(t, "trait_legacy_prep")
@@ -190,3 +234,43 @@ func test_legacy_first_offer(t) -> void:
 		var terminal_rng: int = terminal.rng.state
 		var terminal_loaded = game_at(t, "trait_legacy_terminal_" + phase)
 		t.check(terminal_loaded.load_game() and terminal_loaded.run["phase"] == phase and not terminal_loaded.run.has("first_trait_offer") and terminal_loaded.trait_choices().is_empty() and terminal_loaded.rng.state == terminal_rng, "Terminal legacy saves generate no first reward or RNG changes: " + phase)
+
+func test_legacy_feeding_order(t) -> void:
+	var old = game_at(t, "trait_old_partial_first_meal")
+	old.new_run(83715)
+	old.run["monsters"][0]["hp"] = 5
+	old.run["monsters"][1]["hp"] = 0
+	fixture_win(old)
+	# Explicit v0.14 snapshot: the first meal was already underway, with its
+	# trait still owed only after recovery. Preserve that in-progress destination.
+	old.run["phase"] = "feeding"
+	old.run.erase("trait_return")
+	old.run.erase("first_trait_offer")
+	t.check(old.claim_body(0, "m1"), "Legacy partial meal fixture resolves one real weighted corpse through the production API")
+	old.save_game()
+	var bodies: Array = old.run["rewards"].duplicate(true)
+	var monsters: Array = old.run["monsters"].duplicate(true)
+	var recap: Dictionary = old.run["raid_recap"].duplicate(true)
+	var random_before: int = old.rng.state
+	var loaded = game_at(t, "trait_old_partial_first_meal")
+	t.check(loaded.load_game() and loaded.run["phase"] == "feeding" and loaded.run["raid"] == 0 and not loaded.run.has("trait_return") and not loaded.run.has("first_trait_offer") and loaded.trait_choices().is_empty(), "An old already-feeding first raid continues its meal without inserting an early trait screen")
+	t.check(loaded.run["rewards"] == bodies and loaded.run["monsters"] == monsters and loaded.run["raid_recap"] == recap and loaded.rng.state == random_before and loaded.run["recovered_id"] == 0, "Old partial meals preserve exact roll/recipient, raw HP, corpse claims, recap and unrecovered RNG boundary")
+	var before: Dictionary = loaded.run.duplicate(true)
+	loaded.save_calls = 0
+	t.check(not loaded.claim_body(0, "m1") and loaded.run == before and loaded.save_calls == 0 and loaded.rng.state == random_before, "The old resolved body cannot be rerolled while finishing its existing meal")
+	t.check(finish_fixture_meals(loaded) and loaded.run["phase"] == "trait" and loaded.run.get("trait_return", "") == "result" and loaded.run["raid"] == 1 and loaded.run["recovered_id"] == loaded.run["resolved_id"], "Finishing an old first meal retains its post-recovery trait destination")
+	t.check(loaded.run["monsters"][0]["hp"] == 10 and loaded.run["monsters"][1]["hp"] == 5 and loaded.rng.state == random_before and loaded.trait_choices() == DungeonTraits.first_offer(83715), "Legacy postmeal reward applies recovery once and uses the same deterministic offer without another corpse roll")
+	var postmeal = game_at(t, "trait_old_partial_first_meal")
+	t.check(postmeal.load_game() and postmeal.run["phase"] == "trait" and postmeal.run.get("trait_return", "") == "result" and postmeal.rng.state == random_before, "An old pending postmeal first choice remains postmeal after Continue")
+	var recovered_hp: Array = postmeal.run["monsters"].map(func(monster): return monster["hp"])
+	t.check(postmeal.choose_trait(str(postmeal.trait_choices()[0])) and postmeal.run["phase"] == "result" and postmeal.run["monsters"].map(func(monster): return monster["hp"]) == recovered_hp and postmeal.current_report()["summary"]["recoveries"] == 1 and postmeal.current_report()["summary"]["bodies_claimed"] == 1, "Choosing a legacy postmeal trait cannot reopen feeding or duplicate recovery/inheritance reports")
+	var active = game_at(t, "trait_old_first_active")
+	active.new_run(56104)
+	active.start_raid()
+	var battle_before: Dictionary = active.battle.to_dict()
+	active.save_game()
+	var continued = game_at(t, "trait_old_first_active")
+	t.check(continued.load_game() and continued.run["phase"] == "combat" and not continued.run.has("first_trait_offer") and t.same_saved_value(continued.battle.to_dict(), battle_before), "An existing first-raid active save preserves combat, intents and RNG without granting an early reward mid-turn")
+	for enemy in continued.battle.enemies: enemy["hp"] = 0
+	continued.end_turn()
+	t.check(continued.run["phase"] == "trait" and continued.run.get("trait_return", "") == "feeding" and continued.run["raid"] == 0 and continued.run["recovered_id"] == 0 and continued.run["rewards"].all(func(body): return not body["claimed"]), "A continued active first raid adopts the early handoff only after its actual future win")

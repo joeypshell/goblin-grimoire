@@ -96,6 +96,10 @@ func _simulate_policy(seed_value: int, route: String, captain_first: bool = fals
 		row["card_plays"] += int(attempt["card_plays"])
 		attempt_count += 1
 		print("  seed %d %s%s raid %d: %d turns / %d plays; %s; forms %s; Drums %d, smash %d (%d across turns), ward %d, ritual %d announced / %d used / %d canceled" % [seed_value, route, " captain-first" if captain_first else "", raid_number, attempt["ended_turns"], attempt["card_plays"], game.run["phase"], str(attempt["forms"]), attempt["war_drums"], attempt["stored_smashes"], attempt["cross_turn_smashes"], attempt["captain_wards"], attempt["rituals_announced"], attempt["rituals_used"], attempt["rituals_canceled"]])
+		if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding":
+			check(raid_number == 1 and game.run["rewards"].all(func(body): return not body["claimed"]) and int(game.run["recovered_id"]) < int(game.run["resolved_id"]), "Only the first reward precedes untouched bodies and deferred recovery")
+			_choose_playtest_trait(game, row, raid_number)
+			check(game.run["phase"] == "feeding" and game.run["rewards"].all(func(body): return not body["claimed"]), "The chosen early build leads to actual corpse feeding without consuming a body")
 		if game.run["phase"] == "combat":
 			check(false, "First-act tactical attempt respects %d-turn bound (seed %d %s raid %d)" % [RAID_TURN_BOUND, seed_value, route, raid_number])
 			break
@@ -104,13 +108,7 @@ func _simulate_policy(seed_value: int, route: String, captain_first: bool = fals
 			for body in game.run["rewards"]:
 				row["meals"].append({"raid": raid_number, "body": body["id"], "actual_pool": body["abilities"].duplicate(), "recipient": body.get("recipient", ""), "taken": body.get("taken", ""), "weight": Data.INHERITANCE_WEIGHTS.get(Data.ABILITIES.get(body.get("taken", ""), {}).get("rarity", ""), 0), "skipped": body.get("skipped", false)})
 			check(game.finish_feeding(), "First-act feeding completes through normal recovery and raid advancement")
-			var offered: Array = game.trait_choices()
-			var owned_before: Array = game.run.get("traits", []).duplicate()
-			choose_campaign_trait(game, ["war_drums", "spiteful_shields", "venom_nest", "pack_instinct"])
-			if not offered.is_empty():
-				var selected: Array = game.run.get("traits", []).filter(func(id): return not owned_before.has(id))
-				check(selected.size() == 1 and offered.has(selected[0]), "First-act reward policy selects only an actually offered trait")
-				row["trait_rewards"].append({"raid": raid_number, "offered": offered, "chosen": selected[0] if not selected.is_empty() else ""})
+			_choose_playtest_trait(game, row, raid_number)
 		else:
 			check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "First-act full wipe immediately destroys the dungeon without recovery, rewards or retries")
 			row["defeats"] += 1
@@ -123,6 +121,19 @@ func _simulate_policy(seed_value: int, route: String, captain_first: bool = fals
 	if row["completed"]: completed_policies += 1
 	check(int(row["ended_turns"]) < POLICY_TURN_BOUND or row["completed"] or game.run["phase"] == "defeat", "First-act policy respects its total turn bound")
 	return row
+
+func _choose_playtest_trait(game, row: Dictionary, raid_number: int) -> void:
+	var offered: Array = game.trait_choices()
+	if offered.is_empty(): return
+	var before_feeding: bool = game.run.get("trait_return", "") == "feeding"
+	var owned_before: Array = game.run.get("traits", []).duplicate()
+	var hp_before: Array = game.run["monsters"].map(func(actor): return actor["hp"])
+	var random_before: int = game.rng.state
+	choose_campaign_trait(game, ["war_drums", "spiteful_shields", "venom_nest", "pack_instinct"])
+	var selected: Array = game.run.get("traits", []).filter(func(id): return not owned_before.has(id))
+	check(selected.size() == 1 and offered.has(selected[0]), "First-act reward policy selects only an actually offered trait")
+	check(game.rng.state == random_before and game.run["monsters"].map(func(actor): return actor["hp"]) == hp_before, "First-act trait selection neither rerolls corpse inheritance nor repeats recovery")
+	row["trait_rewards"].append({"raid": raid_number, "offered": offered, "chosen": selected[0] if not selected.is_empty() else "", "before_feeding": before_feeding})
 
 func _fight(game, captain_first: bool = false) -> Dictionary:
 	var stats: Dictionary = {"ended_turns": 0, "card_plays": 0, "bulwark_stores": 0, "stored_smashes": 0, "cross_turn_smashes": 0, "war_drums": 0, "captain_wards": 0, "rituals_announced": 0, "rituals_used": 0, "rituals_canceled": 0, "ritual_cancellation_reasons": [], "payoff_cards": []}

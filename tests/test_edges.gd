@@ -87,7 +87,9 @@ func test_knocked_out_feeding(t) -> void:
 	for actor in game.battle.enemies:
 		actor["hp"] = 0
 	game.end_turn()
-	t.check(game.run["phase"] == "feeding" and game.run["monsters"][0]["hp"] == 0 and game.run["monsters"][1]["hp"] == 6, "Victory defers recovery until its feeding phase finishes")
+	t.check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and game.run["monsters"][0]["hp"] == 0 and game.run["monsters"][1]["hp"] == 6, "First victory keeps knockout and live HP unchanged at the early trait boundary")
+	t.choose_campaign_trait(game)
+	t.check(game.run["phase"] == "feeding" and game.run["monsters"][0]["hp"] == 0 and game.run["monsters"][1]["hp"] == 6, "Early trait choice returns to feeding without applying deferred recovery")
 	var monster: Dictionary = game.run["monsters"][0]
 	t.check(game.claim_body(0, monster["id"]), "A knocked-out monster can consume a defeated body independent of killing blow")
 	t.check(game.claim_body(1, monster["id"]), "Knocked-out recipient can absorb another actual body")

@@ -326,6 +326,7 @@ func test_legacy_dungeon_destruction() -> void:
 				safe_game.start_raid()
 				for enemy in safe_game.battle.enemies: enemy["hp"] = 0
 				safe_game.end_turn()
+				choose_campaign_trait(safe_game)
 				for body_index in range(safe_game.run["rewards"].size()): safe_game.skip_body(body_index)
 				check(safe_game.finish_feeding(), "Legacy living-victory fixture advances through the actual feeding API")
 				choose_campaign_trait(safe_game)
@@ -335,6 +336,7 @@ func test_legacy_dungeon_destruction() -> void:
 			if safe_phase == "feeding":
 				for enemy in safe_game.battle.enemies: enemy["hp"] = 0
 				safe_game.end_turn()
+				choose_campaign_trait(safe_game)
 		var safe_snapshot: Dictionary = safe_game._read_json(safe_game._prefix + "run.json")
 		safe_snapshot.erase("loss_rule")
 		safe_snapshot["core"] = 75
@@ -438,9 +440,10 @@ func win_raid(game, bound: int = 180) -> bool:
 	print("  raid ", game.run["raid"], ": ", turns, " turns, ", played, " card plays; phase ", game.run["phase"], "; monsters ", game.run["monsters"].map(func(m): return str(m["hp"]) + "/" + str(m["max_hp"])))
 	if game.run["phase"] == "combat":
 		print("  combat diagnostic: ", JSON.stringify(game.battle.to_dict()))
-	return game.run["phase"] == "feeding"
+	return game.run["phase"] == "feeding" or (game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and game.battle.outcome == "won")
 
 func feed_campaign(game, test_partial: bool, spread: bool = false) -> bool:
+	if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": choose_campaign_trait(game)
 	var partial_done := false
 	for body_index in range(game.run["rewards"].size()):
 		var body: Dictionary = game.run["rewards"][body_index]

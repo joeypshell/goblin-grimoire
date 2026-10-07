@@ -47,6 +47,8 @@ static func milestone(run: Dictionary) -> String:
 	var raid := int(run.get("raid", 0))
 	if run.get("phase", "") == "trait":
 		return "REWARD READY: Choose a dungeon trait that lasts for this run."
+	if raid == 0 and run.get("trait_milestones", []).has(int(MILESTONES[0])):
+		return "FIRST TRAIT CHOSEN: Feed the fallen, then recover. F champion victory earns your second dungeon trait."
 	match raid:
 		0: return "NEXT REWARD: Win this raid to choose your first dungeon trait."
 		1: return "One raid until the F champion. Champion victory earns a second dungeon trait."

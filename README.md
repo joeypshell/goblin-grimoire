@@ -12,6 +12,14 @@ Cards now have painterly goblin illustrations for attack, guard, and healing cat
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
+## v0.15 choose a build before feeding
+
+Your first victory now opens the saved two-trait offer **before feeding any bodies**. Choose a direction, then decide who devours each body and which learned skills to equip. The feeding screen keeps your chosen trait visible. Inheritance still rolls one random unknown skill from the actual body.
+
+The first choice does not heal the team or advance the raid. Resolve the bodies, then recover once and view the result. The F champion's second trait still arrives after its meal and recovery. Continue preserves a pending early offer, the bodies and team HP; older saves already in feeding or awaiting a later reward keep their existing flow.
+
+This experiment tests whether knowing the first trait helps you form a plan before spending the bodies. Combat balance, the four trait effects and the twelve-card deck retain their existing rules.
+
 ## v0.14 first reward offers
 
 After raid one, choose between **two randomly offered dungeon traits**. The offer is generated once and saved, so Continue keeps the same pair. Different runs can offer different pairs; the four existing traits keep their current effects. The F champion still offers every remaining unowned trait for your second choice.
@@ -48,7 +56,7 @@ Open **Sound settings** on the title or inside **Log & rules** to change music v
 
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
 
-After the first raid, choose a **dungeon trait** from two saved random offers: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, coordinate all three monsters with **Pack Instinct**, or protect a teammate for extra energy and a draw with **War Drums**. The F champion earns a second, different trait from all remaining choices. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
+Immediately after the first victory, choose a **dungeon trait** from two saved random offers before feeding: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, coordinate all three monsters with **Pack Instinct**, or protect a teammate for extra energy and a draw with **War Drums**. The F champion earns a second, different trait from all remaining choices after feeding and recovery. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
 
 ## v0.10 first-act build experiment
 
@@ -100,11 +108,11 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 - On raids 2, 4 and 5, compare two incoming parties and choose who to lure. Your current selection is shown above preparation. Starting combat locks that party.
 - Click **Defend the dungeon**, then select a card and a highlighted legal target. Cards resolve immediately. Owned cards require a living owner.
 - Click **End your turn** (or press Space) to watch the announced invader actions resolve. You have three energy and draw five cards each turn. Friendly monsters only act through cards. Cards pause during the enemy sequence; **Skip animation** finishes its presentation.
-- After victory, choose a body and a recipient, then **Devour & inherit**. One of that adventurer's unknown abilities is rolled randomly, with common abilities more likely. Possible results and their chances are shown before devouring; the saved result appears afterward. You can skip a body. Learned abilities can be selected for the next raid.
+- After the first victory, choose a run-wide trait from two saved random offers, then feed the fallen. At other victories, feeding starts immediately. Choose a body and a recipient, then **Devour & inherit**. One of that adventurer's unknown abilities is rolled randomly, with common abilities more likely. Possible results and their chances are shown before devouring; the saved result appears afterward. You can skip a body. Learned abilities can be selected for the next raid.
 - An **Evolve** action appears only for transformations a monster has earned. You can accept it or return to it during preparation.
 - Finish feeding to recover 25% of each monster's maximum HP. Clear two raids and a champion at F, then E. Defeating the E champion wins and records promotion to D.
 - A knockout removes that monster's owned cards for the rest of the fight. A surviving victory brings teammates back through normal recovery. Losing all three monsters ends the run immediately; there are no raid retries.
-- After raid one, choose a run-wide trait from two saved random offers. The F champion offers all remaining traits for a second choice. Traits have no duplicates and combine for the remaining raids. Continue preserves a pending offer. Older runs receive any missed trait choices at the next safe preparation or recovery boundary.
+- The first trait guides feeding before the first recovery. After feeding the F champion's party, choose a second trait from all remaining options. Traits have no duplicates and combine for the remaining raids. Continue preserves a pending offer. Older runs receive any missed trait choices at the next safe preparation or recovery boundary.
 - **Save & title** and **Continue** preserve the current battle or reward phase. **New Run** preserves permanent discoveries.
 - **Log & rules** shows the combat record and a saved **Reduce motion** preference. The browser's motion preference supplies the initial setting when no choice has been saved.
 

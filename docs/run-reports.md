@@ -11,6 +11,11 @@ v0.14.0, the current run view retains its saved first trait offer, and each acce
 trait choice records the actual offered IDs alongside the selected ID. Older
 reports do not reconstruct offers that were never recorded.
 
+From v0.15.0, new first victories record trait selection before body decisions.
+Recovery is recorded only when feeding finishes; the first trait does not heal
+the roster. Pending older postmeal saves retain their original order. Ordered
+events distinguish these flows without rewriting historical reports.
+
 The dashboard can compare recorded card use, energy spent and voluntarily left
 at End Turn, breaches, builds, and ordered decisions. Combat snapshots show net
 changes: they do not establish exact aggregate damage, healing or overhealing

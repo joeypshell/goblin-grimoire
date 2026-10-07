@@ -15,6 +15,7 @@ func actual_feeding(t, tag: String):
 	game.start_raid()
 	for actor in game.battle.enemies: actor["hp"] = 0
 	game.end_turn()
+	t.choose_campaign_trait(game)
 	game.save_calls = 0
 	return game
 

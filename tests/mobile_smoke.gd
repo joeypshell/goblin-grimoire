@@ -126,7 +126,7 @@ func exercise_size(pixels: Vector2i) -> void:
 	await reachable_button("End turn", true)
 	await capture("06_after_card")
 	await test_warning_layout()
-	fixture_feeding()
+	await fixture_feeding()
 	var reveal_info: Dictionary = await FeedingChecks.new().exercise(self)
 	ui.rewards_screen.reveal(reveal_info)
 	await capture("08_reveal")
@@ -148,8 +148,7 @@ func exercise_size(pixels: Vector2i) -> void:
 	else:
 		game.finish_feeding()
 		ui.refresh()
-	await FeedingChecks.new().choose_trait(self)
-	check(game.run["phase"] == "result", "Reachable trait selection completes the first milestone and reaches result")
+	check(game.run["phase"] == "result" and game.run["traits"].size() == 1 and game.run["trait_milestones"] == [1], "First meal recovery reaches result without reopening the already selected trait")
 	await capture("10_result")
 	game.run["phase"] = "victory"
 	game.run["raid"] = 6
@@ -180,13 +179,13 @@ func exercise_size(pixels: Vector2i) -> void:
 	await capture("15_shared_rally_targets")
 
 func fixture_feeding() -> void:
-	# Rare-phase UI fixtures are separate from the mechanically played campaign test.
-	game.run["phase"] = "feeding"
-	game.run["rewards"] = []
-	for actor in game.battle.enemies:
-		game.run["rewards"].append({"id": actor["id"], "name": actor["name"], "class_name": actor["class_name"], "form": actor["form"], "abilities": actor["abilities"].duplicate(), "armor": Data.armor(actor), "claimed": false})
-	game.run["resolved_id"] = 1
+	# Resolve the real first-win boundary, then use the actual offered UI choice.
+	for actor in game.battle.enemies: actor["hp"] = 0
+	game.end_turn()
 	ui.card_index = -1
+	ui.refresh()
+	await settle()
+	await FeedingChecks.new().choose_trait(self)
 	ui.feed_body = 0
 	ui.feed_monster = game.run["monsters"][0]["id"]
 
@@ -479,10 +478,12 @@ func native_trait_offers(pixels: Vector2i) -> void:
 	for index in range(2):
 		game.new_run(seed_value)
 		game.start_raid()
+		game.battle.monsters[0]["hp"] = 9
+		game.battle.monsters[1]["hp"] = 4
+		game.battle.monsters[2]["hp"] = 0
 		for enemy in game.battle.enemies: enemy["hp"] = 0
 		game.end_turn()
-		for body in range(game.run["rewards"].size()): game.skip_body(body)
-		check(game.finish_feeding(), "Native fixture earns its first pair through normal victory and feeding completion")
+		check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and game.run["raid"] == 0, "Native first victory offers its pair before corpses or recovery")
 		ui.menu = "game"
 		ui.card_index = -1
 		ui.refresh()
@@ -492,13 +493,18 @@ func native_trait_offers(pixels: Vector2i) -> void:
 		if offered.size() != 2: return
 		var rng_before: int = game.rng.state
 		var health_before: Array = game.run["monsters"].map(func(actor): return actor["hp"])
+		var bodies_before: Array = game.run["rewards"].duplicate(true)
+		var recovery_before: int = game.run["recovered_id"]
+		check(health_before == [9, 4, 0] and recovery_before < game.run["resolved_id"] and bodies_before.all(func(body): return not body["claimed"]), "Native pending pair retains injured and knocked-out allies with unclaimed bodies")
 		# Exercise the actual Save & title and Continue touch path, not just reload.
 		await tap_native(find_button(ui, "Save & title"))
 		check(ui.menu == "title", "Native touch saves the pending offers and opens the title")
 		await tap_native(find_button(ui, "Continue"))
 		check(ui.menu == "game" and game.run["phase"] == "trait" and game.trait_choices() == offered and game.rng.state == rng_before, "Actual touch Continue retains the pending pair without a combat-RNG reroll")
+		check(game.run["rewards"] == bodies_before and game.run["monsters"].map(func(actor): return actor["hp"]) == health_before and game.run["recovered_id"] == recovery_before, "Touch Continue preserves raw HP, every corpse and deferred recovery")
 		var intro = TurnChecks.named(ui, "TraitOfferSummary")
 		check(intro is Label and intro.text.contains("two offers") and intro.text.contains("Continue keeps"), "Native phone choice explains its saved offers after Continue")
+		check(TurnChecks.named(ui, "RaidRecap") != null and TurnChecks.named(ui, "TraitReturnGuidance").text.contains("Recovery follows the meal"), "Native first choice shows victory payoff and accurately explains feeding before recovery")
 		var chosen: String = offered[index]
 		var action = TurnChecks.named(ui, "TraitSelect_" + chosen)
 		check(action is Button and not action.disabled, "Both actually offered traits have usable native touch actions")
@@ -511,10 +517,32 @@ func native_trait_offers(pixels: Vector2i) -> void:
 		check(picture.get_size() == pixels and picture.save_png(destination) == OK, "Native saved-offer capture uses the exact phone viewport")
 		captured += 1
 		await tap_native(action)
-		check(game.run["phase"] == "result" and game.run["traits"] == [chosen] and game.run["first_trait_offer"] == offered, "Real touch selects each saved offer once and retains its history")
+		check(game.run["phase"] == "feeding" and game.run["traits"] == [chosen] and game.run["first_trait_offer"] == offered, "Real touch selects each saved offer and reaches feeding with saved history")
 		check(game.rng.state == rng_before and game.run["monsters"].map(func(actor): return actor["hp"]) == health_before, "Real trait touch cannot reroll combat or reapply recovery")
+		check(game.run["rewards"] == bodies_before and game.run["raid"] == 0 and game.run["recovered_id"] == recovery_before, "Real trait touch leaves all corpses, raid and recovery untouched")
 		var milestone = TurnChecks.named(ui, "TraitMilestone")
-		check(milestone is Label and milestone.text.contains("second dungeon trait"), "After either real choice, next-reward copy still points to the F champion's second trait")
+		check(milestone == null and TurnChecks.named(ui, "TraitSummary").text.contains(chosen.replace("_", " ").capitalize()) and not TurnChecks.visible_text(ui).contains("choose your first dungeon trait"), "After either real choice, feeding shows the chosen trait without stale or duplicate reward prompts")
+		# Claim every actual body through its recipient and Devour controls. The
+		# inherited skill remains a real weighted roll; trait selection never picks it.
+		for body_index in range(game.run["rewards"].size()):
+			ui.feed_body = body_index
+			ui.refresh()
+			await settle()
+			var recipient_id: String = ""
+			for actor in game.run["monsters"]:
+				if not game.inheritance_outcomes(body_index, actor["id"]).is_empty():
+					recipient_id = actor["id"]
+					break
+			check(recipient_id != "", "Each native corpse has a real recipient with an unknown inheritable skill")
+			if recipient_id == "": return
+			await tap_native(TurnChecks.named(ui, "Recipient_" + recipient_id))
+			await tap_native(TurnChecks.named(ui, "DevourBody"))
+			check(game.run["rewards"][body_index]["claimed"] and game.run["rewards"][body_index].has("taken") and game.run["recovered_id"] == recovery_before, "Real touch devours its actual body without applying recovery")
+		check(game.run["monsters"].map(func(actor): return actor["hp"]) == health_before, "All native meals preserve raw HP until explicit recovery")
+		await tap_native(find_button(ui, "Recover"))
+		check(game.run["phase"] == "result" and game.run["raid"] == 1 and game.run["recovered_id"] == game.run["resolved_id"] and game.run["traits"] == [chosen], "Real touch recovery advances once and does not reopen the chosen first trait")
+		var recovered_hp: Array = game.run["monsters"].map(func(actor): return actor["hp"])
+		check(recovered_hp == [14, 9, 5] and not game.finish_feeding() and game.run["monsters"].map(func(actor): return actor["hp"]) == recovered_hp, "Native injured and KO allies receive exactly one normal twenty-five-percent recovery")
 
 func native_warning_and_defeat(pixels: Vector2i) -> void:
 	current_size = pixels

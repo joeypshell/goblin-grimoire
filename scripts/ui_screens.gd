@@ -56,8 +56,8 @@ func title_screen() -> void:
 	else: copy.add_child(spacer)
 	var how = ui.panel(copy)
 	how.add_child(ui.label("A raid in four steps", 19 if compact else 20, ui.EMBER, compact))
-	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: transfer one enemy ability.\n4   RECOVER: regain HP; earn milestone traits.", 14 if compact else 16, ui.PARCHMENT, true))
-	how.add_child(ui.label("End turn resolves the invaders. Healing cards can be played again. Lose all three monsters and the run ends.", 14, ui.MUTED, true))
+	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: inherit one random enemy ability.\n4   RECOVER: regain HP for the next raid.", 14 if compact else 16, ui.PARCHMENT, true))
+	how.add_child(ui.label("First trait before feeding; second after F champion recovery.\nInvaders act at turn end. Healing cards repeat. Lose all monsters: run ends.", 14, ui.MUTED, true))
 	how.add_child(ui.label("Anonymous gameplay reports upload automatically to help improve the game.", 13, ui.MUTED, true))
 	var reports = ui.button("Playtest reports", ui.report_ui.open, 0 if compact else 150)
 	reports.name = "OpenRunReports"
@@ -293,7 +293,8 @@ func _known_recipe(id: String) -> Dictionary:
 
 func raid_recap(parent: Node) -> void:
 	var run: Dictionary = ui.state.run
-	if run.get("phase", "") not in ["feeding", "result", "victory"]: return
+	var before_meal: bool = run.get("phase", "") == "trait" and run.get("trait_return", "") == "feeding"
+	if not before_meal and run.get("phase", "") not in ["feeding", "result", "victory"]: return
 	var recap: Dictionary = run.get("raid_recap", {})
 	if recap.is_empty(): return
 	var box = VBoxContainer.new()

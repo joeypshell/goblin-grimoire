@@ -27,6 +27,8 @@ func run(t) -> void:
 				var won: bool = t.win_raid(game, 120)
 				if won:
 					bodies += game.run["rewards"].size()
+					if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding":
+						t.choose_campaign_trait(game, ["pack_instinct", "venom_nest", "spiteful_shields"] if spread else ["venom_nest", "spiteful_shields", "pack_instinct"])
 					t.feed_campaign(game, false, spread)
 					t.check(game.finish_feeding(), "Additional campaign resolves real bodies and ordinary recovery")
 					t.choose_campaign_trait(game, ["pack_instinct", "venom_nest", "spiteful_shields"] if spread else ["venom_nest", "spiteful_shields", "pack_instinct"])

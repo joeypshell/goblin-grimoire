@@ -1,5 +1,21 @@
 # Verification
 
+## v0.15.0 first trait before feeding
+
+A new first victory creates its actual corpse rewards and recap, then opens the same saved two-trait offer with feeding as its return destination. The first won, unrecovered raid is recognized without incrementing `raid` or applying recovery. Choosing returns to unchanged bodies and HP; normal feeding completion alone applies recovery and advances the raid. The F champion retains its postmeal second reward. Old saves already in feeding or awaiting result/preparation traits keep their destinations and order.
+
+Focused model checks pass **2,722 assertions / six groups / zero failures**, covering pending save/Continue, blocked meal/build actions before selection, pure copied offers, exact corpse/recap/HP/RNG preservation, no repeated reward or recovery, first-victory guards, and legacy partial meals/postmeal rewards. An independent production-path diagnostic passes **292 checks**, with two actual three-raid policies verifying weighted inheritance, explicit equip, single recovery and both reward orders. First-trait report events precede body decisions; champion trait events follow its recovery. Historical journal values remain intact.
+
+The bounded first-act diagnostic passes **1,212 checks / nine completed policies / zero failures**. Offers and choices are recorded before first feeding and after champion feeding. The same policy, seeds and body rolls remain in use; its recipe-aware feeding helper does not model whether a human changes their plan because of the earlier choice. These are ordering and reachability checks, not enjoyment or player win-rate evidence.
+
+Local ingestion fixtures pass **40 checks** and uploader fixtures pass **63 checks / eight loopback HTTP requests** without contacting the deferred backend. Report controls pass **1,084 assertions / 28 layouts** headlessly and **1,084 / 28 screenshots** natively. A new title paragraph initially caused desktop overflow; the final copy uses the existing rules label, and viewport checks pass. Art regression passes **8,476 assertions / 74 layouts**; tactical UI passes **6,754 / 76**.
+
+The full gameplay suite passes **8,572 checks / 21 groups / zero failures**. Final trait UI checks pass **5,027 assertions / 104 layouts** headlessly and **5,027 / 104 screenshots** natively at **1280×720, 375×667, 390×844 and 844×320**. Recap labels retain positive height and fit their clipping bounds; fresh portrait and short-landscape screenshots were inspected. Both actual offers are tested through selection, feeding, explicit equipment and recovery, with Continue preserving the pending choice and bodies.
+
+Mobile regression passes **18,121 assertions / 189 layouts**. Native ScreenTouch checks pass **850 assertions / 10 screenshots**, tapping Save & title, Continue and each offered trait at **375×667, 390×844 and 844×320**, then devouring the actual bodies and completing exactly one recovery. Existing energy warnings and party-wipe flows remain covered. First-act UI passes **3,166 / 36 layouts**, turn flow **2,343**, and reward tactics **2,435 / 32**. Final verification logs contain no script/engine errors or warnings; the superseded report-UI failure log remains diagnostic history.
+
+Windows and Web release exports succeed. Windows file/product metadata reads **0.15.0**, and the ZIP contains the executable, launch instructions and music credits. All tests use isolated verification profiles. Native logical phone layouts and touch checks do not establish physical iPhone Safari playback or hardware performance, which remain untested.
+
 ## v0.14.0 saved first trait offers
 
 The first milestone draws two distinct existing traits from an independent seed-derived RNG and saves the pair. All six possible pairs occur across 100 tested seeds. Reward queries return copies; repeated rendering, rejected unoffered choices and Continue cannot reroll offers or advance gameplay RNG. Tests exercise the actual victory/feeding boundary, selection once, retained offer history, all three remaining choices after the F champion, and new-run reset. Legacy pending first rewards receive a stable pair on load; active combat and terminal saves receive no premature reward. Existing generated parties, locked intentions, recovery and body inheritance are preserved.

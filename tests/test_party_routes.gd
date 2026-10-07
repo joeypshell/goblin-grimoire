@@ -60,6 +60,7 @@ func victory(game) -> void:
 	game.end_turn()
 
 func skip_and_advance(game) -> bool:
+	if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": accept_traits(game)
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
 	return game.finish_feeding()
 

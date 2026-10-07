@@ -437,9 +437,10 @@ func test_terminal_transitions() -> void:
 	set_game("won", [enemy("e0", "guard", 1)])
 	game.battle.enemies[0]["statuses"]["poison"] = 1
 	TurnChecks.request_and_confirm(self, ui)
-	check(game.run["phase"] == "feeding" and game.run["rewards"].size() == 1, "Victory creates actual feeding body before playback ends")
+	check(game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding" and game.run["rewards"].size() == 1, "First victory commits the pre-meal trait and actual body before playback ends")
 	ui.skip_turn_animation()
 	await settle()
+	check(TurnChecks.named(ui, "TraitOfferSummary") != null and TurnChecks.named(ui, "RaidRecap") != null and TurnChecks.named(ui, "TraitReturnGuidance").text.contains("Recovery follows the meal"), "Skipping victory playback exposes its earned first-trait recap and accurate next step")
 	check(game.run["monsters"].all(func(m): return m["hp"] == 20) and game.run["recovered_id"] == 0, "Victory playback cannot apply the recovery reserved for feeding completion")
 
 func test_visible_sequence(pixels: Vector2i) -> void:

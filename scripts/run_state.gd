@@ -289,6 +289,7 @@ func _resolve_battle() -> void:
 		for enemy in battle.enemies:
 			run["rewards"].append({"id": enemy["id"], "name": enemy["name"], "class_name": enemy["class_name"], "form": enemy["form"], "armor": Data.armor(enemy), "abilities": enemy["abilities"].duplicate(), "claimed": false})
 		run["phase"] = "feeding"
+		if int(run["raid"]) == 0: _open_trait_reward("feeding")
 	else:
 		run.erase("raid_recap")
 		run["rewards"] = []
@@ -453,8 +454,14 @@ func continue_after_result() -> void:
 
 func _pending_trait_milestone() -> int:
 	if int(run.get("raid", 0)) >= _campaign_size(): return -1
+	var earned_raids: int = int(run.get("raid", 0))
+	var first_win_waiting: bool = earned_raids == 0 and run.get("last_result", "") == "won" and int(run.get("resolved_id", 0)) > int(run.get("recovered_id", 0))
+	var before_first_feeding: bool = run.get("phase", "") == "feeding" or (run.get("phase", "") == "trait" and run.get("trait_return", "") == "feeding")
+	# Only the first won raid offers its trait before meals/recovery. Champion
+	# rewards retain the existing post-feeding completed-raid boundary.
+	if first_win_waiting and before_first_feeding: earned_raids = 1
 	for milestone in Traits.MILESTONES:
-		if int(run.get("raid", 0)) >= milestone and not run.get("trait_milestones", []).has(milestone):
+		if earned_raids >= milestone and not run.get("trait_milestones", []).has(milestone):
 			return milestone
 	return -1
 

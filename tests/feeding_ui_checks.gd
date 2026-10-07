@@ -6,8 +6,15 @@ const Traits = preload("res://scripts/dungeon_traits.gd")
 func choose_trait(t) -> void:
 	var game = t.game
 	var ui = t.ui
-	t.check(game.run["phase"] == "trait" and game.run["raid"] == 1, "First feeding completion opens its earned trait milestone after recovery")
+	var before_meal: bool = game.run.get("trait_return", "result") == "feeding"
+	t.check(game.run["phase"] == "trait" and game.run["raid"] == (0 if before_meal else 1), "First earned choice retains its correct pre-meal or legacy post-meal raid boundary")
 	if game.run["phase"] != "trait": return
+	var bodies_before: Array = game.run["rewards"].duplicate(true)
+	var return_phase: String = game.run.get("trait_return", "result")
+	var guidance = ui.find_child("TraitReturnGuidance", true, false)
+	if before_meal:
+		t.check(game.run["recovered_id"] < game.run["resolved_id"] and guidance is Label and guidance.text.contains("Recovery follows the meal") and not guidance.text.contains("already applied"), "New first reward explains feeding before recovery")
+		t.check(ui.find_child("RaidRecap", true, false) != null, "New first reward shows the earned victory recap")
 	var choices: Array = game.trait_choices()
 	t.check(choices.size() == 2 and choices[0] != choices[1] and choices == game.run.get("first_trait_offer", []), "First mobile reward uses its exact two distinct saved offers")
 	var offer_copy = ui.find_child("TraitOfferSummary", true, false)
@@ -28,11 +35,12 @@ func choose_trait(t) -> void:
 		t.check(button.size.y >= 43.9, "Earned trait action has a forty-four-pixel logical tap target")
 		button.pressed.emit()
 		await t.settle()
-	t.check(game.run["phase"] == "result" and game.run["traits"] == [chosen] and game.run["trait_milestones"] == [1], "Reachable trait action records the actual chosen lasting rule and its milestone")
+	t.check(game.run["phase"] == return_phase and game.run["traits"] == [chosen] and game.run["trait_milestones"] == [1], "Reachable trait action records the chosen rule and returns to its promised phase")
 	t.check(game.rng.state == random_before and game.run["monsters"].map(func(m): return m["hp"]) == hp_before, "Trait UI choice consumes no RNG and cannot repeat recovery")
+	t.check(game.run["rewards"] == bodies_before, "Trait choice leaves every corpse and inheritance outcome untouched")
 	var summary = ui.find_child("TraitSummary", true, false)
-	t.check(summary is Label and summary.text.contains(Traits.DEFINITIONS[chosen]["name"]), "Result visibly identifies the selected dungeon build")
-	await t.capture("10b_trait_result")
+	t.check(summary is Label and summary.text.contains(Traits.DEFINITIONS[chosen]["name"]), "Destination visibly identifies the selected dungeon build")
+	await t.capture("10b_trait_feeding" if before_meal else "10b_legacy_trait_result")
 
 func exercise(t) -> Dictionary:
 	var ui = t.ui
