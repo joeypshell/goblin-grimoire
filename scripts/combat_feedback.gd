@@ -20,11 +20,12 @@ static func changes(before: Dictionary, after: Dictionary) -> Dictionary:
 		if block != 0: parts.append("%+d block" % block)
 		for status in actor.get("statuses", {}):
 			var gain: int = int(actor["statuses"][status]) - int(old.get("statuses", {}).get(status, 0))
-			if gain > 0: parts.append("Resolve · stun protected" if status == "resolve" else "+%d %s" % [gain, status.capitalize()])
+			if gain > 0: parts.append("Resolve · stun protected" if status == "resolve" else "+%d %s" % [gain, "Hunter's Mark" if status == "marked" else status.capitalize()])
 		for status in ["poison", "burn"]:
 			if int(actor["hp"]) > 0 and int(old.get("statuses", {}).get(status, 0)) > 0 and int(actor.get("statuses", {}).get(status, 0)) == 0:
 				parts.append(status.capitalize() + " cleared")
 		if int(actor["hp"]) > 0:
+			if int(old.get("statuses", {}).get("marked", 0)) > 0 and int(actor.get("statuses", {}).get("marked", 0)) == 0: parts.append("Hunter's Mark spent")
 			if int(old.get("statuses", {}).get("resolve", 0)) > 0 and int(actor.get("statuses", {}).get("resolve", 0)) == 0:
 				parts.append("Resolve expired")
 			var regen: int = int(actor.get("statuses", {}).get("regen", 0))
@@ -37,6 +38,10 @@ static func changes(before: Dictionary, after: Dictionary) -> Dictionary:
 
 static func describe(before: Dictionary, after: Dictionary) -> String:
 	var lines: Array = []
+	var echo_before: bool = before.get("dungeon_state", {}).get("echo_ready", false)
+	var echo_after: bool = after.get("dungeon_state", {}).get("echo_ready", false)
+	if echo_after and not echo_before: lines.append("Echo armed: next owned attack repeats direct hits")
+	if echo_before and not echo_after: lines.append("ECHO: direct hits repeated once; riders and tactics once")
 	# The stored charge is an attack bonus, before Armor, Block and Evade.
 	# Lead with its payoff so compact action receipts keep the build visible.
 	for payoff in bulwark_payoffs(before, after):
@@ -45,7 +50,7 @@ static func describe(before: Dictionary, after: Dictionary) -> String:
 	for id in delta: lines.append("%s: %s" % [delta[id]["name"], delta[id]["text"]])
 	var old_counts: Dictionary = before.get("trait_state", {}).get("trigger_counts", {})
 	var new_counts: Dictionary = after.get("trait_state", {}).get("trigger_counts", {})
-	var activations = {"venom_nest": "Venom Nest spreads poison", "spiteful_shields": "Spiteful Shields retaliates", "pack_instinct": "Pack Instinct: +1 energy, draw 1", "war_drums": "War Drums: +1 energy, draw 1"}
+	var activations = {"venom_nest": "Venom Nest spreads poison", "spiteful_shields": "Spiteful Shields retaliates", "pack_instinct": "Pack Instinct: +1 energy, draw 1", "war_drums": "War Drums: +1 energy, draw 1", "blood_cauldron": "Blood Cauldron: draw 1", "wildfire": "Wildfire: +1 Burn to damaged survivors", "lingering_wards": "Lingering Wards: remaining Block kept (up to 3 each)", "spellweaver": "Spellweaver: +1 energy"}
 	for id in activations:
 		var count: int = int(new_counts.get(id, 0)) - int(old_counts.get(id, 0))
 		if count > 0: lines.append(activations[id] + (" x%d" % count if count > 1 else ""))

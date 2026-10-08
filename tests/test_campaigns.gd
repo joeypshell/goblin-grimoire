@@ -36,7 +36,7 @@ func run(t) -> void:
 					t.check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "Losing an additional campaign immediately destroys the dungeon without recovery, rewards or retries")
 					if game.run["phase"] == "combat": break
 					defeats += 1
-				if game.run["phase"] == "result": game.continue_after_result()
+				if game.run["phase"] == "result": t.advance_campaign(game)
 			t.check(game.run["phase"] in ["victory", "defeat"], "Additional campaign finishes within bounded normal attempts")
 			if game.run["phase"] == "victory": completed += 1
 			t.check(defeats <= 1 and not game.run.has("core"), "Additional campaign has at most one terminal defeat and no independent Core HP")

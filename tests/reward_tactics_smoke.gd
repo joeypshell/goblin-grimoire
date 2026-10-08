@@ -6,6 +6,7 @@ const Combat = preload("res://scripts/battle.gd")
 const Data = preload("res://scripts/game_data.gd")
 const Tactics = preload("res://scripts/invader_tactics.gd")
 const OfferChecks = preload("res://tests/trait_offer_ui_checks.gd")
+const LootChecks = preload("res://tests/loot_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(375, 667), Vector2i(390, 844), Vector2i(844, 320)]
 
 var ui
@@ -178,6 +179,7 @@ func test_equip(slot: int) -> void:
 	check(named(ui, "InheritedEquipStatus").text.contains("EQUIPPED"), "Continued receipt still shows that the inherited card is equipped")
 	if slot == 0: await capture("02_equipped_and_continued")
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
+	check(LootChecks.skip_draft(self, game), "Monster skill fixture explicitly skips its separate dungeon-spell draft")
 	check(game.finish_feeding() and not game.run.has("last_meal"), "Feeding completion clears only the obsolete latest-meal pointer")
 
 func test_latest_and_legacy() -> void:
@@ -253,6 +255,7 @@ func test_form_information() -> void:
 	await capture("07_discovered_form_tactics")
 	ui.menu = "game"
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
+	check(LootChecks.skip_draft(self, game), "Form fixture explicitly skips its separate spell draft")
 	check(game.finish_feeding(), "Form fixture finishes normal earned recovery")
 	if game.run["phase"] == "trait": game.choose_trait(game.trait_choices()[0])
 	game.continue_after_result()

@@ -16,6 +16,9 @@ const WarDrums = preload("res://tests/test_war_drums.gd")
 const EncounterRules = preload("res://tests/test_encounter_rules.gd")
 const BattleRecap = preload("res://tests/test_battle_recap.gd")
 const CombatFeedback = preload("res://tests/test_combat_feedback.gd")
+const DungeonLoot = preload("res://tests/test_dungeon_loot.gd")
+const LootReports = preload("res://tests/test_loot_reports.gd")
+const DungeonSpells = preload("res://tests/test_dungeon_spells.gd")
 
 var checks := 0
 var failures: Array = []
@@ -43,6 +46,9 @@ func _run() -> void:
 	Balance.new().run(self)
 	Traits.new().run(self)
 	Reports.new().run(self)
+	DungeonLoot.new().run(self)
+	LootReports.new().run(self)
+	DungeonSpells.new().run(self)
 	FormTactics.new().run(self)
 	BattleRecap.new().run(self)
 	CombatFeedback.new().run(self)
@@ -327,10 +333,11 @@ func test_legacy_dungeon_destruction() -> void:
 				for enemy in safe_game.battle.enemies: enemy["hp"] = 0
 				safe_game.end_turn()
 				choose_campaign_trait(safe_game)
+				if not safe_game.spell_reward_choices().is_empty(): safe_game.skip_spell_reward()
 				for body_index in range(safe_game.run["rewards"].size()): safe_game.skip_body(body_index)
 				check(safe_game.finish_feeding(), "Legacy living-victory fixture advances through the actual feeding API")
 				choose_campaign_trait(safe_game)
-				if raid_index < 5: safe_game.continue_after_result()
+				if raid_index < 5: advance_campaign(safe_game)
 		else:
 			safe_game.start_raid()
 			if safe_phase == "feeding":
@@ -444,6 +451,7 @@ func win_raid(game, bound: int = 180) -> bool:
 
 func feed_campaign(game, test_partial: bool, spread: bool = false) -> bool:
 	if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": choose_campaign_trait(game)
+	choose_campaign_spell(game)
 	var partial_done := false
 	for body_index in range(game.run["rewards"].size()):
 		var body: Dictionary = game.run["rewards"][body_index]
@@ -484,6 +492,34 @@ func feed_campaign(game, test_partial: bool, spread: bool = false) -> bool:
 			game.rng = replacement.rng
 			partial_done = true
 	return partial_done
+
+func choose_campaign_spell(game) -> String:
+	var choices: Array = game.spell_reward_choices()
+	if choices.is_empty(): return ""
+	var picked: String = str(choices[0])
+	for preferred in ["arcane_sweep", "renewal_wave", "sanctuary", "shatter_wave", "ember_storm", "wild_growth", "plague_bloom", "soul_harvest", "battle_orders", "hunters_mark", "cinder_seed", "echo_rune"]:
+		if choices.has(preferred):
+			picked = preferred
+			break
+	var role: String = Data.ABILITIES[picked].get("role", "utility")
+	var slot: int = 1 if role == "heal" else (0 if role == "area" else 2)
+	check(game.choose_spell_reward(picked, slot), "Campaign chooses an actual offered shared spell and replaces a role-appropriate shared slot")
+	return picked
+
+func visit_campaign_trader(game, purchase: bool = true) -> void:
+	if game.run["phase"] != "trader": return
+	if purchase:
+		for row in game.trader_stock():
+			if row.get("sold", false) or row.get("owned", false) or int(row["price"]) > int(game.run["gold"]): continue
+			var role: String = Data.ABILITIES[row["ability"]].get("role", "utility")
+			var slot: int = 1 if role == "heal" else (0 if role == "area" else 2)
+			check(game.buy_spell(str(row["id"]), slot), "Campaign buys a real affordable unknown stock spell with earned gold")
+			break
+	check(game.leave_trader(), "Campaign leaves the earned trader and prepares the champion")
+
+func advance_campaign(game) -> void:
+	game.continue_after_result()
+	visit_campaign_trader(game)
 
 func configure_loadout(game) -> void:
 	var incoming: Array = game.party_preview().duplicate(true)
@@ -637,7 +673,7 @@ func test_campaign() -> void:
 		check(not game.finish_feeding(), "Repeated feeding completion cannot recover/advance twice")
 		choose_campaign_trait(game)
 		if raid_index < 5:
-			game.continue_after_result()
+			advance_campaign(game)
 	check(seen_ranks.has("F") and seen_ranks.has("E"), "Both F and E rank campaigns were exercised")
 	check(game.run["phase"] == "victory" and game.run["raid"] == 6 and game.run["promotion"] == "D", "E champion victory records promotion to D")
 	check(game.discoveries().size() >= 2, "Normal campaign discovers first and advanced evolution")

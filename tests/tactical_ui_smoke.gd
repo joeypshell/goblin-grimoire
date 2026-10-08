@@ -353,6 +353,12 @@ func test_raid_recap() -> void:
 	check_recap(true)
 	check(equal(before, game.run) and equal(battle_before, game.battle.to_dict()), "Reading earned recap labels changes neither saved run, battle nor RNG")
 	await capture("13_earned_feeding_recap")
+	var spell_skip = named(ui, "SkipSpellReward")
+	check(spell_skip is Button, "Later-raid recap fixture has its actual separate spell-draft skip choice")
+	if spell_skip != null:
+		await reachable(spell_skip)
+		spell_skip.pressed.emit()
+		await settle()
 	for index in range(game.run["rewards"].size()):
 		var skip = text_button(ui, "Skip body")
 		check(skip is Button and not skip.disabled, "Feeding still exposes a real body-skip choice after the recap")

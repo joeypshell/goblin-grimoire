@@ -9,6 +9,7 @@ const SEEDS: Array = [730204, 101, 730215, 730205]
 const RAID_TURN_BOUND: int = 24
 const POLICY_TURN_BOUND: int = 72
 const POLICY_ATTEMPT_BOUND: int = 3
+const SpellLoot = preload("res://scripts/dungeon_loot.gd")
 
 var diagnostic_rows: Array = []
 var total_stores: int = 0
@@ -71,7 +72,7 @@ func _configure_protection_loadout(game) -> void:
 func _simulate_policy(seed_value: int, route: String, captain_first: bool = false) -> Dictionary:
 	var game = state_at("seed_%d_%s%s" % [seed_value, route, "_captain_first" if captain_first else ""])
 	game.new_run(seed_value)
-	var row: Dictionary = {"seed": seed_value, "second_raid_route": route, "target_policy": "captain first on raid 2; mechanic consequence exercise" if captain_first else "position score", "attempts": [], "meals": [], "trait_rewards": [], "ended_turns": 0, "card_plays": 0, "defeats": 0}
+	var row: Dictionary = {"seed": seed_value, "second_raid_route": route, "target_policy": "captain first on raid 2; mechanic consequence exercise" if captain_first else "position score", "attempts": [], "meals": [], "trait_rewards": [], "spell_rewards": [], "traders": [], "ended_turns": 0, "card_plays": 0, "defeats": 0}
 	var attempt_count: int = 0
 	while int(game.run["raid"]) < 3 and game.run["phase"] != "defeat" and attempt_count < POLICY_ATTEMPT_BOUND and int(row["ended_turns"]) < POLICY_TURN_BOUND:
 		check(game.run["phase"] == "prep", "First-act attempt begins in normal preparation")
@@ -104,6 +105,9 @@ func _simulate_policy(seed_value: int, route: String, captain_first: bool = fals
 			check(false, "First-act tactical attempt respects %d-turn bound (seed %d %s raid %d)" % [RAID_TURN_BOUND, seed_value, route, raid_number])
 			break
 		if game.run["phase"] == "feeding":
+			var offered_spells: Array = game.spell_reward_choices()
+			var chosen_spell: String = choose_campaign_spell(game)
+			if not offered_spells.is_empty(): row["spell_rewards"].append({"raid": raid_number, "offered": offered_spells, "chosen": chosen_spell, "loadout": game.dungeon_spell_loadout(), "gold": game.run["gold"]})
 			feed_campaign(game, false)
 			for body in game.run["rewards"]:
 				row["meals"].append({"raid": raid_number, "body": body["id"], "actual_pool": body["abilities"].duplicate(), "recipient": body.get("recipient", ""), "taken": body.get("taken", ""), "weight": Data.INHERITANCE_WEIGHTS.get(Data.ABILITIES.get(body.get("taken", ""), {}).get("rarity", ""), 0), "skipped": body.get("skipped", false)})
@@ -112,12 +116,19 @@ func _simulate_policy(seed_value: int, route: String, captain_first: bool = fals
 		else:
 			check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "First-act full wipe immediately destroys the dungeon without recovery, rewards or retries")
 			row["defeats"] += 1
-		if game.run["phase"] == "result" and int(game.run["raid"]) < 3: game.continue_after_result()
+		if game.run["phase"] == "result" and int(game.run["raid"]) < 3:
+			game.continue_after_result()
+			if game.run["phase"] == "trader":
+				var stock: Array = game.trader_stock()
+				var gold_before: int = game.run["gold"]
+				visit_campaign_trader(game)
+				row["traders"].append({"before_raid": int(game.run["raid"]) + 1, "stock": stock, "gold_before": gold_before, "gold_after": game.run["gold"], "loadout": game.dungeon_spell_loadout()})
 	row["completed"] = int(game.run["raid"]) == 3
 	row["ending_phase"] = game.run["phase"]
 	check(not game.run.has("core") and int(row["defeats"]) <= 1, "First-act policy has no separate dungeon HP and ends on its first full wipe")
 	row["final_forms"] = game.run["monsters"].map(func(actor): return actor["form"])
 	row["final_traits"] = game.run.get("traits", []).duplicate()
+	row["final_shared_spells"] = game.dungeon_spell_loadout()
 	if row["completed"]: completed_policies += 1
 	check(int(row["ended_turns"]) < POLICY_TURN_BOUND or row["completed"] or game.run["phase"] == "defeat", "First-act policy respects its total turn bound")
 	return row
@@ -136,7 +147,7 @@ func _choose_playtest_trait(game, row: Dictionary, raid_number: int) -> void:
 	row["trait_rewards"].append({"raid": raid_number, "offered": offered, "chosen": selected[0] if not selected.is_empty() else "", "before_feeding": before_feeding})
 
 func _fight(game, captain_first: bool = false) -> Dictionary:
-	var stats: Dictionary = {"ended_turns": 0, "card_plays": 0, "bulwark_stores": 0, "stored_smashes": 0, "cross_turn_smashes": 0, "war_drums": 0, "captain_wards": 0, "rituals_announced": 0, "rituals_used": 0, "rituals_canceled": 0, "ritual_cancellation_reasons": [], "payoff_cards": []}
+	var stats: Dictionary = {"ended_turns": 0, "card_plays": 0, "spells_played": {}, "bulwark_stores": 0, "stored_smashes": 0, "cross_turn_smashes": 0, "war_drums": 0, "captain_wards": 0, "rituals_announced": 0, "rituals_used": 0, "rituals_canceled": 0, "ritual_cancellation_reasons": [], "payoff_cards": []}
 	var charge_turn: Dictionary = {}
 	while game.run["phase"] == "combat" and int(stats["ended_turns"]) < RAID_TURN_BOUND:
 		var rituals: Array = game.battle.intents.filter(func(intent): return intent["ability"] == "renewal_ritual").duplicate(true)
@@ -167,6 +178,8 @@ func _fight(game, captain_first: bool = false) -> Dictionary:
 			var played_card: Dictionary = game.battle.hand[best_index].duplicate(true)
 			check(game.play_card(best_index, best_target), "First-act policy plays a real legal card through normal State API")
 			stats["card_plays"] += 1
+			if played_card["owner"] == "" and SpellLoot.SPELLS.has(played_card["ability"]):
+				stats["spells_played"][played_card["ability"]] = int(stats["spells_played"].get(played_card["ability"], 0)) + 1
 			_record_card_logs(game.battle, played_card, best_target, stats, charge_turn)
 		for intent in rituals:
 			var priest: Dictionary = game.battle.get_actor(intent["enemy_id"])

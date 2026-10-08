@@ -7,6 +7,7 @@ const Traits = preload("res://scripts/dungeon_traits.gd")
 const Routes = preload("res://scripts/raid_routes.gd")
 const Reports = preload("res://scripts/run_reports.gd")
 const Recap = preload("res://scripts/battle_recap.gd")
+const Loot = preload("res://scripts/dungeon_loot.gd")
 const SAVE_VERSION = 1
 const LOSS_RULE = "party_wipe_ends_run"
 
@@ -73,7 +74,7 @@ func _load_profile() -> void:
 
 func has_save() -> bool:
 	var saved = _read_json(_prefix + "run.json")
-	return saved.get("version", 0) == SAVE_VERSION and saved.get("monsters") is Array and saved.get("phase", "") in ["prep", "combat", "feeding", "trait", "result", "victory", "defeat"]
+	return saved.get("version", 0) == SAVE_VERSION and saved.get("monsters") is Array and saved.get("phase", "") in ["prep", "combat", "feeding", "trait", "result", "trader", "victory", "defeat"]
 
 func save_game() -> void:
 	if run.is_empty():
@@ -135,6 +136,11 @@ func load_game() -> bool:
 	run["loss_rule"] = LOSS_RULE
 	if not run.get("traits") is Array: run["traits"] = []
 	if not run.get("trait_milestones") is Array: run["trait_milestones"] = []
+	# Existing runs keep their old rewards and timing. Default shared spells do
+	# not opt a historical run into the new economy.
+	if not run.get("dungeon_spells") is Array: run["dungeon_spells"] = Loot.STARTERS.duplicate()
+	if not run.get("spell_library") is Array: run["spell_library"] = Loot.STARTERS.duplicate()
+	if not run.has("gold"): run["gold"] = 0
 	Data.ensure_priest_offense(run.get("party", []))
 	Data.ensure_champion_mechanics(run.get("party", []))
 	if run.get("battle") is Dictionary:
@@ -184,6 +190,8 @@ func new_run(seed_value: int = 0) -> void:
 		"loss_rule": LOSS_RULE,
 		"resolved_id": 0, "recovered_id": 0, "last_result": "", "promotion": "", "evolution_budget": 0,
 		"traits": [], "trait_milestones": [],
+		"loot_version": 1, "dungeon_spells": Loot.STARTERS.duplicate(), "spell_library": Loot.STARTERS.duplicate(),
+		"gold": 0, "spell_history": [], "trader_visited_raids": [],
 	}
 	battle = null
 	last_evolution = {}
@@ -235,10 +243,11 @@ func start_raid() -> void:
 	if run.get("phase", "") != "prep":
 		return
 	run.erase("raid_recap")
+	run.erase("spell_offer")
 	var party := party_preview()
 	run["party_locked"] = true
 	battle = Combat.new()
-	battle.setup(run["monsters"], party, rng, run.get("traits", []))
+	battle.setup(run["monsters"], party, rng, run.get("traits", []), dungeon_spell_loadout())
 	run["phase"] = "combat"
 	run["promotion"] = ""
 	run["evolution_budget"] = 0
@@ -289,10 +298,19 @@ func _resolve_battle() -> void:
 		for enemy in battle.enemies:
 			run["rewards"].append({"id": enemy["id"], "name": enemy["name"], "class_name": enemy["class_name"], "form": enemy["form"], "armor": Data.armor(enemy), "abilities": enemy["abilities"].duplicate(), "claimed": false})
 		run["phase"] = "feeding"
+		if int(run.get("loot_version", 0)) == 1:
+			var gold_earned: int = 60 if int(run["raid"]) in [2, 5] else 35
+			run["gold"] = int(run.get("gold", 0)) + gold_earned
+			_reports.count(run, "gold_earned", gold_earned)
+			_reports.record(run, "gold_earned", {"raid": int(run["raid"]) + 1, "amount": gold_earned, "gold": run["gold"]})
+		if int(run.get("loot_version", 0)) == 1 and int(run["raid"]) + 1 < _campaign_size():
+			run["spell_offer"] = Loot.reward(int(run["seed"]), int(run["raid"]), run["spell_library"])
+			_reports.record(run, "spell_reward_offered", {"raid": int(run["raid"]) + 1, "offered": run["spell_offer"]["options"].duplicate()})
 		if int(run["raid"]) == 0: _open_trait_reward("feeding")
 	else:
 		run.erase("raid_recap")
 		run["rewards"] = []
+		run.erase("spell_offer")
 		run["phase"] = "defeat"
 	_reports.record(run, "phase_changed", {"to": run["phase"]})
 
@@ -418,6 +436,7 @@ func _recover() -> void:
 func finish_feeding() -> bool:
 	if run.get("phase", "") != "feeding":
 		return false
+	if run.get("spell_offer") is Dictionary and not run["spell_offer"].get("resolved", false): return false
 	for body in run["rewards"]:
 		if not body["claimed"]:
 			return false
@@ -431,6 +450,9 @@ func finish_feeding() -> bool:
 	if rank_name() != previous_rank:
 		run["promotion"] = rank_name()
 	run["phase"] = "victory" if int(run["raid"]) >= _campaign_size() else "result"
+	if int(run.get("loot_version", 0)) == 1 and Loot.TRADER_RAIDS.has(int(run["raid"])) and int(run.get("trader_raid", -1)) != int(run["raid"]):
+		run["trader_raid"] = int(run["raid"])
+		run["trader_stock"] = Loot.stock(int(run["seed"]), run["spell_library"], int(run["raid"]))
 	if run["phase"] == "result": _open_trait_reward("result")
 	_reports.record(run, "feeding_finished", {"promotion": run["promotion"]})
 	save_game()
@@ -444,6 +466,12 @@ func continue_after_result() -> void:
 		save_game()
 		changed.emit()
 		return
+	if int(run.get("loot_version", 0)) == 1 and Loot.TRADER_RAIDS.has(int(run["raid"])) and not run.get("trader_visited_raids", []).has(int(run["raid"])):
+		run["phase"] = "trader"
+		_reports.record(run, "trader_opened", {"raid": int(run["raid"]) + 1, "gold": run.get("gold", 0), "stock": trader_stock()})
+		save_game()
+		changed.emit()
+		return
 	run["phase"] = "prep"
 	battle = null
 	run["rewards"] = []
@@ -451,6 +479,95 @@ func continue_after_result() -> void:
 	_reports.record(run, "preparation_entered")
 	save_game()
 	changed.emit()
+
+func dungeon_spell_loadout() -> Array:
+	return run.get("dungeon_spells", Loot.STARTERS).duplicate()
+
+func spell_reward_choices() -> Array:
+	if run.get("phase", "") != "feeding" or not run.get("spell_offer") is Dictionary: return []
+	var offer: Dictionary = run["spell_offer"]
+	if offer.get("resolved", false): return []
+	return offer.get("options", []).duplicate()
+
+func _spell_slot_valid(slot: int, ability: String) -> bool:
+	if slot < 0 or slot > 2 or not Loot.valid_spell(ability): return false
+	var spells: Array = dungeon_spell_loadout()
+	if spells.size() != 3: return false
+	for index in range(spells.size()):
+		if index != slot and spells[index] == ability: return false
+	return true
+
+func choose_spell_reward(id: String, slot: int) -> bool:
+	if not spell_reward_choices().has(id) or run.get("spell_library", Loot.STARTERS).has(id) or not _spell_slot_valid(slot, id): return false
+	var offer: Dictionary = run["spell_offer"]
+	var previous: String = run["dungeon_spells"][slot]
+	run["spell_library"].append(id)
+	run["dungeon_spells"][slot] = id
+	offer["resolved"] = true
+	offer["chosen"] = id
+	offer["slot"] = slot
+	run["spell_history"].append({"raid": offer["raid"], "ability": id, "slot": slot})
+	_reports.count(run, "spells_chosen")
+	_reports.record(run, "spell_reward_chosen", {"raid": offer["raid"], "offered": offer["options"].duplicate(), "ability": id, "slot": slot, "replaced": previous})
+	save_game()
+	changed.emit()
+	return true
+
+func skip_spell_reward() -> bool:
+	if spell_reward_choices().is_empty(): return false
+	run["spell_offer"]["resolved"] = true
+	run["spell_offer"]["skipped"] = true
+	_reports.count(run, "spells_skipped")
+	_reports.record(run, "spell_reward_skipped", {"raid": run["spell_offer"]["raid"], "offered": run["spell_offer"]["options"].duplicate()})
+	save_game()
+	changed.emit()
+	return true
+
+func select_dungeon_spell(slot: int, id: String) -> bool:
+	if run.get("phase", "") not in ["prep", "feeding", "result", "trader"] or not run.get("spell_library", Loot.STARTERS).has(id) or not _spell_slot_valid(slot, id): return false
+	if run["dungeon_spells"][slot] == id: return true
+	var previous: String = run["dungeon_spells"][slot]
+	run["dungeon_spells"][slot] = id
+	_reports.record(run, "dungeon_spell_selected", {"ability": id, "slot": slot, "replaced": previous})
+	save_game()
+	changed.emit()
+	return true
+
+func trader_stock() -> Array:
+	if run.get("phase", "") not in ["result", "trader"] or int(run.get("loot_version", 0)) != 1: return []
+	return run.get("trader_stock", []).duplicate(true)
+
+func buy_spell(stock_id: String, slot: int) -> bool:
+	if run.get("phase", "") != "trader" or int(run.get("loot_version", 0)) != 1: return false
+	for row in run.get("trader_stock", []):
+		if row["id"] != stock_id: continue
+		var ability: String = row["ability"]
+		if row.get("sold", false) or row.get("owned", false) or run["spell_library"].has(ability) or int(run.get("gold", 0)) < int(row["price"]) or not _spell_slot_valid(slot, ability): return false
+		var previous: String = run["dungeon_spells"][slot]
+		run["gold"] = int(run["gold"]) - int(row["price"])
+		row["sold"] = true
+		run["spell_library"].append(ability)
+		run["dungeon_spells"][slot] = ability
+		_reports.count(run, "spells_purchased")
+		_reports.count(run, "gold_spent", int(row["price"]))
+		_reports.record(run, "spell_purchased", {"raid": int(run["raid"]) + 1, "stock_id": stock_id, "ability": ability, "price": row["price"], "gold": run["gold"], "slot": slot, "replaced": previous})
+		save_game()
+		changed.emit()
+		return true
+	return false
+
+func leave_trader() -> bool:
+	if run.get("phase", "") != "trader" or int(run.get("loot_version", 0)) != 1: return false
+	run["trader_visited_raids"].append(int(run["raid"]))
+	run["phase"] = "prep"
+	battle = null
+	run["rewards"] = []
+	party_preview()
+	_reports.record(run, "trader_left", {"raid": int(run["raid"]) + 1, "gold": run["gold"]})
+	_reports.record(run, "preparation_entered")
+	save_game()
+	changed.emit()
+	return true
 
 func _pending_trait_milestone() -> int:
 	if int(run.get("raid", 0)) >= _campaign_size(): return -1

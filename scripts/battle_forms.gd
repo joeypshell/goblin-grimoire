@@ -117,12 +117,17 @@ static func _survives(battle, card: Dictionary, target_id: String) -> bool:
 		if effect.get("to", "target") == "self": continue
 		if effect["kind"] == "break_block": copy["block"] = 0
 		if effect["kind"] != "damage": continue
-		if int(copy.get("statuses", {}).get("evasion", 0)) > 0:
-			copy["statuses"]["evasion"] = int(copy["statuses"]["evasion"]) - 1
-			continue
-		var result: Dictionary = battle.damage_breakdown(copy, battle._amount(effect, ability, owner, copy))
-		copy["block"] = int(copy.get("block", 0)) - int(result["block"])
-		copy["hp"] = int(copy["hp"]) - int(result["hp"])
+		var echo: bool = battle.dungeon_state.get("echo_ready", false) and battle._is_monster(card.get("owner", ""))
+		for hit in range(2 if echo else 1):
+			if int(copy["hp"]) <= 0: break
+			var amount: int = battle._amount(effect, ability, owner, copy)
+			if int(copy.get("statuses", {}).get("evasion", 0)) > 0:
+				copy["statuses"]["evasion"] = int(copy["statuses"]["evasion"]) - 1
+			else:
+				var result: Dictionary = battle.damage_breakdown(copy, amount)
+				copy["block"] = int(copy.get("block", 0)) - int(result["block"])
+				copy["hp"] = int(copy["hp"]) - int(result["hp"])
+			copy.get("statuses", {}).erase("marked")
 	return int(copy["hp"]) > 0
 
 static func preview(battle, card: Dictionary, target_id: String) -> String:

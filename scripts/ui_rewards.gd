@@ -15,6 +15,7 @@ func render() -> void:
 	var rewards: Array = ui.state.run["rewards"]
 	var final_raid = int(ui.state.run["raid"]) + 1 >= int(Data.BALANCE["raids"])
 	var trait_reward: bool = ui.traits_screen.reward_after_raid()
+	var spell_pending: bool = ui.loot_screen.pending()
 	var remaining = 0
 	for body in rewards:
 		if not body["claimed"]: remaining += 1
@@ -38,8 +39,12 @@ func render() -> void:
 			next_step = "NEXT: Choose another recipient or skip this body. This monster knows every offered skill."
 		else:
 			next_step = "NEXT: 3 / Devour " + body["name"] + " with " + monster["name"] + " to inherit one random skill."
-	page.add_child(ui.label(next_step, 14, ui.EMBER, true))
+	if spell_pending: next_step = "NEXT: Choose a dungeon spell and replace one shared slot, or skip the spell reward. Resolve the bodies before recovery."
+	var next_label = ui.label(next_step, 14, ui.EMBER, true)
+	next_label.name = "FeedingNext"
+	page.add_child(next_label)
 	_meal_results(rewards, page)
+	ui.loot_screen.draft(page)
 	var columns = VBoxContainer.new() if compact else HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 14)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -73,9 +78,10 @@ func render() -> void:
 	if compact: filler.free()
 	else: bodies.add_child(filler)
 	bodies.add_child(ui.label(str(remaining) + " bodies remaining", 14, ui.MUTED))
-	bodies.add_child(ui.label("Devour or skip every body to unlock recovery." if remaining > 0 else "All bodies resolved. Recovery is ready.", 12, ui.MUTED, true))
+	bodies.add_child(ui.label("Resolve the spell reward and every body to unlock recovery." if spell_pending else ("Devour or skip every body to unlock recovery." if remaining > 0 else "All bodies resolved. Recovery is ready."), 12, ui.MUTED, true))
 	var continue_button = ui.primary("Recover & continue", func(): ui.act(ui.state.finish_feeding, "The team recovers after the raid."))
-	continue_button.disabled = remaining > 0
+	continue_button.name = "FinishFeeding"
+	continue_button.disabled = remaining > 0 or spell_pending
 	bodies.add_child(continue_button)
 	var feeding = ui.panel(columns, true)
 	feeding.custom_minimum_size.x = 0 if compact else 390
@@ -85,6 +91,7 @@ func render() -> void:
 		feeding.add_child(ui.label("The meal is finished.", 22 if compact else 24, ui.MOSS, compact))
 		var instructions = "Next: Recover & continue to complete the campaign and receive rank D promotion." if final_raid else "Next: Recover & continue to restore health. You can select learned skills and any earned transformation before the next raid."
 		if trait_reward: instructions = "Next: Recover & continue to restore health, then choose a lasting dungeon trait. Your equipped cards will help you compare the choices."
+		if spell_pending: instructions = "Next: choose and equip one dungeon spell, or skip that reward. Then Recover & continue restores health."
 		feeding.add_child(ui.label(instructions, 16, ui.MUTED, true))
 	var team = ui.panel(columns)
 	team.custom_minimum_size.x = 0 if compact else 345
@@ -125,6 +132,7 @@ func render() -> void:
 		var separator = HSeparator.new()
 		separator.modulate = Color("465039")
 		group.add_child(separator)
+	ui.loot_screen.library(page)
 
 func _meal_results(rewards: Array, parent: Node) -> void:
 	var lines: Array = []

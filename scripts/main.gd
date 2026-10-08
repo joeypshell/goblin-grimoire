@@ -6,6 +6,7 @@ const Screens = preload("res://scripts/ui_screens.gd")
 const CombatScreen = preload("res://scripts/ui_battle.gd")
 const RewardsScreen = preload("res://scripts/ui_rewards.gd")
 const TraitScreen = preload("res://scripts/ui_traits.gd")
+const LootScreen = preload("res://scripts/ui_loot.gd")
 const PartyRoutes = preload("res://scripts/ui_party_routes.gd")
 const Portrait = preload("res://scripts/monster_portrait.gd")
 const Chamber = preload("res://scripts/ui_chamber.gd")
@@ -39,6 +40,7 @@ var screens
 var combat_screen
 var rewards_screen
 var traits_screen
+var loot_screen
 var party_routes
 var actor_nodes: Dictionary = {}
 var margin: MarginContainer
@@ -92,6 +94,7 @@ func _ready() -> void:
 	combat_screen = CombatScreen.new(self)
 	rewards_screen = RewardsScreen.new(self)
 	traits_screen = TraitScreen.new(self)
+	loot_screen = LootScreen.new(self)
 	party_routes = PartyRoutes.new(self)
 	_apply_theme()
 	add_child(TouchScroller.new(self))
@@ -223,6 +226,7 @@ func style(fill: Color, line: Color, radius: int = 8) -> StyleBoxFlat:
 
 func refresh() -> void:
 	flow.clear_feedback()
+	loot_screen.sync()
 	battlefield = null
 	var phase = "combat" if resolving_turn else str(state.run.get("phase", "prep"))
 	var music_context: String = "dungeon"
@@ -261,6 +265,7 @@ func refresh() -> void:
 			"combat": combat_screen.render()
 			"feeding": rewards_screen.render()
 			"trait": traits_screen.render()
+			"trader": loot_screen.render_trader()
 			"result", "victory", "defeat": screens.results()
 	toast = label("A dungeon lives through the choices of its keeper.", 12 if is_compact() else 13, MUTED, true)
 	root_box.add_child(toast)
@@ -286,6 +291,10 @@ func _header() -> void:
 	bar.add_child(spacer)
 	if menu == "game" and not state.run.is_empty():
 		bar.add_child(label("RANK " + state.rank_name() + "  ·  RAID " + str(min(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + " / " + str(Data.BALANCE["raids"]), 15, MOSS))
+		if loot_screen.enabled():
+			var gold = label("GOLD %d" % int(state.run.get("gold", 0)), 14, EMBER)
+			gold.name = "GoldHUD"
+			bar.add_child(gold)
 	if menu != "grimoire":
 		var book = button("Grimoire", open_grimoire)
 		book.disabled = resolving_turn
@@ -318,6 +327,10 @@ func _compact_header() -> void:
 		root_box.add_child(stats)
 	if in_game:
 		stats.add_child(label("RANK " + state.rank_name() + " · RAID " + str(mini(int(state.run["raid"]) + 1, int(Data.BALANCE["raids"]))) + "/" + str(Data.BALANCE["raids"]), 12, MOSS))
+		if loot_screen.enabled():
+			var gold = label("GOLD %d" % int(state.run.get("gold", 0)), 12, EMBER)
+			gold.name = "GoldHUD"
+			stats.add_child(gold)
 	if menu != "grimoire":
 		var book = button("Grimoire", open_grimoire)
 		book.disabled = resolving_turn

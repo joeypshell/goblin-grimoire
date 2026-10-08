@@ -61,6 +61,7 @@ func victory(game) -> void:
 
 func skip_and_advance(game) -> bool:
 	if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": accept_traits(game)
+	if not game.spell_reward_choices().is_empty(): game.skip_spell_reward()
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
 	return game.finish_feeding()
 
@@ -256,8 +257,8 @@ func test_advancement(t) -> void:
 	victory(game)
 	t.check(skip_and_advance(game) and game.run["raid"] == 2, "Resolving bodies advances the chosen raid normally")
 	t.check(not game.run.has("party") and ROUTE_KEYS.all(func(key): return not game.run.has(key)), "Successful advancement clears the old party, choices, selected path and combat lock")
-	game.continue_after_result()
-	t.check(game.party_choices().is_empty() and game.selected_party_name() == Data.ENCOUNTERS[2]["name"], "The next F champion remains fixed after an alternate route victory")
+	t.advance_campaign(game)
+	t.check(game.party_choices().is_empty() and game.selected_party_name() == Data.ENCOUNTERS[2]["name"], "The next F champion remains fixed after an alternate route victory and earned trader")
 	game.start_raid()
 	victory(game)
 	t.check(skip_and_advance(game), "Champion corpse resolution reaches the next rank's reward normally")
@@ -280,6 +281,7 @@ func test_legacy(t) -> void:
 		var original_random: int = old.rng.state
 		var snapshot: Dictionary = old.run.duplicate(true)
 		for key in ROUTE_KEYS: snapshot.erase(key)
+		for key in ["loot_version", "dungeon_spells", "spell_library", "gold", "spell_history", "trader_visited_raids"]: snapshot.erase(key)
 		old._write_json(old._prefix + "run.json", snapshot)
 		var loaded = game_at(t, tag)
 		t.check(loaded.load_game() and loaded.run["party"] == original_party and loaded.rng.state == original_random, "Legacy save with an existing party preserves the exact invaders and gameplay RNG")
@@ -332,7 +334,7 @@ func test_alternate_campaign(t) -> void:
 				t.check(game.run["phase"] == "defeat" and game.run["monsters"].all(func(monster): return monster["hp"] == 0) and game.run["rewards"].is_empty(), "A lost alternate encounter immediately ends its campaign without recovery, corpses or retries")
 				if game.run["phase"] == "combat": break
 				defeats += 1
-			if game.run["phase"] == "result": game.continue_after_result()
+			if game.run["phase"] == "result": t.advance_campaign(game)
 		t.check(game.run["phase"] in ["victory", "defeat"], "Alternate campaign terminates within bounded normal raid attempts")
 		t.check(defeats <= 1 and not game.run.has("core"), "Alternate campaign has at most one terminal loss and no Core HP budget")
 		print("ALTERNATE CAMPAIGN: ", JSON.stringify({"seed": seed_value, "phase": game.run["phase"], "raids": game.run["raid"], "alternate_raids": alternate_raids.keys(), "attempts": attempts, "turns": t.campaign_turns - turns_before, "plays": t.campaign_plays - plays_before, "defeats": defeats, "traits": game.run["traits"], "forms": game.run["monsters"].map(func(monster): return monster["form"])}))

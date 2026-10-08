@@ -27,17 +27,22 @@ var intents: Array = []
 var traits: Array = []
 var trait_state: Dictionary = {}
 var form_state: Dictionary = {}
+var dungeon_state: Dictionary = {"echo_ready": false}
 var recap_state: Dictionary = Recap.fresh_state(false)
 var _ticking_statuses: bool = false
 var _venom_queue: Array = []
+var _card_context: bool = false
+var _action_healed: int = 0
+var _action_damaged: Array = []
 
-func setup(roster: Array, party: Array, random: RandomNumberGenerator, active_traits: Array = []) -> void:
+func setup(roster: Array, party: Array, random: RandomNumberGenerator, active_traits: Array = [], dungeon_spells: Array = []) -> void:
 	monsters = roster
 	enemies = party.duplicate(true)
 	rng = random
 	traits = active_traits.duplicate()
 	trait_state = Traits.fresh_state()
 	form_state.clear()
+	dungeon_state = {"echo_ready": false}
 	recap_state = Recap.fresh_state()
 	_ticking_statuses = false
 	_venom_queue.clear()
@@ -57,7 +62,9 @@ func setup(roster: Array, party: Array, random: RandomNumberGenerator, active_tr
 		var abilities: Array = [Data.FORMS[monster["form"]]["signature"]] + monster["selected"]
 		for slot in range(abilities.size()):
 			draw_pile.append({"id": "%s_%d" % [monster["id"], slot], "ability": abilities[slot], "owner": monster["id"]})
-	for ability_id in ["rally", "core_pulse", "snare_dungeon"]:
+	var shared: Array = ["rally", "core_pulse", "snare_dungeon"] if dungeon_spells.is_empty() else dungeon_spells
+	for ability_id in shared:
+		if not Data.ABILITIES.has(ability_id): continue
 		draw_pile.append({"id": "dungeon_" + ability_id, "ability": ability_id, "owner": ""})
 	_remove_ko_cards()
 	_shuffle(draw_pile)
@@ -83,6 +90,14 @@ func legal_targets(card: Dictionary) -> Array:
 	if not owner.is_empty() and int(owner.get("statuses", {}).get("stun", 0)) > 0:
 		return []
 	var definition: Dictionary = Data.ABILITIES[card["ability"]]
+	if definition.get("shared_only", false) and not owner.is_empty(): return []
+	if card["ability"] == "echo_rune" and dungeon_state.get("echo_ready", false): return []
+	if card["ability"] == "echo_rune" and not has_owned_attack(): return []
+	if card["ability"] == "renewal_wave":
+		var useful: bool = false
+		for monster in monsters:
+			if int(monster["hp"]) > 0 and (int(monster["hp"]) < int(monster["max_hp"]) or int(monster.get("statuses", {}).get("poison", 0)) > 0 or int(monster.get("statuses", {}).get("burn", 0)) > 0): useful = true
+		if not useful: return []
 	var target_type: String = definition["target"]
 	if target_type == "self":
 		return [owner["id"]] if not owner.is_empty() else []
@@ -90,6 +105,7 @@ func legal_targets(card: Dictionary) -> Array:
 	var result: Array = []
 	for actor in targets:
 		if int(actor["hp"]) > 0:
+			if card["ability"] == "plague_bloom" and (int(actor.get("statuses", {}).get("poison", 0)) <= 0 or _targets("all_enemies", {}, "").size() < 2): continue
 			result.append(actor["id"])
 	return result
 
@@ -100,6 +116,7 @@ func play_card(index: int, target_id: String) -> bool:
 	if outcome != "active" or index < 0 or index >= hand.size():
 		return false
 	var card: Dictionary = hand[index]
+	if not Data.ABILITIES.has(card.get("ability", "")): return false
 	var ability: Dictionary = Data.ABILITIES[card["ability"]]
 	var targets: Array = legal_targets(card)
 	if targets.is_empty() or int(ability["cost"]) > energy:
@@ -114,8 +131,14 @@ func play_card(index: int, target_id: String) -> bool:
 	discard.append(card)
 	var owner: Dictionary = get_actor(card["owner"])
 	var before: Dictionary = Forms.prepare(self, card, target_id)
+	_card_context = true
+	_action_healed = 0
+	_action_damaged = []
 	_add_log("%s plays %s." % [owner.get("name", "Dungeon"), ability["name"]])
 	_resolve(ability, owner, target_id)
+	_card_context = false
+	before["healed"] = _action_healed
+	before["damaged"] = _action_damaged.duplicate()
 	Recap.card_played(self)
 	Forms.played(self, card, before)
 	_remove_ko_cards()
@@ -176,8 +199,13 @@ func _begin_turn() -> void:
 	Traits.begin_turn(self)
 	Forms.begin_turn(self)
 	energy = int(Data.BALANCE["energy"])
+	var kept: Array = []
 	for monster in monsters:
-		monster["block"] = 0
+		monster["block"] = mini(3, maxi(0, int(monster.get("block", 0)))) if traits.has("lingering_wards") and int(monster["hp"]) > 0 else 0
+		if int(monster["block"]) > 0: kept.append("%s keeps %d Block" % [monster["name"], monster["block"]])
+	if not kept.is_empty():
+		Traits._trigger(self, "lingering_wards")
+		_add_log("Lingering Wards: %s." % ", ".join(kept))
 	_remove_ko_cards()
 	_draw(int(Data.BALANCE["hand"]))
 	intents.clear()
@@ -244,11 +272,40 @@ func _targets(target_type: String, caster: Dictionary, target_id: String) -> Arr
 	return result
 
 func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> void:
+	if ability.get("shared_only", false) and not caster.is_empty(): return
 	var default_targets: Array = _targets(ability["target"], caster, target_id)
 	var kindling: Array = []
 	var retaliators: Array = []
 	var ward_captains: Array = []
+	var direct_kills: Array = []
+	var echo: bool = _card_context and not caster.is_empty() and _is_monster(caster["id"]) and dungeon_state.get("echo_ready", false) and _is_attack(ability)
 	for effect in ability["effects"]:
+		# Global spell effects happen once, irrespective of party size.
+		match effect["kind"]:
+			"draw":
+				var hand_before: int = hand.size()
+				_draw(int(effect["amount"]))
+				_add_log("Battle Orders draws %d cards." % (hand.size() - hand_before))
+				continue
+			"echo":
+				dungeon_state["echo_ready"] = true
+				_add_log("Echo Rune armed: the next monster-owned attack repeats its direct hits once.")
+				continue
+			"poison_spread":
+				var source: Dictionary = get_actor(target_id)
+				var strength: int = int(source.get("statuses", {}).get("poison", 0))
+				for foe in enemies:
+					if foe["id"] != target_id and int(foe["hp"]) > 0:
+						_status(foe, "poison", strength)
+						_add_log("Plague Bloom adds %d Poison to %s." % [strength, foe["name"]])
+				continue
+			"heal_on_kill":
+				for _kill in direct_kills:
+					var recipient: Dictionary = {}
+					for monster in monsters:
+						if int(monster["hp"]) > 0 and int(monster["hp"]) < int(monster["max_hp"]) and (recipient.is_empty() or float(monster["hp"]) / float(monster["max_hp"]) < float(recipient["hp"]) / float(recipient["max_hp"])): recipient = monster
+					if not recipient.is_empty(): _heal(recipient, int(effect["amount"]))
+				continue
 		var targets: Array = [caster] if effect.get("to", "target") == "self" else default_targets
 		for actor in targets:
 			if actor.is_empty() or int(actor["hp"]) <= 0:
@@ -259,17 +316,25 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 					_add_log("%s loses %d Block." % [actor["name"], int(actor.get("block", 0))])
 					actor["block"] = 0
 				"damage":
-					var hp_before: int = int(actor["hp"])
-					var blocked: int = _damage(actor, amount)
-					EncounterRules.collect_damage(self, caster, actor, hp_before - int(actor["hp"]), ward_captains)
-					Traits.collect_retaliation(self, caster, actor, blocked, retaliators)
+					for hit in range(2 if echo else 1):
+						if int(actor["hp"]) <= 0: break
+						if hit == 1: _add_log("Echo repeats the direct hit on %s." % actor["name"])
+						var hp_before: int = int(actor["hp"])
+						var marked: bool = not caster.is_empty() and _is_monster(caster["id"]) and int(actor.get("statuses", {}).get("marked", 0)) > 0
+						var blocked: int = _damage(actor, _amount(effect, ability, caster, actor))
+						if marked:
+							_clear_status(actor, "marked")
+							_add_log("%s's Hunter's Mark is spent by the owned hit." % actor["name"])
+						var lost: int = hp_before - int(actor["hp"])
+						if _card_context and not _is_monster(actor["id"]) and lost > 0 and not _action_damaged.has(actor["id"]): _action_damaged.append(actor["id"])
+						if int(actor["hp"]) <= 0 and not direct_kills.has(actor["id"]): direct_kills.append(actor["id"])
+						EncounterRules.collect_damage(self, caster, actor, lost, ward_captains)
+						Traits.collect_retaliation(self, caster, actor, blocked, retaliators)
 					if caster.get("form", "") == "red_ogre" and not kindling.has(actor["id"]):
 						kindling.append(actor["id"])
 				"block": actor["block"] = int(actor.get("block", 0)) + amount
 				"heal":
-					var healed: int = mini(amount, int(actor["max_hp"]) - int(actor["hp"]))
-					actor["hp"] = int(actor["hp"]) + healed
-					_add_log("%s recovers %d HP." % [actor["name"], healed])
+					_heal(actor, amount)
 				"status":
 					_status(actor, effect["status"], amount)
 					if effect["status"] == "poison" and caster.get("form", "") == "ember_basilisk":
@@ -286,8 +351,31 @@ func _resolve(ability: Dictionary, caster: Dictionary, target_id: String) -> voi
 			_status(actor, "burn", 1)
 	Traits.retaliate(self, caster, retaliators)
 	EncounterRules.apply_after_card(self, ward_captains)
+	if echo:
+		dungeon_state["echo_ready"] = false
+		_add_log("Echo Rune spent. Status effects and monster tactics happen once.")
 	if not caster.is_empty() and not _is_monster(caster["id"]):
 		_clear_status(caster, "resolve")
+
+func _is_attack(ability: Dictionary) -> bool:
+	for effect in ability.get("effects", []):
+		if effect["kind"] == "damage" and int(effect.get("amount", 0)) > 0: return true
+	return false
+
+func has_owned_attack() -> bool:
+	for card in hand + draw_pile + discard:
+		var owner: Dictionary = get_actor(card.get("owner", ""))
+		var ability: Dictionary = Data.ABILITIES.get(card.get("ability", ""), {})
+		if not owner.is_empty() and _is_monster(owner["id"]) and int(owner["hp"]) > 0 and not ability.get("shared_only", false) and _is_attack(ability): return true
+	return false
+
+func _heal(actor: Dictionary, amount: int) -> int:
+	if actor.is_empty() or int(actor["hp"]) <= 0: return 0
+	var healed: int = mini(maxi(0, amount), maxi(0, int(actor["max_hp"]) - int(actor["hp"])))
+	actor["hp"] = int(actor["hp"]) + healed
+	if _card_context and _is_monster(actor["id"]): _action_healed += healed
+	_add_log("%s recovers %d HP." % [actor["name"], healed])
+	return healed
 
 func _amount(effect: Dictionary, ability: Dictionary, caster: Dictionary, target: Dictionary) -> int:
 	var amount: int = int(effect.get("amount", 0))
@@ -298,6 +386,8 @@ func _amount(effect: Dictionary, ability: Dictionary, caster: Dictionary, target
 		amount += 1
 	if effect["kind"] == "damage":
 		amount += Forms.damage_bonus(self, caster)
+		if not caster.is_empty() and _is_monster(caster.get("id", "")):
+			amount += int(target.get("statuses", {}).get("marked", 0))
 		if form == "oni" and ability["affinity"] in ["Mystic", "Flame"]:
 			amount += 2
 		if form in ["shadow_stalker", "nightstalker"]:
@@ -350,6 +440,9 @@ func _status(actor: Dictionary, status_id: String, amount: int) -> void:
 			_add_log("%s is already stunned; stun does not stack." % actor["name"])
 			return
 		amount = 1
+	if status_id == "marked":
+		actor["statuses"][status_id] = maxi(amount, int(actor["statuses"].get(status_id, 0)))
+		return
 	if status_id in LAYERED_STATUSES:
 		if not actor["status_layers"].has(status_id): actor["status_layers"][status_id] = []
 		actor["status_layers"][status_id].append(amount)
@@ -473,7 +566,7 @@ func _check_outcome() -> bool:
 	return false
 
 func _status_name(status_id: String) -> String:
-	return {"burn": "burning", "regen": "regeneration", "evasion": "evasion", "stun": "stun", "poison": "poison", "resolve": "Resolve"}.get(status_id, status_id)
+	return {"burn": "burning", "regen": "regeneration", "evasion": "evasion", "stun": "stun", "poison": "poison", "resolve": "Resolve", "marked": "Hunter's Mark"}.get(status_id, status_id)
 
 func _add_log(message: String) -> void:
 	log.append(message)
@@ -485,7 +578,7 @@ func to_dict() -> Dictionary:
 	return {"enemies": enemies.duplicate(true), "monster_combat": monsters.duplicate(true), "hand": hand.duplicate(true),
 		"draw_pile": draw_pile.duplicate(true), "discard": discard.duplicate(true), "energy": energy,
 		"turn": turn, "outcome": outcome, "log": log.duplicate(), "intents": intents.duplicate(true), "rng_state": str(rng.state),
-		"traits": traits.duplicate(), "trait_state": trait_state.duplicate(true), "form_state": form_state.duplicate(true), "recap_state": recap_state.duplicate(true)}
+		"traits": traits.duplicate(), "trait_state": trait_state.duplicate(true), "form_state": form_state.duplicate(true), "dungeon_state": dungeon_state.duplicate(true), "recap_state": recap_state.duplicate(true)}
 
 func restore(saved: Dictionary, roster: Array, random: RandomNumberGenerator) -> void:
 	monsters = roster
@@ -493,6 +586,10 @@ func restore(saved: Dictionary, roster: Array, random: RandomNumberGenerator) ->
 	traits = saved.get("traits", []).duplicate()
 	trait_state = saved.get("trait_state", {}).duplicate(true)
 	form_state = saved.get("form_state", {}).duplicate(true)
+	dungeon_state = {"echo_ready": bool(saved.get("dungeon_state", {}).get("echo_ready", false))}
+	_card_context = false
+	_action_healed = 0
+	_action_damaged.clear()
 	recap_state = Recap.restore_state(saved.get("recap_state"))
 	Traits.ensure_state(self)
 	_ticking_statuses = false

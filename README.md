@@ -12,6 +12,16 @@ Cards now have painterly goblin illustrations for attack, guard, and healing cat
 
 Or download the standalone Windows build from [Releases](https://github.com/joeypshell/goblin-grimoire/releases/latest), extract it, and launch `GoblinGrimoire.exe`.
 
+## v0.16 spells, rewards and traders
+
+New runs can replace the three shared dungeon cards with spells earned from victory offers or bought with raid gold. Twelve new spells provide healing, area attacks, poison and burning combinations, protection, draw and a setup for your next monster attack. The deck remains twelve cards; monster-owned skills, signatures and transformations retain their identities.
+
+After each nonfinal victory, choose one of three saved spell offers and immediately replace a dungeon slot, or explicitly skip. This choice lives inside feeding. Feeding still rolls one random unknown actual body ability for its chosen monster; dungeon spells do not count as meals or reveal evolution recipes. Each normal win earns 35 gold and a champion win earns 60. Traders visit after raids two and five, before each champion. Upcoming visits are announced in preparation, so you can save toward healing, an area attack or utility. Stock varies by run and persists through Continue. Gold and shared spells belong to the current run.
+
+Four additional dungeon perks support healing, area burning, retained defense and expensive shared spells. The first trait still comes before first feeding; the second still comes after F champion recovery. Older saved runs retain their established reward flow and fixed dungeon cards. Start a new run for the spell and gold progression.
+
+This update tests reward anticipation and how players pursue a missing tool. Automated campaigns verify legal acquisition, equipment, play and saving; human enjoyment still requires a playtest.
+
 ## v0.15 choose a build before feeding
 
 Your first victory now opens the saved two-trait offer **before feeding any bodies**. Choose a direction, then decide who devours each body and which learned skills to equip. The feeding screen keeps your chosen trait visible. Inheritance still rolls one random unknown skill from the actual body.
@@ -56,7 +66,7 @@ Open **Sound settings** on the title or inside **Log & rules** to change music v
 
 Defend one chamber with Grub, Nix, and Moss. Read the invading party's intentions, play cards, and consume the abilities of defeated adventurers. Each goblin keeps its own identity, skills, and health. Discover transformations by feeding them; the grimoire records only transformations you actually perform.
 
-Immediately after the first victory, choose a **dungeon trait** from two saved random offers before feeding: spread poison from defeated invaders with **Venom Nest**, turn absorbed attacks into retaliation with **Spiteful Shields**, coordinate all three monsters with **Pack Instinct**, or protect a teammate for extra energy and a draw with **War Drums**. The F champion earns a second, different trait from all remaining choices after feeding and recovery. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
+Immediately after the first victory, choose a **dungeon trait** from two saved random offers before feeding. Eight traits support poison, retaliation, coordinated monster cards, teammate protection, healing, shared area attacks, retained Block and costly spells. The F champion earns a second, different trait from all remaining choices after feeding and recovery. Preparation shows your next reward and the champion's threat, so you can equip skills and feed toward a plan.
 
 ## v0.10 first-act build experiment
 
@@ -110,13 +120,14 @@ The browser build requires WebGL 2.0. It uses the Compatibility renderer and a s
 - Click **End your turn** (or press Space) to watch the announced invader actions resolve. You have three energy and draw five cards each turn. Friendly monsters only act through cards. Cards pause during the enemy sequence; **Skip animation** finishes its presentation.
 - After the first victory, choose a run-wide trait from two saved random offers, then feed the fallen. At other victories, feeding starts immediately. Choose a body and a recipient, then **Devour & inherit**. One of that adventurer's unknown abilities is rolled randomly, with common abilities more likely. Possible results and their chances are shown before devouring; the saved result appears afterward. You can skip a body. Learned abilities can be selected for the next raid.
 - An **Evolve** action appears only for transformations a monster has earned. You can accept it or return to it during preparation.
+- In new runs, each nonfinal victory also offers three dungeon spells. Choose one and replace a shared card, or skip. Your spell library remains available during feeding and preparation.
 - Finish feeding to recover 25% of each monster's maximum HP. Clear two raids and a champion at F, then E. Defeating the E champion wins and records promotion to D.
 - A knockout removes that monster's owned cards for the rest of the fight. A surviving victory brings teammates back through normal recovery. Losing all three monsters ends the run immediately; there are no raid retries.
 - The first trait guides feeding before the first recovery. After feeding the F champion's party, choose a second trait from all remaining options. Traits have no duplicates and combine for the remaining raids. Continue preserves a pending offer. Older runs receive any missed trait choices at the next safe preparation or recovery boundary.
 - **Save & title** and **Continue** preserve the current battle or reward phase. **New Run** preserves permanent discoveries.
 - **Log & rules** shows the combat record and a saved **Reduce motion** preference. The browser's motion preference supplies the initial setting when no choice has been saved.
 
-No equipment or shops. D through S are data definitions for future campaigns; this version plays F and E only.
+Traders sell shared dungeon spells for gold earned from victories. D through S are data definitions for future campaigns; this version plays F and E only.
 
 ## Balance and rules
 

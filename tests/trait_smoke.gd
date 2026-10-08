@@ -9,6 +9,7 @@ const Replay = preload("res://scripts/battle_replay.gd")
 const Traits = preload("res://scripts/dungeon_traits.gd")
 const TurnChecks = preload("res://tests/turn_ui_checks.gd")
 const OfferChecks = preload("res://tests/trait_offer_ui_checks.gd")
+const LootChecks = preload("res://tests/loot_ui_checks.gd")
 const SIZES = [Vector2i(1280, 720), Vector2i(390, 844), Vector2i(375, 667), Vector2i(844, 320)]
 
 var ui
@@ -106,6 +107,7 @@ func resolve_victory(before_meal: bool = false) -> void:
 	ui.refresh()
 
 func finish_meal() -> void:
+	check(LootChecks.skip_draft(self, game), "Trait-focused meal explicitly resolves its saved spell reward")
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
 	check(game.finish_feeding(), "Resolved meal applies normal recovery and raid advancement")
 	ui.refresh()
@@ -242,9 +244,9 @@ func enemy(id: String, ability: String, hp: int) -> Dictionary:
 	return {"id": id, "name": "Invader " + id, "class_name": "warrior", "form": "warrior", "hp": hp, "max_hp": hp, "abilities": [ability], "armor": 0, "block": 0, "statuses": {}}
 
 func exercise_offered_pairs() -> void:
-	# Two real seed-derived pairs cover every existing trait without granting an
+	# Four real seed-derived pairs cover every existing trait without granting an
 	# arbitrary option. Select both members through production controls at each size.
-	for required in [["pack_instinct", "venom_nest"], ["war_drums", "spiteful_shields"]]:
+	for required in [["pack_instinct", "venom_nest"], ["war_drums", "spiteful_shields"], ["blood_cauldron", "wildfire"], ["lingering_wards", "spellweaver"]]:
 		var seed_value: int = OfferChecks.seed_for(required)
 		check(seed_value != 0, "A deterministic production seed exists for this two-trait offer fixture")
 		if seed_value == 0: return
@@ -299,6 +301,8 @@ func exercise_offered_pairs() -> void:
 	# A v0.14 save already inside feeding must retain that old order on Continue.
 	game.run["phase"] = "feeding"
 	game.run.erase("trait_return")
+	game.run.erase("loot_version")
+	game.run.erase("spell_offer")
 	game.save_game()
 	var legacy = State.new(game._prefix)
 	check(legacy.load_game() and legacy.run["phase"] == "feeding" and legacy.run["traits"].is_empty(), "Existing legacy feeding save is not interrupted by the new early-reward ordering")
@@ -315,7 +319,7 @@ func exercise_offered_pairs() -> void:
 	await capture("17_legacy_postfeeding_result")
 	reset_game("legacy_one_remaining_offer")
 	game.run["raid"] = 1
-	game.run["traits"] = ["venom_nest", "spiteful_shields", "pack_instinct"]
+	game.run["traits"] = Traits.choices(["war_drums"])
 	check(game._open_trait_reward("prep"), "Legacy pending first milestone still offers its one remaining unowned trait")
 	game.save_game()
 	ui.refresh()
@@ -335,7 +339,7 @@ func exercise_offered_pairs() -> void:
 	var first_choice: String = game.trait_choices()[0]
 	named(ui, "TraitSelect_" + first_choice).pressed.emit()
 	await settle()
-	check(game.run["phase"] == "trait" and game.trait_choices().size() == 3 and named(ui, "TraitOfferSummary").text.contains("all remaining options"), "Selecting the owed first offer exposes the full remaining second pool before preparation")
+	check(game.run["phase"] == "trait" and game.trait_choices().size() == Traits.DEFINITIONS.size() - 1 and named(ui, "TraitOfferSummary").text.contains("all remaining options"), "Selecting the owed first offer exposes the full remaining second pool before preparation")
 	await capture("16_legacy_second_reward_pending")
 	var second_choice: String = game.trait_choices()[0]
 	named(ui, "TraitSelect_" + second_choice).pressed.emit()

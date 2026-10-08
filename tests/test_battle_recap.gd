@@ -147,6 +147,7 @@ func win_prepared(t, game) -> Dictionary:
 func resolve_feeding(t, game) -> void:
 	if game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": t.choose_campaign_trait(game)
 	for index in range(game.run["rewards"].size()): t.check(game.skip_body(index), "Recap feeding fixture resolves every actual corpse through the normal skip API")
+	if not game.spell_reward_choices().is_empty(): t.check(game.skip_spell_reward(), "Recap fixture explicitly declines its separate shared spell draft")
 	t.check(game.finish_feeding(), "Recap fixture finishes feeding and applies ordinary victory recovery")
 
 func test_capture_and_persistence(t) -> void:

@@ -16,9 +16,15 @@ static func target_prompt(target: String) -> String:
 
 static func unavailable(battle, card: Dictionary, resolving: bool = false) -> String:
 	if resolving: return "Wait for enemy turn"
+	if not Data.ABILITIES.has(card.get("ability", "")): return "Unknown card"
 	var owner: Dictionary = battle.get_actor(card["owner"])
 	if card["owner"] != "" and int(owner.get("hp", 0)) <= 0: return "Owner knocked out"
 	if int(owner.get("statuses", {}).get("stun", 0)) > 0: return "Owner stunned this turn"
+	if Data.ABILITIES[card["ability"]].get("shared_only", false) and card.get("owner", "") != "": return "Dungeon shared spell only"
+	if card["ability"] == "echo_rune" and battle.dungeon_state.get("echo_ready", false): return "Echo already armed"
+	if card["ability"] == "echo_rune" and not battle.has_owned_attack(): return "No living owned attack in this deck"
+	if card["ability"] == "plague_bloom" and battle.legal_targets(card).is_empty(): return "Needs a poisoned foe and another living foe"
+	if card["ability"] == "renewal_wave" and battle.legal_targets(card).is_empty(): return "No missing HP or Poison/Burn to cleanse"
 	if int(Data.ABILITIES[card["ability"]]["cost"]) > battle.energy: return "Not enough energy"
 	if battle.legal_targets(card).is_empty(): return "No living legal target"
 	return ""
@@ -36,6 +42,9 @@ static func guidance(battle, selected: int, resolving: bool, turn_message: Strin
 		if protection_hint != "": bonus += ("\n" if bonus != "" else "") + protection_hint
 		var form_hint: String = Forms.status(battle, battle.get_actor(card["owner"]))
 		if form_hint != "": bonus += ("\n" if bonus != "" else "") + form_hint
+		var reason: String = unavailable(battle, card)
+		if reason != "": tap = reason + "."
+		if card["ability"] == "plague_bloom" and reason == "": tap = "Tap a highlighted poisoned invader · spreads to the OTHER invaders."
 		return "%s uses %s · %d energy\n%s\n%s%s" % [actor, ability["name"], ability["cost"], tap, card_effect(battle, card), "\n" + bonus if bonus != "" else ""]
 	var playable: bool = false
 	for card in battle.hand:
@@ -44,6 +53,9 @@ static func guidance(battle, selected: int, resolving: bool, turn_message: Strin
 		return "No energy left. A card costing 0 can still be played." if playable else "No energy left. End your turn to let invaders act, then draw 5 new cards."
 	if not playable: return "No playable cards remain. End your turn for fresh cards and energy."
 	return "1 · Choose a card, then its target. Monsters act through their own cards."
+
+static func dungeon_status(battle) -> String:
+	return "ECHO ARMED · next monster-owned attack repeats direct hits once" if battle.dungeon_state.get("echo_ready", false) else ""
 
 static func pack_bonus(battle, card: Dictionary) -> String:
 	if not battle.traits.has("pack_instinct") or battle.trait_state.get("pack_triggered", false): return ""
@@ -71,6 +83,7 @@ static func status(actor: Dictionary) -> String:
 	for key in actor.get("statuses", {}):
 		if int(actor["statuses"][key]) > 0:
 			if key == "resolve": tags.append("Resolve · stun protected")
+			elif key == "marked": tags.append("Hunter's Mark · next owned hit +%d" % actor["statuses"][key])
 			else: tags.append("%s %d" % [_status_name(key), actor["statuses"][key]])
 	return " · ".join(tags)
 
@@ -84,7 +97,7 @@ static func encounter_caption(actor: Dictionary) -> String:
 	return ""
 
 static func _status_name(id: String) -> String:
-	return {"burn": "Burn", "poison": "Poison", "regen": "Regen", "stun": "Stun", "evasion": "Evade", "resolve": "Resolve"}.get(id, id.capitalize())
+	return {"burn": "Burn", "poison": "Poison", "regen": "Regen", "stun": "Stun", "evasion": "Evade", "resolve": "Resolve", "marked": "Hunter's Mark"}.get(id, id.capitalize())
 
 static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target: Dictionary, detailed: bool) -> String:
 	var parts: Array = []
@@ -146,15 +159,20 @@ static func _effect_text(battle, ability: Dictionary, caster: Dictionary, target
 
 static func card_effect(battle, card: Dictionary) -> String:
 	var ability: Dictionary = Data.ABILITIES[card["ability"]]
+	if ability.get("shared_only", false): return ability["description"]
 	var caster: Dictionary = battle.get_actor(card["owner"])
 	var text: String = _effect_text(battle, ability, caster, {}, false)
 	for effect in ability["effects"]:
 		if effect.get("to", "target") == "self" and not caster.is_empty():
 			text += ", owner +%d %s" % [battle._amount(effect, ability, caster, caster), _status_name(effect.get("status", "block"))]
+	if not caster.is_empty() and battle.dungeon_state.get("echo_ready", false) and battle._is_attack(ability): text += " · Echo repeats direct hits once; status riders and tactics once"
 	return text
 
 static func preview(battle, card: Dictionary, actor: Dictionary) -> String:
 	var ability: Dictionary = Data.ABILITIES[card["ability"]]
+	# The authoritative read-only forecast also covers global effects and repeated hits.
+	if ability.get("shared_only", false) or battle.dungeon_state.get("echo_ready", false) or int(actor.get("statuses", {}).get("marked", 0)) > 0 or battle.traits.has("blood_cauldron") or battle.traits.has("wildfire") or battle.traits.has("spellweaver"):
+		return battle.preview(card, actor.get("id", ""))
 	var caster: Dictionary = battle.get_actor(card["owner"])
 	var text: String = _effect_text(battle, ability, caster, actor, true)
 	for effect in ability["effects"]:

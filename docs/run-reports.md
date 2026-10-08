@@ -16,6 +16,13 @@ Recovery is recorded only when feeding finishes; the first trait does not heal
 the roster. Pending older postmeal saves retain their original order. Ordered
 events distinguish these flows without rewriting historical reports.
 
+Starting with v0.16, new-run local views retain gold, the actual selected dungeon
+cards, the spell library, saved offers and choice history, and recorded trader
+state. Accepted reward choices, skips, purchases and equipment changes have
+ordered events. Recorded card use distinguishes a spell that was offered or
+bought from one actually played. Legacy views omit this progression rather than
+inventing earlier rewards. The reporting service and access settings are unchanged.
+
 The dashboard can compare recorded card use, energy spent and voluntarily left
 at End Turn, breaches, builds, and ordered decisions. Combat snapshots show net
 changes: they do not establish exact aggregate damage, healing or overhealing

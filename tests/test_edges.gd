@@ -103,6 +103,7 @@ func test_knocked_out_feeding(t) -> void:
 	t.check(not game.evolve(monster["id"], "oni"), "One feeding decision cannot produce an automatic transformation chain")
 	for index in range(game.run["rewards"].size()):
 		game.skip_body(index)
+	if not game.spell_reward_choices().is_empty(): game.skip_spell_reward()
 	t.check(game.finish_feeding(), "KO feeding completion resolves once")
 	t.check(monster["hp"] == ceili(float(Data.FORMS["red_ogre"]["max_hp"]) * float(Data.BALANCE["recovery"])) and game.run["monsters"][1]["hp"] == 11, "Recovery uses evolved maximum HP and heals six-HP goblin to eleven")
 	var recovered: Array = game.run["monsters"].map(func(m): return m["hp"])

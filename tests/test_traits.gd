@@ -30,11 +30,12 @@ func fixture_win(game) -> void:
 
 func finish_fixture_meals(game) -> bool:
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
+	if not game.spell_reward_choices().is_empty(): game.skip_spell_reward()
 	return game.finish_feeding()
 
 func test_first_offer_pairs(t) -> void:
 	var representatives: Dictionary = {}
-	for seed_value in range(1, 101):
+	for seed_value in range(1, 401):
 		var offered: Array = DungeonTraits.first_offer(seed_value)
 		t.check(offered.size() == 2 and offered[0] != offered[1] and offered.all(func(id): return DungeonTraits.DEFINITIONS.has(id)), "Seeded first offer contains exactly two distinct existing traits: seed %d" % seed_value)
 		t.check(offered == DungeonTraits.first_offer(seed_value), "Independent first-offer generation is deterministic: seed %d" % seed_value)
@@ -42,7 +43,8 @@ func test_first_offer_pairs(t) -> void:
 		sorted.sort()
 		var pair: String = str(sorted[0]) + "/" + str(sorted[1])
 		if not representatives.has(pair): representatives[pair] = seed_value
-	t.check(representatives.size() == 6, "All six possible pairs of four first-reward traits occur across bounded seeds")
+	var count: int = DungeonTraits.DEFINITIONS.size()
+	t.check(representatives.size() == count * (count - 1) / 2, "Every possible pair of the current first-reward trait pool occurs across bounded seeds")
 	for pair in representatives:
 		var game = game_at(t, "trait_pair_" + str(representatives[pair]))
 		game.new_run(int(representatives[pair]))
@@ -122,13 +124,13 @@ func test_progression(t) -> void:
 	var recovered: Dictionary = continued.run.duplicate(true)
 	continued.save_calls = 0
 	t.check(not continued.finish_feeding() and continued.run == recovered and continued.save_calls == 0, "A repeated completion cannot recover or advance a second time")
-	continued.continue_after_result()
+	t.advance_campaign(continued)
 	t.check(fixture_victory(continued) and continued.run["raid"] == 2 and continued.run["phase"] == "result", "The middle F raid does not award an extra trait")
-	continued.continue_after_result()
+	t.advance_campaign(continued)
 	fixture_win(continued)
 	t.check(continued.run["raid"] == 2 and continued.run["phase"] == "feeding" and not continued.run.has("trait_return") and continued.run["trait_milestones"] == [1], "The champion still opens feeding before its second trait reward")
 	t.check(finish_fixture_meals(continued) and continued.run["raid"] == 3 and continued.run["phase"] == "trait" and continued.run["promotion"] == "E", "Champion feeding and recovery still precede the second trait and promotion")
-	t.check(not continued.trait_choices().has(chosen) and continued.trait_choices() == DungeonTraits.choices([chosen]) and continued.trait_choices().size() == 3, "The second reward retains all three remaining traits rather than another random pair")
+	t.check(not continued.trait_choices().has(chosen) and continued.trait_choices() == DungeonTraits.choices([chosen]) and continued.trait_choices().size() == DungeonTraits.DEFINITIONS.size() - 1, "The second reward retains every remaining trait rather than another random pair")
 	before = continued.run.duplicate(true)
 	random_before = continued.rng.state
 	continued.save_calls = 0
@@ -165,6 +167,7 @@ func test_first_win_guard(t) -> void:
 func test_legacy(t) -> void:
 	var old = game_at(t, "trait_legacy_prep")
 	old.new_run(33718)
+	old.run.erase("loot_version")
 	old.run["raid"] = 3
 	old.run.erase("traits")
 	old.run.erase("trait_milestones")
@@ -181,6 +184,7 @@ func test_legacy(t) -> void:
 	t.check(pending.choose_trait(str(pending.trait_choices()[0])) and pending.run["phase"] == "prep" and pending.run["trait_milestones"] == [1, 3] and pending.rng.state == random_before, "Second legacy reward returns to the original preparation without RNG consumption")
 	var active = game_at(t, "trait_legacy_combat")
 	active.new_run(72818)
+	active.run.erase("loot_version")
 	active.run["raid"] = 3
 	active.run.erase("party")
 	active.start_raid()
@@ -198,6 +202,7 @@ func test_legacy(t) -> void:
 	for enemy in combat_loaded.battle.enemies: enemy["hp"] = 0
 	combat_loaded.end_turn()
 	for index in range(combat_loaded.run["rewards"].size()): combat_loaded.skip_body(index)
+	if not combat_loaded.spell_reward_choices().is_empty(): combat_loaded.skip_spell_reward()
 	t.check(combat_loaded.finish_feeding() and combat_loaded.run["phase"] == "trait", "Legacy active run offers owed traits only after its combat/feeding boundary")
 	t.choose_campaign_trait(combat_loaded)
 	t.check(combat_loaded.run["phase"] == "result" and combat_loaded.run["traits"].size() == 2, "Deferred legacy rewards return to the proper result after both choices")
@@ -205,10 +210,13 @@ func test_legacy(t) -> void:
 func test_legacy_first_offer(t) -> void:
 	var old = game_at(t, "trait_legacy_pending_first")
 	old.new_run(84917)
+	old.run.erase("loot_version")
 	old.run["raid"] = 1
 	old.run["phase"] = "trait"
 	old.run["trait_return"] = "result"
 	old.run.erase("first_trait_offer")
+	old.run.erase("loot_version")
+	old.run.erase("spell_offer")
 	old.save_game()
 	var random_before: int = old.rng.state
 	var party: Array = old.run["party"].duplicate(true)
@@ -246,6 +254,8 @@ func test_legacy_feeding_order(t) -> void:
 	old.run["phase"] = "feeding"
 	old.run.erase("trait_return")
 	old.run.erase("first_trait_offer")
+	old.run.erase("loot_version")
+	old.run.erase("spell_offer")
 	t.check(old.claim_body(0, "m1"), "Legacy partial meal fixture resolves one real weighted corpse through the production API")
 	old.save_game()
 	var bodies: Array = old.run["rewards"].duplicate(true)
@@ -266,6 +276,7 @@ func test_legacy_feeding_order(t) -> void:
 	t.check(postmeal.choose_trait(str(postmeal.trait_choices()[0])) and postmeal.run["phase"] == "result" and postmeal.run["monsters"].map(func(monster): return monster["hp"]) == recovered_hp and postmeal.current_report()["summary"]["recoveries"] == 1 and postmeal.current_report()["summary"]["bodies_claimed"] == 1, "Choosing a legacy postmeal trait cannot reopen feeding or duplicate recovery/inheritance reports")
 	var active = game_at(t, "trait_old_first_active")
 	active.new_run(56104)
+	active.run.erase("loot_version")
 	active.start_raid()
 	var battle_before: Dictionary = active.battle.to_dict()
 	active.save_game()

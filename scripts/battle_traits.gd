@@ -3,7 +3,8 @@ extends RefCounted
 # Dungeon rules share Battle's authoritative state. These helpers never own RNG.
 static func fresh_state() -> Dictionary:
 	return {"owners": [], "pack_triggered": false, "war_drums_triggered": false, "venom_kos": [],
-		"trigger_counts": {"venom_nest": 0, "spiteful_shields": 0, "pack_instinct": 0, "war_drums": 0}}
+		"blood_cauldron_triggered": false, "wildfire_triggered": false, "spellweaver_triggered": false,
+		"trigger_counts": {"venom_nest": 0, "spiteful_shields": 0, "pack_instinct": 0, "war_drums": 0, "blood_cauldron": 0, "wildfire": 0, "lingering_wards": 0, "spellweaver": 0}}
 
 static func ensure_state(battle) -> void:
 	var defaults: Dictionary = fresh_state()
@@ -21,6 +22,7 @@ static func begin_turn(battle) -> void:
 	battle.trait_state["owners"] = []
 	battle.trait_state["pack_triggered"] = false
 	battle.trait_state["war_drums_triggered"] = false
+	for id in ["blood_cauldron", "wildfire", "spellweaver"]: battle.trait_state[id + "_triggered"] = false
 
 static func _war_drums_ready(battle, card: Dictionary, before: Dictionary) -> bool:
 	if not battle.traits.has("war_drums") or battle.trait_state.get("war_drums_triggered", false) or not before.get("protect", false): return false
@@ -28,12 +30,41 @@ static func _war_drums_ready(battle, card: Dictionary, before: Dictionary) -> bo
 	return not owner.is_empty() and battle._is_monster(owner["id"]) and int(owner.get("hp", 0)) > 0
 
 static func card_preview(battle, card: Dictionary, before: Dictionary = {}) -> String:
-	if not _war_drums_ready(battle, card, before): return ""
-	return "War Drums: protect another monster to gain 1 energy and draw 1 card (first protection this turn)."
+	var parts: Array = []
+	if _war_drums_ready(battle, card, before): parts.append("War Drums: protect another monster to gain 1 energy and draw 1 card (first protection this turn).")
+	if battle.traits.has("blood_cauldron") and not battle.trait_state.get("blood_cauldron_triggered", false) and int(before.get("healed", 0)) > 0: parts.append("Blood Cauldron: this healing draws 1 card (first healing card this turn).")
+	if battle.traits.has("wildfire") and not battle.trait_state.get("wildfire_triggered", false) and card.get("owner", "") == "" and not before.get("damaged", []).is_empty(): parts.append("Wildfire: +1 Burn to the damaged survivors (first shared area attack this turn).")
+	var ability: Dictionary = preload("res://scripts/game_data.gd").ABILITIES.get(card.get("ability", ""), {})
+	if battle.traits.has("spellweaver") and not battle.trait_state.get("spellweaver_triggered", false) and card.get("owner", "") == "" and int(ability.get("cost", 0)) >= 2: parts.append("Spellweaver: return 1 energy after playing (first costly shared spell this turn).")
+	return "\n".join(parts)
 
 static func played(battle, card: Dictionary, before: Dictionary = {}) -> void:
-	if not battle._is_monster(card.get("owner", "")): return
 	ensure_state(battle)
+	if battle.traits.has("blood_cauldron") and not battle.trait_state["blood_cauldron_triggered"] and int(before.get("healed", 0)) > 0:
+		battle.trait_state["blood_cauldron_triggered"] = true
+		_trigger(battle, "blood_cauldron")
+		var hand_before: int = battle.hand.size()
+		battle._draw(1)
+		battle._add_log("Blood Cauldron: restoring HP draws %d card." % (battle.hand.size() - hand_before))
+	var ability: Dictionary = preload("res://scripts/game_data.gd").ABILITIES[card["ability"]]
+	if card.get("owner", "") == "":
+		if battle.traits.has("spellweaver") and not battle.trait_state["spellweaver_triggered"] and int(ability["cost"]) >= 2:
+			battle.trait_state["spellweaver_triggered"] = true
+			_trigger(battle, "spellweaver")
+			battle.energy += 1
+			battle._add_log("Spellweaver: costly shared spell returns 1 energy.")
+		if battle.traits.has("wildfire") and not battle.trait_state["wildfire_triggered"] and ability["target"] == "all_enemies" and battle._is_attack(ability):
+			var recipients: Array = []
+			for id in before.get("damaged", []):
+				var foe: Dictionary = battle.get_actor(id)
+				if int(foe.get("hp", 0)) > 0:
+					battle._status(foe, "burn", 1)
+					recipients.append(foe["name"])
+			if not recipients.is_empty():
+				battle.trait_state["wildfire_triggered"] = true
+				_trigger(battle, "wildfire")
+				battle._add_log("Wildfire: +1 Burn to %s." % ", ".join(recipients))
+	if not battle._is_monster(card.get("owner", "")): return
 	if _war_drums_ready(battle, card, before):
 		battle.trait_state["war_drums_triggered"] = true
 		_trigger(battle, "war_drums")

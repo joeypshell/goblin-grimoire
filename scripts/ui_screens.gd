@@ -56,8 +56,8 @@ func title_screen() -> void:
 	else: copy.add_child(spacer)
 	var how = ui.panel(copy)
 	how.add_child(ui.label("A raid in four steps", 19 if compact else 20, ui.EMBER, compact))
-	how.add_child(ui.label("1   PREPARE: choose skills and inspect.\n2   FIGHT: card owner acts on a target.\n3   FEED: inherit one random enemy ability.\n4   RECOVER: regain HP for the next raid.", 14 if compact else 16, ui.PARCHMENT, true))
-	how.add_child(ui.label("First trait before feeding; second after F champion recovery.\nInvaders act at turn end. Healing cards repeat. Lose all monsters: run ends.", 14, ui.MUTED, true))
+	how.add_child(ui.label("1   PREPARE: equip skills and dungeon spells.\n2   FIGHT: play cards; wins earn gold.\n3   FEED: random monster skill + spell draft.\n4   RECOVER: regain HP; traders before champions.", 14 if compact else 16, ui.PARCHMENT, true))
+	how.add_child(ui.label("First trait before feeding; second after F champion recovery.\nHealing cards repeat. Lose all monsters: run ends.", 14, ui.MUTED, true))
 	how.add_child(ui.label("Anonymous gameplay reports upload automatically to help improve the game.", 13, ui.MUTED, true))
 	var reports = ui.button("Playtest reports", ui.report_ui.open, 0 if compact else 150)
 	reports.name = "OpenRunReports"
@@ -99,6 +99,8 @@ func preparation() -> void:
 	top.add_child(ui.primary("Defend the dungeon", func():
 		ui.act(ui.state.start_raid, "Choose a card, then one of its highlighted targets."), 0 if compact else 230))
 	ui.traits_screen.summary(page)
+	ui.loot_screen.milestone(page)
+	ui.loot_screen.library(page)
 	ui.party_routes.render(page)
 	var roster = _flow(compact)
 	roster.add_theme_constant_override("separation", 14)
@@ -359,6 +361,8 @@ func results() -> void:
 		heading = "4 / RECOVERY  ·  PROMOTED TO E"
 		title = "Word is spreading."
 		message = "The F-rank champion has fallen and recovery is applied. Next: select skills and inspect stronger invaders during rank E preparation."
+	var trader_next: bool = not victory and not defeat and ui.loot_screen.enabled() and int(ui.state.run.get("raid", 0)) in [2, 5] and not ui.state.run.get("trader_visited_raids", []).has(int(ui.state.run.get("raid", 0)))
+	if trader_next: message = "Recovery is applied. Next: spend saved gold at the trader, then prepare for the %s champion." % ("F" if int(ui.state.run["raid"]) == 2 else "E")
 	box.add_child(ui.label(heading, 16, ui.RED if defeat else ui.EMBER, compact))
 	box.add_child(ui.label(title, 27 if compact else 34, ui.PARCHMENT, compact))
 	box.add_child(ui.label(message, 17, ui.MUTED, true))
@@ -384,7 +388,7 @@ func results() -> void:
 	if victory or defeat:
 		actions.add_child(ui.primary("Begin another run", _new_run, 0 if compact else 230))
 	else:
-		actions.add_child(ui.primary("Return to preparation", func(): ui.act(ui.state.continue_after_result), 0 if compact else 270))
+		actions.add_child(ui.primary("Visit the trader" if trader_next else "Return to preparation", func(): ui.act(ui.state.continue_after_result), 0 if compact else 270))
 	actions.add_child(ui.button("Read grimoire", ui.open_grimoire, 0 if compact else 175))
 	var reports = ui.button("Playtest reports", ui.report_ui.open)
 	reports.name = "OpenRunReports"

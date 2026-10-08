@@ -28,7 +28,7 @@ func test_actions(t) -> void:
 	game.new_run(9223372036854775806)
 	reference.new_run(9223372036854775806)
 	var report: Dictionary = game.current_report()
-	t.check(report["schema"] == 1 and report["build"] == "0.15.0" and report["coverage"] == "full", "New run receives a full versioned report")
+	t.check(report["schema"] == 1 and report["build"] == "0.16.0" and report["coverage"] == "full", "New run receives a full versioned report")
 	t.check(not game.run.has("core") and not report["summary"]["current"].has("core"), "New game and report views have no obsolete separate dungeon HP")
 	t.check(report["summary"]["current"].get("loss_rule", "") == "party_wipe_ends_run", "Current report explicitly records the new immediate full-wipe loss rule")
 	t.check(report["seed"] == "9223372036854775806" and report["seed"] is String, "Report seed preserves all 64 bits as decimal text")
@@ -85,6 +85,7 @@ func win_fixture(game) -> void:
 func finish_rewards(game) -> void:
 	while game.run["phase"] == "trait" and game.run.get("trait_return", "") == "feeding": game.choose_trait(game.trait_choices()[0])
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
+	if not game.spell_reward_choices().is_empty(): game.skip_spell_reward()
 	game.finish_feeding()
 	while game.run["phase"] == "trait": game.choose_trait(game.trait_choices()[0])
 
@@ -117,6 +118,7 @@ func test_rewards(t) -> void:
 	var recipe: String = game.eligible("m1")[0]["id"]
 	t.check(game.evolve("m1", recipe) and game.current_report()["summary"]["evolutions"] == 1, "Real eligible evolution records result once")
 	for index in range(1, game.run["rewards"].size()): game.skip_body(index)
+	if not game.spell_reward_choices().is_empty(): game.skip_spell_reward()
 	game.finish_feeding()
 	t.check(game.current_report()["summary"]["bodies_claimed"] == 1 and game.current_report()["summary"]["bodies_skipped"] == 2, "Feeding summary distinguishes consumption from discarded bodies")
 	t.check(game.current_report()["summary"]["recoveries"] == 1 and kinds(game.current_report(), "recovered").size() == 1, "Feeding recovery records exactly once")
@@ -151,7 +153,7 @@ func test_outcomes(t) -> void:
 	for index in range(6):
 		win_fixture(victory)
 		finish_rewards(victory)
-		if index < 5: victory.continue_after_result()
+		if index < 5: t.advance_campaign(victory)
 	t.check(victory.current_report()["status"] == "victory" and victory.current_report()["summary"]["raids_won"] == 6, "Full campaign completion produces one victory report with six raid summaries")
 	test_terminal_metadata(t, victory)
 	var id: String = victory.current_report()["id"]

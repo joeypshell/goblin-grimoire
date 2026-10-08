@@ -52,6 +52,11 @@ func _banner(parent: Node, compact: bool) -> void:
 		var countdown = ui.label(milestone, 12 if compact else 14, ui.EMBER, true)
 		countdown.name = "ChampionMilestone"
 		box.add_child(countdown)
+	var dungeon: String = "" if ui.resolving_turn else Copy.dungeon_status(battle)
+	if dungeon != "":
+		var status = ui.label(dungeon, 12 if compact else 14, ui.MOSS, true)
+		status.name = "DungeonCombatStatus"
+		box.add_child(status)
 
 func _render_desktop() -> void:
 	var battle = ui.combat_battle()
@@ -128,7 +133,7 @@ func _render_compact() -> void:
 	ui.content.add_theme_constant_override("separation", 5)
 	var layout: VBoxContainer = ui.content
 	var body_scroll: ScrollContainer
-	if short_landscape:
+	if short_landscape or portrait:
 		body_scroll = ScrollContainer.new()
 		body_scroll.name = "CombatBodyScroll"
 		body_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -160,7 +165,7 @@ func _render_compact() -> void:
 				var receiver: Dictionary = battle.get_actor(id)
 				if not visible_actors.has(receiver): visible_actors.append(receiver)
 			if visible_actors.is_empty(): visible_actors = battle.monsters if ui.turn_stage in ["player_end", "draw"] else battle.enemies
-		var actors = _actor_scroll(layout, 100)
+		var actors = _actor_scroll(layout, 100, true)
 		for actor in visible_actors:
 			if not actor.is_empty(): parts.actor(actor, actors, not battle._is_monster(actor["id"]), true)
 	elif ui.get_viewport_rect().size.x >= 900 and ui.get_viewport_rect().size.y >= 560:
@@ -193,7 +198,7 @@ func _render_compact() -> void:
 	for index in range(battle.hand.size()): parts.card(index, cards, true, portrait)
 	if battle.hand.is_empty(): cards.add_child(ui.label(_empty_hand_message(), 13, ui.MUTED))
 	_footer(true)
-	if short_landscape and (ui.card_index >= 0 or ui.resolving_turn): call_deferred("_queue_short_focus", body_scroll)
+	if (short_landscape or portrait) and (ui.card_index >= 0 or ui.resolving_turn): call_deferred("_queue_short_focus", body_scroll)
 
 func _queue_short_focus(body_scroll) -> void:
 	if not is_instance_valid(body_scroll) or not body_scroll.is_inside_tree(): return

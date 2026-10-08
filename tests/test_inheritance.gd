@@ -111,7 +111,7 @@ func test_weights(t) -> void:
 	var pool: Array = []
 	for rarity in ["common", "uncommon", "rare"]:
 		for ability in Data.ABILITIES:
-			if Data.ABILITIES[ability].get("rarity", "") == rarity:
+			if Data.ABILITIES[ability].get("rarity", "") == rarity and not Data.ABILITIES[ability].get("shared_only", false):
 				pool.append(ability)
 				break
 	t.check(pool.size() == 3, "Ability data contains a real representative of every inheritance rarity")

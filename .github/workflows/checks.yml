@@ -37,6 +37,8 @@ jobs:
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/art_smoke.gd
       - name: Verify dungeon trait choices and champion UI
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/trait_smoke.gd
+      - name: Verify spell rewards, saved traders and phone equipment controls
+        run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/loot_smoke.gd
       - name: Verify party choices and phone preparation
         run: /tmp/godot/Godot_v4.7-stable_linux.x86_64 --headless --path . --script tests/party_routes_smoke.gd
       - name: Verify fast combat and saved playback preference

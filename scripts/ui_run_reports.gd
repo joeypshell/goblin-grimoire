@@ -64,8 +64,20 @@ func _status_changed() -> void:
 func _summary(report: Dictionary, count: int) -> String:
 	if report.is_empty(): return "%d local reports retained. Start or continue a run to view its current report." % count
 	var summary: Dictionary = report.get("summary", {})
-	return "%s · %s coverage · Build %s\nSeed %s · Revision %d\n%d cards played · %d turns ended · %d unused energy\n%d raids won · %d breaches · %d meals · %d evolutions\n%d local reports retained." % [
+	var text: String = "%s · %s coverage · Build %s\nSeed %s · Revision %d\n%d cards played · %d turns ended · %d unused energy\n%d raids won · %d breaches · %d meals · %d evolutions\n%d local reports retained." % [
 		str(report.get("status", "active")).capitalize(), str(report.get("coverage", "partial")), report.get("build", "unknown"),
 		report.get("seed", "unknown"), report.get("revision", 0), summary.get("cards_played", 0), summary.get("turns_ended", 0),
 		summary.get("unused_energy", 0), summary.get("raids_won", 0), summary.get("breaches", 0), summary.get("bodies_claimed", 0),
 		summary.get("evolutions", 0), count]
+	var current: Dictionary = summary.get("current", {})
+	if current.has("gold"):
+		text += "\nGold %d" % int(current["gold"])
+		var counts: Array = []
+		for field in ["spells_chosen", "spells_purchased"]:
+			if summary.has(field): counts.append("%d spells %s" % [int(summary[field]), "chosen" if field == "spells_chosen" else "bought"])
+		if not counts.is_empty(): text += " · " + " · ".join(counts)
+	if current.get("dungeon_spells") is Array:
+		var names: Array = []
+		for id in current["dungeon_spells"]: names.append(ui.ability_name(str(id)))
+		text += "\nEquipped dungeon spells: " + ", ".join(names)
+	return text

@@ -6,7 +6,7 @@ const MAX_EVENTS = 2000
 const MAX_REPORTS = 10
 const MAX_BYTES = 384 * 1024
 const MAX_ATTEMPTS = 100
-const BUILD = "0.15.0"
+const BUILD = "0.16.0"
 var reports: Array = []
 
 static func utc_now() -> String:
@@ -80,6 +80,10 @@ static func view(run: Dictionary) -> Dictionary:
 	if run.has("core"): result["core"] = run["core"]
 	if run.has("loss_rule"): result["loss_rule"] = run["loss_rule"]
 	if run.get("first_trait_offer") is Array: result["first_trait_offer"] = run["first_trait_offer"].duplicate()
+	# New reward observations are absent from legacy views rather than invented.
+	if run.has("loot_version"):
+		for key in ["loot_version", "gold", "dungeon_spells", "spell_library", "spell_offer", "spell_history", "trader_stock", "trader_raid", "trader_visited_raids"]:
+			if run.has(key): result[key] = run[key].duplicate(true) if run[key] is Array or run[key] is Dictionary else run[key]
 	return result
 
 static func deck_entry(ability: String, owner: String) -> Dictionary:
@@ -92,7 +96,7 @@ static func configured_deck(run: Dictionary) -> Array:
 		var signature: String = Data.FORMS.get(actor.get("form", ""), {}).get("signature", "")
 		for ability in [signature] + actor.get("selected", []):
 			if not str(ability).is_empty(): result.append(deck_entry(ability, actor["id"]))
-	for ability in ["rally", "core_pulse", "snare_dungeon"]: result.append(deck_entry(ability, ""))
+	for ability in run.get("dungeon_spells", ["rally", "core_pulse", "snare_dungeon"]): result.append(deck_entry(ability, ""))
 	return result
 
 static func compact_battle(snapshot: Dictionary, include_deck: bool = false) -> Dictionary:
@@ -102,6 +106,7 @@ static func compact_battle(snapshot: Dictionary, include_deck: bool = false) -> 
 		"hand": snapshot.get("hand", []).duplicate(true), "draw_count": snapshot.get("draw_pile", []).size(),
 		"discard_count": snapshot.get("discard", []).size(), "intents": snapshot.get("intents", []).duplicate(true),
 		"traits": snapshot.get("traits", []).duplicate(), "trait_state": snapshot.get("trait_state", {}).duplicate(true)}
+	if snapshot.get("dungeon_state") is Dictionary: result["dungeon_state"] = snapshot["dungeon_state"].duplicate(true)
 	if include_deck:
 		result["deck"] = []
 		for card in snapshot.get("hand", []) + snapshot.get("draw_pile", []) + snapshot.get("discard", []):

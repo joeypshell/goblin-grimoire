@@ -6,7 +6,11 @@ const SHORT = {
 	"venom_nest": "Poisoned KO spreads 2 Poison",
 	"spiteful_shields": "Block absorbs a hit: retaliate 3",
 	"pack_instinct": "3 different owners: +1 energy, draw 1",
-	"war_drums": "Protect a teammate: +1 energy, draw 1"
+	"war_drums": "Protect a teammate: +1 energy, draw 1",
+	"blood_cauldron": "First card healing a wounded ally: draw 1",
+	"wildfire": "First shared area hit: +1 Burn to survivors",
+	"lingering_wards": "Keep up to 3 Block into next turn",
+	"spellweaver": "First shared 2+ energy spell: refund 1"
 }
 var ui
 
@@ -37,7 +41,17 @@ func render() -> void:
 	return_guidance.name = "TraitReturnGuidance"
 	page.add_child(return_guidance)
 	summary(page, false)
-	var choices = VBoxContainer.new() if compact else HBoxContainer.new()
+	var choices: Container
+	if compact:
+		choices = VBoxContainer.new()
+	elif offered.size() > 3:
+		var grid = GridContainer.new()
+		grid.columns = 3 if ui.content_width() >= 1100 else 2
+		grid.add_theme_constant_override("h_separation", 12)
+		grid.add_theme_constant_override("v_separation", 12)
+		choices = grid
+	else:
+		choices = HBoxContainer.new()
 	choices.add_theme_constant_override("separation", 12)
 	page.add_child(choices)
 	for id in offered:
@@ -83,6 +97,9 @@ func combat_summary(battle) -> String:
 			names.append("Pack 3/3 used" if battle.trait_state.get("pack_triggered", false) else "Pack %d/3" % battle.trait_state.get("owners", []).size())
 		elif id == "war_drums":
 			names.append("War Drums used" if battle.trait_state.get("war_drums_triggered", false) else "War Drums ready")
+		elif id in ["blood_cauldron", "wildfire", "spellweaver"]:
+			names.append(Traits.DEFINITIONS[id]["name"] + (" used" if battle.trait_state.get(id + "_triggered", false) else " ready"))
+		elif id == "lingering_wards": names.append("Wards keep up to 3 Block")
 		else: names.append(Traits.DEFINITIONS[id]["name"])
 	return " · ".join(names)
 
@@ -121,7 +138,25 @@ func compatibility(id: String) -> String:
 		return "READY NOW: %s can protect a teammate to gain 1 energy and draw 1 card. Try Guard on another monster, then use the extra card this turn." % ", ".join(protectors)
 	if id == "pack_instinct":
 		return "CURRENT DECK: %d/3 monsters have a 1-energy card equipped%s." % [affordable.size(), " / " + ", ".join(affordable) if not affordable.is_empty() else ""]
-	cards.append_array(["rally", "core_pulse", "snare_dungeon"])
+	var shared: Array = ui.state.dungeon_spell_loadout()
+	cards.append_array(shared)
+	if id in ["blood_cauldron", "wildfire", "lingering_wards", "spellweaver"]:
+		var ready: Array = []
+		for ability_id in (shared if id in ["wildfire", "spellweaver"] else cards):
+			var ability: Dictionary = Data.ABILITIES[ability_id]
+			var qualifies: bool = id == "spellweaver" and int(ability["cost"]) >= 2
+			for effect in ability["effects"]:
+				if id == "blood_cauldron" and effect["kind"] in ["heal", "heal_on_kill"]: qualifies = true
+				if id == "wildfire" and ability["target"] == "all_enemies" and effect["kind"] == "damage": qualifies = true
+				if id == "lingering_wards" and effect["kind"] == "block": qualifies = true
+			if qualifies and not ready.has(ability["name"]): ready.append(ability["name"])
+		var rule: String = {
+			"blood_cauldron": "The first card actually healing a wounded living monster draws 1, once per turn. Regen ticks do not trigger it.",
+			"wildfire": "The first shared area attack that costs surviving foes HP adds 1 Burn to those survivors, once per turn.",
+			"lingering_wards": "Each living monster keeps up to 3 Block when the next player turn starts.",
+			"spellweaver": "The first accepted shared spell printed at 2+ energy refunds 1, once per turn. Monster cards do not trigger it."
+		}[id]
+		return ("READY NOW: " + ", ".join(ready) + ". " if not ready.is_empty() else "NEXT DECK: Equip a qualifying card from skills or dungeon spells. ") + rule
 	var count: int = 0
 	var names: Array = []
 	for ability_id in cards:
@@ -138,6 +173,9 @@ func compatibility(id: String) -> String:
 					if effect.get("status", "") != "poison": continue
 					if not known.has(ability_id): known[ability_id] = []
 					if not known[ability_id].has(monster["name"]): known[ability_id].append(monster["name"])
+		for ability_id in ui.state.run.get("spell_library", []):
+			for effect in Data.ABILITIES.get(ability_id, {}).get("effects", []):
+				if effect.get("status", "") == "poison": known[ability_id] = ["Dungeon shared"]
 		var learned: Array = []
 		for ability_id in known:
 			learned.append(Data.ABILITIES[ability_id]["name"] + " (" + ", ".join(known[ability_id]) + ")")

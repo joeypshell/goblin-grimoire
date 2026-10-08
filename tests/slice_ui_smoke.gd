@@ -3,6 +3,8 @@ extends "res://tests/tactical_ui_smoke.gd"
 # Exercise the production choice, target and result controls on isolated profiles.
 const Feedback = preload("res://scripts/combat_feedback.gd")
 const OfferChecks = preload("res://tests/trait_offer_ui_checks.gd")
+const LootChecks = preload("res://tests/loot_ui_checks.gd")
+const Traits = preload("res://scripts/dungeon_traits.gd")
 
 func _run() -> void:
 	profile_root = "user://verification/slice_ui_%d_%d/" % [int(Time.get_unix_time_from_system()), Time.get_ticks_usec()]
@@ -59,6 +61,7 @@ func test_trait_choices() -> void:
 	await settle()
 	check(game.run["traits"] == ["war_drums"] and game.run["phase"] == "feeding", "Production trait press activates the actually offered War Drums before the meal")
 	check(named(ui, "TraitSummary").text.contains("War Drums") and named(ui, "TraitMilestone") == null and not visible_text().contains("choose your first dungeon trait"), "Feeding displays the chosen build and never promises its first trait again")
+	check(LootChecks.skip_draft(self, game), "Trait slice explicitly skips its actual spell draft")
 	for index in range(game.run["rewards"].size()): game.skip_body(index)
 	check(game.finish_feeding() and game.run["phase"] == "result", "Meal completion reaches recovery without awarding another first trait")
 	game.continue_after_result()
@@ -71,7 +74,7 @@ func test_trait_choices() -> void:
 	check(game._open_trait_reward("prep"), "F champion reward opens the second actual trait choice")
 	ui.refresh()
 	await settle()
-	check(game.trait_choices().size() == 3 and named(ui, "TraitSelect_war_drums") == null and visible_text().contains("first trait stays active"), "Second reward keeps the active trait and explains its three remaining alternatives")
+	check(game.trait_choices().size() == Traits.DEFINITIONS.size() - 1 and named(ui, "TraitSelect_war_drums") == null and visible_text().contains("first trait stays active"), "Second reward keeps the active trait and explains every remaining alternative")
 	await capture("slice_02_second_trait_choices")
 
 func test_encounter_rules() -> void:

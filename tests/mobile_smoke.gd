@@ -127,6 +127,12 @@ func exercise_size(pixels: Vector2i) -> void:
 	await capture("06_after_card")
 	await test_warning_layout()
 	await fixture_feeding()
+	var spell_skip = TurnChecks.named(ui, "SkipSpellReward")
+	check(spell_skip is Button, "Mobile feeding fixture exposes its separate actual spell draft")
+	if spell_skip != null:
+		await ensure_reachable(spell_skip, "Skip focused spell draft")
+		spell_skip.pressed.emit()
+		await settle()
 	var reveal_info: Dictionary = await FeedingChecks.new().exercise(self)
 	ui.rewards_screen.reveal(reveal_info)
 	await capture("08_reveal")
@@ -522,6 +528,8 @@ func native_trait_offers(pixels: Vector2i) -> void:
 		check(game.run["rewards"] == bodies_before and game.run["raid"] == 0 and game.run["recovered_id"] == recovery_before, "Real trait touch leaves all corpses, raid and recovery untouched")
 		var milestone = TurnChecks.named(ui, "TraitMilestone")
 		check(milestone == null and TurnChecks.named(ui, "TraitSummary").text.contains(chosen.replace("_", " ").capitalize()) and not TurnChecks.visible_text(ui).contains("choose your first dungeon trait"), "After either real choice, feeding shows the chosen trait without stale or duplicate reward prompts")
+		await tap_native(TurnChecks.named(ui, "SkipSpellReward"))
+		check(game.spell_reward_choices().is_empty() and game.run["spell_offer"]["skipped"], "Native trait-focused run explicitly skips the separate saved spell draft")
 		# Claim every actual body through its recipient and Devour controls. The
 		# inherited skill remains a real weighted roll; trait selection never picks it.
 		for body_index in range(game.run["rewards"].size()):

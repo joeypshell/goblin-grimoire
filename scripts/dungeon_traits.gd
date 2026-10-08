@@ -18,6 +18,26 @@ const DEFINITIONS = {
 		"description": "Play cards from three different monsters in one turn to gain 1 energy and draw 1 card. Once per turn; dungeon cards do not count.",
 		"hint": "Keep the whole pack alive and equip affordable cards across all three monsters."
 	},
+	"blood_cauldron": {
+		"name": "Blood Cauldron",
+		"description": "The first card each turn that actually restores HP to a wounded living monster draws 1 card. Regeneration at turn end does not count.",
+		"hint": "Use a healing card after taking damage. Soul Harvest's direct kills can heal too."
+	},
+	"wildfire": {
+		"name": "Wildfire",
+		"description": "Once per turn, a shared area attack that costs surviving foes HP adds 1 Burn to each of those damaged survivors. Fully prevented hits do not count.",
+		"hint": "Look for Arcane Sweep or Ember Storm. Owned area attacks do not trigger this trait."
+	},
+	"lingering_wards": {
+		"name": "Lingering Wards",
+		"description": "At the start of your next turn, each living monster keeps up to 3 of its remaining Block instead of losing it all.",
+		"hint": "Block that survives the announced attacks can protect your next turn. New Block still adds normally."
+	},
+	"spellweaver": {
+		"name": "Spellweaver",
+		"description": "The first shared dungeon card each turn with a printed cost of 2 or more refunds 1 energy after it is played. Monster-owned cards do not count.",
+		"hint": "Look for strong 2-energy spells. You still need their full cost before playing them."
+	},
 	"war_drums": {
 		"name": "War Drums",
 		"description": "The first monster-owned card each turn that gives Block to another living monster grants 1 energy and draws 1 card. Once per turn; protecting yourself and shared dungeon cards do not count.",
